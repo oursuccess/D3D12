@@ -152,7 +152,7 @@ void JeBoxApp::Update(const GameTimer& gt)
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
 	XMMATRIX worldViewProj = world * view * proj;
 
-	//update the constant buffer witrh the latest worldViewProj matrix
+	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 	mObjectCB->CopyData(0, objConstants);
@@ -161,7 +161,7 @@ void JeBoxApp::Update(const GameTimer& gt)
 void JeBoxApp::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
-	//we can only reseet when the associated command list have finished execution on the GPU
+	//we can only reset when the associated command list have finished execution on the GPU
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
 	//a command list can be reset after it has beend added to the command queue via ExecuteCommandList
@@ -171,8 +171,9 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	//indicate a state transition on the resource usage
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	auto present2TargetTransition = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	mCommandList->ResourceBarrier(1, &present2TargetTransition);
 
 	//clear the back buffer and depth buffer
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
@@ -184,8 +185,10 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
-	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
+	auto vertexBufferView = mBoxGeo->VertexBufferView();
+	mCommandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+	auto indexBufferView = mBoxGeo->IndexBufferView();
+	mCommandList->IASetIndexBuffer(&indexBufferView);
 	mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
@@ -193,8 +196,9 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
 
 	//indicate a state transition on the resource usage
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	auto target2PresentTransition = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	mCommandList->ResourceBarrier(1, &target2PresentTransition);
 
 	//done recording commands
 	ThrowIfFailed(mCommandList->Close());
@@ -377,7 +381,7 @@ void JeBoxApp::BuildBoxGeometry()
 
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
 
-	mBoxGeo->IndexBufferCPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
+	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
 
 	mBoxGeo->VertexByteStride = sizeof(Vertex);
 	mBoxGeo->VertexBufferByteSize = vbByteSize;
