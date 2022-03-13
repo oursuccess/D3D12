@@ -115,10 +115,10 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
+      <ConformanceMode>false</ConformanceMode>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
@@ -139,7 +139,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\d3d12book-master\Common\d3dApp.cpp" />
+    <ClCompile Include="..\d3d12book-master\Common\d3dUtil.cpp" />
+    <ClCompile Include="..\d3d12book-master\Common\GameTimer.cpp" />
+    <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp" />
     <ClCompile Include="JeBoxApp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\d3d12book-master\Common\d3dApp.h" />
+    <ClInclude Include="..\d3d12book-master\Common\d3dUtil.h" />
+    <ClInclude Include="..\d3d12book-master\Common\GameTimer.h" />
+    <ClInclude Include="..\d3d12book-master\Common\MathHelper.h" />
+    <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
