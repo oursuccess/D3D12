@@ -167,17 +167,20 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	//a command list can be reset after it has beend added to the command queue via ExecuteCommandList
 	//reusing the command list reuses memory
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	//indicate a state transition on the resource usage
-	auto present2TargetTransition = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	mCommandList->ResourceBarrier(1, &present2TargetTransition);
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	//clear the back buffer and depth buffer
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	//specify the buffers we are going to render to
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
 	//specify the buffers we are going to render to
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
@@ -185,10 +188,8 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	auto vertexBufferView = mBoxGeo->VertexBufferView();
-	mCommandList->IASetVertexBuffers(0, 1, &vertexBufferView);
-	auto indexBufferView = mBoxGeo->IndexBufferView();
-	mCommandList->IASetIndexBuffer(&indexBufferView);
+	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
 	mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
@@ -197,8 +198,7 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	//indicate a state transition on the resource usage
 
-	auto target2PresentTransition = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	mCommandList->ResourceBarrier(1, &target2PresentTransition);
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	//done recording commands
 	ThrowIfFailed(mCommandList->Close());
@@ -341,7 +341,7 @@ void JeBoxApp::BuildBoxGeometry()
 		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
 		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
 		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
 		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})
 	};
 
