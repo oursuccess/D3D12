@@ -1,6 +1,8 @@
 //JeBoxApp.cpp by Je 2022
 //Try to draw a box in DX12
 
+/*
+
 #include "../d3d12book-master/Common/d3dApp.h"
 #include "../d3d12book-master/Common/MathHelper.h"
 #include "../d3d12book-master/Common/UploadBuffer.h"
@@ -417,3 +419,5 @@ void JeBoxApp::BuildPSO()
 	psoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
+
+*/

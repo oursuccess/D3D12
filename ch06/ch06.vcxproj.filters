@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\Quiz">
+      <UniqueIdentifier>{509f9633-a829-4322-b14d-c55f80d417d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Quiz">
+      <UniqueIdentifier>{d41b5124-444d-427e-9b01-7dfd0d02cd87}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="JeBoxApp.cpp">
@@ -30,6 +36,12 @@
     <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="quiz\Quiz01.cpp">
+      <Filter>Source Files\Quiz</Filter>
+    </ClCompile>
+    <ClCompile Include="quiz\Quiz02.cpp">
+      <Filter>Source Files\Quiz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h">
@@ -46,6 +58,12 @@
     </ClInclude>
     <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QuizCommonHeader.h">
+      <Filter>Header Files\Quiz</Filter>
+    </ClInclude>
+    <ClInclude Include="quiz\Quiz02Geometry.h">
+      <Filter>Source Files\Quiz</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

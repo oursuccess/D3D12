@@ -144,6 +144,8 @@
     <ClCompile Include="..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp" />
     <ClCompile Include="JeBoxApp.cpp" />
+    <ClCompile Include="quiz\Quiz01.cpp" />
+    <ClCompile Include="quiz\Quiz02.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h" />
@@ -151,6 +153,8 @@
     <ClInclude Include="..\d3d12book-master\Common\GameTimer.h" />
     <ClInclude Include="..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h" />
+    <ClInclude Include="..\QuizCommonHeader.h" />
+    <ClInclude Include="quiz\Quiz02Geometry.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

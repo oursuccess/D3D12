@@ -5,8 +5,6 @@
 #include "../../QuizCommonHeader.h"
 #include "Quiz02Geometry.h"
 
-using ch06::MeshGeometry;
-
 /*
 struct Vertex
 {
@@ -59,7 +57,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 
 	std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
-	std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
+	std::unique_ptr<ch06::MeshGeometry> mBoxGeo = nullptr;
 
 	ComPtr<ID3DBlob> mvsByteCode = nullptr;
 	ComPtr<ID3DBlob> mpsByteCode = nullptr;
@@ -196,7 +194,10 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+	//mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->PositionBufferView());
+	mCommandList->IASetVertexBuffers(1, 1, &mBoxGeo->ColorBufferView());
+
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
 	mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -408,22 +409,33 @@ void JeBoxApp::BuildBoxGeometry()
 	const UINT vbByteSize = pbByteSize + cbByteSize;
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
-	mBoxGeo = std::make_unique<MeshGeometry>();
+	mBoxGeo = std::make_unique<ch06::MeshGeometry>();
 	mBoxGeo->Name = "boxGeo";
 
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
+	//ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
 	//CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-	CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), poss.data(), pbByteSize);
+	//CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), poss.data(), pbByteSize);
+	ThrowIfFailed(D3DCreateBlob(pbByteSize, &mBoxGeo->PositionBufferCPU));
+	CopyMemory(mBoxGeo->PositionBufferCPU->GetBufferPointer(), poss.data(), pbByteSize);
+	ThrowIfFailed(D3DCreateBlob(cbByteSize, &mBoxGeo->ColorBufferCPU));
+	CopyMemory(mBoxGeo->ColorBufferCPU->GetBufferPointer(), colors.data(), cbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
+	//mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
+	mBoxGeo->PositionBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), poss.data(), pbByteSize, mBoxGeo->PositionBufferUploader);
+	mBoxGeo->ColorBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), colors.data(), cbByteSize, mBoxGeo->ColorBufferUploader);
 
 	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
 
-	mBoxGeo->VertexByteStride = sizeof(Vertex);
-	mBoxGeo->VertexBufferByteSize = vbByteSize;
+	//mBoxGeo->VertexByteStride = sizeof(Vertex);
+	//mBoxGeo->VertexBufferByteSize = vbByteSize;
+	mBoxGeo->PositionByteStride = sizeof(VPosData);
+	mBoxGeo->PositionBufferByteSize = pbByteSize;
+	mBoxGeo->ColorByteStride = sizeof(VColorData);
+	mBoxGeo->ColorBufferByteSize = cbByteSize;
+
 	mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
