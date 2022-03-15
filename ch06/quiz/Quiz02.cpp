@@ -26,13 +26,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class JeBoxApp : public D3DApp
+class Quiz02 : public D3DApp
 {
 public:
-	JeBoxApp(HINSTANCE hInstance);
-	JeBoxApp(const JeBoxApp& rhs) = delete;
-	JeBoxApp& operator=(const JeBoxApp& rhs) = delete;
-	~JeBoxApp();
+	Quiz02(HINSTANCE hInstance);
+	Quiz02(const Quiz02& rhs) = delete;
+	Quiz02& operator=(const Quiz02& rhs) = delete;
+	~Quiz02();
 
 	virtual bool Initialize() override;
 
@@ -77,6 +77,7 @@ private:
 	POINT mLastMousePos;
 };
 
+/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -86,7 +87,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		JeBoxApp theApp(hInstance);
+		Quiz02 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -96,16 +97,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
+*/
 
-JeBoxApp::JeBoxApp(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz02::Quiz02(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-JeBoxApp::~JeBoxApp()
+Quiz02::~Quiz02()
 {
 }
 
-bool JeBoxApp::Initialize()
+bool Quiz02::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -130,7 +132,7 @@ bool JeBoxApp::Initialize()
 	return true;
 }
 
-void JeBoxApp::OnResize()
+void Quiz02::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -139,7 +141,7 @@ void JeBoxApp::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void JeBoxApp::Update(const GameTimer& gt)
+void Quiz02::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -164,7 +166,7 @@ void JeBoxApp::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void JeBoxApp::Draw(const GameTimer& gt)
+void Quiz02::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -224,7 +226,7 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz02::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -232,12 +234,12 @@ void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void JeBoxApp::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz02::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz02::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -270,7 +272,7 @@ void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void JeBoxApp::BuildDescriptorHeaps()
+void Quiz02::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -281,7 +283,7 @@ void JeBoxApp::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void JeBoxApp::BuildConstantBuffers()
+void Quiz02::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -299,7 +301,7 @@ void JeBoxApp::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void JeBoxApp::BuildRootSignature()
+void Quiz02::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -326,7 +328,7 @@ void JeBoxApp::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void JeBoxApp::BuildShadersAndInputLayout()
+void Quiz02::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -344,7 +346,7 @@ void JeBoxApp::BuildShadersAndInputLayout()
 	};
 }
 
-void JeBoxApp::BuildBoxGeometry()
+void Quiz02::BuildBoxGeometry()
 {
 	/*
 	std::array<Vertex, 8> vertices =
@@ -447,7 +449,7 @@ void JeBoxApp::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void JeBoxApp::BuildPSO()
+void Quiz02::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
