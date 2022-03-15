@@ -144,6 +144,8 @@
     <ClCompile Include="..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp" />
     <ClCompile Include="JeBoxApp.cpp" />
+    <ClCompile Include="Quiz03.cpp" />
+    <ClCompile Include="Quiz03PointList.cpp" />
     <ClCompile Include="quiz\Quiz01.cpp" />
     <ClCompile Include="quiz\Quiz02.cpp" />
   </ItemGroup>

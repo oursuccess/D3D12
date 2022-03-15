@@ -1,13 +1,5 @@
-//JeBoxApp.cpp by Je 2022
-//Try to draw a box in DX12
+#include "../QuizCommonHeader.h"
 
-#include "../d3d12book-master/Common/d3dApp.h"
-#include "../d3d12book-master/Common/MathHelper.h"
-#include "../d3d12book-master/Common/UploadBuffer.h"
-
-using Microsoft::WRL::ComPtr;
-using namespace DirectX;
-using namespace DirectX::PackedVector;
 
 struct Vertex
 {
@@ -20,13 +12,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class JeBoxApp : public D3DApp
+class Quiz03 : public D3DApp
 {
 public:
-	JeBoxApp(HINSTANCE hInstance);
-	JeBoxApp(const JeBoxApp& rhs) = delete;
-	JeBoxApp& operator=(const JeBoxApp& rhs) = delete;
-	~JeBoxApp();
+	Quiz03(HINSTANCE hInstance);
+	Quiz03(const Quiz03& rhs) = delete;
+	Quiz03& operator=(const Quiz03& rhs) = delete;
+	~Quiz03();
 
 	virtual bool Initialize() override;
 
@@ -71,7 +63,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -81,7 +72,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		JeBoxApp theApp(hInstance);
+		Quiz03 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -91,17 +82,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-JeBoxApp::JeBoxApp(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz03::Quiz03(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-JeBoxApp::~JeBoxApp()
+Quiz03::~Quiz03()
 {
 }
 
-bool JeBoxApp::Initialize()
+bool Quiz03::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -126,7 +116,7 @@ bool JeBoxApp::Initialize()
 	return true;
 }
 
-void JeBoxApp::OnResize()
+void Quiz03::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -135,7 +125,7 @@ void JeBoxApp::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void JeBoxApp::Update(const GameTimer& gt)
+void Quiz03::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -160,7 +150,7 @@ void JeBoxApp::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void JeBoxApp::Draw(const GameTimer& gt)
+void Quiz03::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -198,6 +188,22 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
 
+	//Add here:
+	mCommandList->DrawInstanced(mBoxGeo->DrawArgs["pointList"].IndexCount, 1,
+		mBoxGeo->DrawArgs["pointList"].BaseVertexLocation, 0);
+
+	mCommandList->DrawInstanced(mBoxGeo->DrawArgs["lineStrip"].IndexCount, 1,
+		mBoxGeo->DrawArgs["lineStrip"].BaseVertexLocation, 0);
+
+	mCommandList->DrawInstanced(mBoxGeo->DrawArgs["lineList"].IndexCount, 1,
+		mBoxGeo->DrawArgs["lineList"].BaseVertexLocation, 0);
+
+	mCommandList->DrawInstanced(mBoxGeo->DrawArgs["triangleList"].IndexCount, 1,
+		mBoxGeo->DrawArgs["triangleList"].BaseVertexLocation, 0);
+
+	mCommandList->DrawInstanced(mBoxGeo->DrawArgs["triangleStrip"].IndexCount, 1,
+		mBoxGeo->DrawArgs["triangleStrip"].BaseVertexLocation, 0);
+
 	//indicate a state transition on the resource usage
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -217,7 +223,7 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -225,12 +231,12 @@ void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void JeBoxApp::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -263,7 +269,7 @@ void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void JeBoxApp::BuildDescriptorHeaps()
+void Quiz03::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -274,7 +280,7 @@ void JeBoxApp::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void JeBoxApp::BuildConstantBuffers()
+void Quiz03::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -292,7 +298,7 @@ void JeBoxApp::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void JeBoxApp::BuildRootSignature()
+void Quiz03::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -319,7 +325,7 @@ void JeBoxApp::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void JeBoxApp::BuildShadersAndInputLayout()
+void Quiz03::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -333,8 +339,9 @@ void JeBoxApp::BuildShadersAndInputLayout()
 	};
 }
 
-void JeBoxApp::BuildBoxGeometry()
+void Quiz03::BuildBoxGeometry()
 {
+	/*
 	std::array<Vertex, 8> vertices =
 	{
 		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
@@ -346,6 +353,67 @@ void JeBoxApp::BuildBoxGeometry()
 		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
 		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})
 	};
+	*/
+
+	std::array<Vertex, 49> vertices =
+    {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) })
+        ,//add end
+        //a point list
+        Vertex({ XMFLOAT3(-4.0f, -4.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3(-3.0f,  0.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3(-2.0f, -3.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3( 0.0f,  0.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3( 1.0f, -2.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3( 3.0f,  0.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3( 5.0f, -2.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3( 7.0f,  1.0f, 2.0f), XMFLOAT4(Colors::Red) }),
+        //a point strip
+        Vertex({ XMFLOAT3(-4.0f, -4.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(-3.0f,  0.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(-2.0f, -3.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(0.0f,  0.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(1.0f, -2.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(3.0f,  0.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(5.0f, -2.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(7.0f,  1.0f, 3.0f), XMFLOAT4(Colors::Green) }),
+        //a line list
+        Vertex({ XMFLOAT3(-4.0f, -4.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(-3.0f,  0.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(-2.0f, -3.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(0.0f,  0.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(1.0f, -2.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(3.0f,  0.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(5.0f, -2.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(7.0f,  1.0f, 4.0f), XMFLOAT4(Colors::Blue) }),
+        //a triangle strip
+        Vertex({ XMFLOAT3(-4.0f, -4.0f, 5.0f), XMFLOAT4(Colors::White) }),
+        Vertex({ XMFLOAT3(-3.0f,  0.0f, 5.0f), XMFLOAT4(Colors::Black) }),
+        Vertex({ XMFLOAT3(-2.0f, -3.0f, 5.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3(0.0f,   0.0f, 5.0f), XMFLOAT4(Colors::Green) }),
+        Vertex({ XMFLOAT3(1.0f,  -2.0f, 5.0f), XMFLOAT4(Colors::Blue) }),
+        Vertex({ XMFLOAT3(3.0f,   0.0f, 5.0f), XMFLOAT4(Colors::Yellow) }),
+        Vertex({ XMFLOAT3(5.0f,  -2.0f, 5.0f), XMFLOAT4(Colors::Cyan) }),
+        Vertex({ XMFLOAT3(7.0f,   1.0f, 5.0f), XMFLOAT4(Colors::Magenta) }),
+        //a point list
+        Vertex({ XMFLOAT3(-4.0f, -4.0f, 6.0f), XMFLOAT4(Colors::White) }),
+        Vertex({ XMFLOAT3(-3.0f,  0.0f, 6.0f), XMFLOAT4(Colors::White) }),
+        Vertex({ XMFLOAT3(-2.0f, -3.0f, 6.0f), XMFLOAT4(Colors::White) }),
+ 
+        Vertex({ XMFLOAT3(0.0f,   0.0f, 6.0f), XMFLOAT4(Colors::Yellow) }),
+        Vertex({ XMFLOAT3(3.0f,   0.0f, 6.0f), XMFLOAT4(Colors::Yellow) }),
+        Vertex({ XMFLOAT3(1.0f,  -2.0f, 6.0f), XMFLOAT4(Colors::Yellow) }),
+        Vertex({ XMFLOAT3(5.0f,  -2.0f, 6.0f), XMFLOAT4(Colors::Magenta) }),
+        Vertex({ XMFLOAT3(7.0f,   1.0f, 6.0f), XMFLOAT4(Colors::Magenta) }),
+        Vertex({ XMFLOAT3(8.0f,   0.0f, 6.0f), XMFLOAT4(Colors::Magenta) })
+    };
 
 	std::array<std::uint16_t, 36> indices =
 	{
@@ -390,15 +458,47 @@ void JeBoxApp::BuildBoxGeometry()
 	mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
+	//triangle
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
+	//point list
+	//attention: we use IndexCount to store VertexCount!!!
+	SubmeshGeometry submeshPointList;
+	submeshPointList.IndexCount = 8;
+	submeshPointList.BaseVertexLocation = 8;
+
+	//line strip
+	SubmeshGeometry submeshLineStrip;
+	submeshLineStrip.IndexCount = 8;
+	submeshLineStrip.BaseVertexLocation = 16;
+
+	//line list
+	SubmeshGeometry submeshLineList;
+	submeshLineList.IndexCount = 8;
+	submeshLineList.BaseVertexLocation = 24;
+
+	//triangle strip
+	SubmeshGeometry submeshTriangleStrip;
+	submeshTriangleStrip.IndexCount = 8;
+	submeshTriangleStrip.BaseVertexLocation = 32;
+
+	//triangle list
+	SubmeshGeometry submeshTriangleList;
+	submeshTriangleList.IndexCount = 9;
+	submeshTriangleList.BaseVertexLocation = 40;
+
 	mBoxGeo->DrawArgs["box"] = submesh;
+
+	mBoxGeo->DrawArgs["pointList"] = submeshPointList;
+	mBoxGeo->DrawArgs["lineStrip"] = submeshLineStrip;
+	mBoxGeo->DrawArgs["triangleStrip"] = submeshTriangleStrip;
+	mBoxGeo->DrawArgs["triangleList"] = submeshTriangleList;
 }
 
-void JeBoxApp::BuildPSO()
+void Quiz03::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));

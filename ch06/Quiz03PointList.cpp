@@ -1,13 +1,6 @@
-//JeBoxApp.cpp by Je 2022
-//Try to draw a box in DX12
+//Quiz03.01 PointList
 
-#include "../d3d12book-master/Common/d3dApp.h"
-#include "../d3d12book-master/Common/MathHelper.h"
-#include "../d3d12book-master/Common/UploadBuffer.h"
-
-using Microsoft::WRL::ComPtr;
-using namespace DirectX;
-using namespace DirectX::PackedVector;
+#include "../QuizCommonHeader.h"
 
 struct Vertex
 {
@@ -20,13 +13,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class JeBoxApp : public D3DApp
+class Quiz03PointList : public D3DApp
 {
 public:
-	JeBoxApp(HINSTANCE hInstance);
-	JeBoxApp(const JeBoxApp& rhs) = delete;
-	JeBoxApp& operator=(const JeBoxApp& rhs) = delete;
-	~JeBoxApp();
+	Quiz03PointList(HINSTANCE hInstance);
+	Quiz03PointList(const Quiz03PointList& rhs) = delete;
+	Quiz03PointList& operator=(const Quiz03PointList& rhs) = delete;
+	~Quiz03PointList();
 
 	virtual bool Initialize() override;
 
@@ -81,7 +74,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		JeBoxApp theApp(hInstance);
+		Quiz03PointList theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -93,15 +86,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 }
 */
 
-JeBoxApp::JeBoxApp(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz03PointList::Quiz03PointList(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-JeBoxApp::~JeBoxApp()
+Quiz03PointList::~Quiz03PointList()
 {
 }
 
-bool JeBoxApp::Initialize()
+bool Quiz03PointList::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -126,7 +119,7 @@ bool JeBoxApp::Initialize()
 	return true;
 }
 
-void JeBoxApp::OnResize()
+void Quiz03PointList::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -135,7 +128,7 @@ void JeBoxApp::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void JeBoxApp::Update(const GameTimer& gt)
+void Quiz03PointList::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -160,7 +153,7 @@ void JeBoxApp::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void JeBoxApp::Draw(const GameTimer& gt)
+void Quiz03PointList::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -192,7 +185,8 @@ void JeBoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
-	mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
@@ -217,7 +211,7 @@ void JeBoxApp::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz03PointList::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -225,12 +219,12 @@ void JeBoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void JeBoxApp::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz03PointList::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz03PointList::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -263,7 +257,7 @@ void JeBoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void JeBoxApp::BuildDescriptorHeaps()
+void Quiz03PointList::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -274,7 +268,7 @@ void JeBoxApp::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void JeBoxApp::BuildConstantBuffers()
+void Quiz03PointList::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -292,7 +286,7 @@ void JeBoxApp::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void JeBoxApp::BuildRootSignature()
+void Quiz03PointList::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -319,7 +313,7 @@ void JeBoxApp::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void JeBoxApp::BuildShadersAndInputLayout()
+void Quiz03PointList::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -333,7 +327,7 @@ void JeBoxApp::BuildShadersAndInputLayout()
 	};
 }
 
-void JeBoxApp::BuildBoxGeometry()
+void Quiz03PointList::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
@@ -398,7 +392,7 @@ void JeBoxApp::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void JeBoxApp::BuildPSO()
+void Quiz03PointList::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -411,7 +405,8 @@ void JeBoxApp::BuildPSO()
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	psoDesc.SampleMask = UINT_MAX;
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = mBackBufferFormat;
 	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
