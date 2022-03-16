@@ -64,6 +64,7 @@ private:
 	POINT mLastMousePos;
 };
 
+/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -83,6 +84,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
+*/
 
 Quiz12::Quiz12(HINSTANCE hInstance) : D3DApp(hInstance)
 {
