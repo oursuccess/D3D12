@@ -1,4 +1,4 @@
-//Quiz08
+//Quiz 09
 
 #include "../QuizCommonHeader.h"
 
@@ -13,13 +13,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class Quiz08 : public D3DApp
+class Quiz09 : public D3DApp
 {
 public:
-	Quiz08(HINSTANCE hInstance);
-	Quiz08(const Quiz08& rhs) = delete;
-	Quiz08& operator=(const Quiz08& rhs) = delete;
-	~Quiz08();
+	Quiz09(HINSTANCE hInstance);
+	Quiz09(const Quiz09& rhs) = delete;
+	Quiz09& operator=(const Quiz09& rhs) = delete;
+	~Quiz09();
 
 	virtual bool Initialize() override;
 
@@ -64,7 +64,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -74,7 +73,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try
 	{
-		Quiz08 theApp(hInstance);
+		Quiz09 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -84,17 +83,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz08::Quiz08(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz09::Quiz09(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz08::~Quiz08()
+Quiz09::~Quiz09()
 {
 }
 
-bool Quiz08::Initialize()
+bool Quiz09::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -119,7 +117,7 @@ bool Quiz08::Initialize()
 	return true;
 }
 
-void Quiz08::OnResize()
+void Quiz09::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -128,7 +126,7 @@ void Quiz08::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz08::Update(const GameTimer& gt)
+void Quiz09::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -153,7 +151,7 @@ void Quiz08::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz08::Draw(const GameTimer& gt)
+void Quiz09::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -210,7 +208,7 @@ void Quiz08::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz08::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz09::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -218,12 +216,12 @@ void Quiz08::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz08::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz09::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz08::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz09::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
@@ -256,7 +254,7 @@ void Quiz08::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void Quiz08::BuildDescriptorHeaps()
+void Quiz09::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -267,7 +265,7 @@ void Quiz08::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz08::BuildConstantBuffers()
+void Quiz09::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -285,7 +283,7 @@ void Quiz08::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz08::BuildRootSignature()
+void Quiz09::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -312,7 +310,7 @@ void Quiz08::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz08::BuildShadersAndInputLayout()
+void Quiz09::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -326,7 +324,7 @@ void Quiz08::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz08::BuildBoxGeometry()
+void Quiz09::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
@@ -391,7 +389,7 @@ void Quiz08::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz08::BuildPSO()
+void Quiz09::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -413,6 +411,8 @@ void Quiz08::BuildPSO()
 
 	CD3DX12_RASTERIZER_DESC wireFrameRasterMode(D3D12_DEFAULT);
 	wireFrameRasterMode.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	//wireFrameRasterMode.CullMode = D3D12_CULL_MODE_BACK;
+	wireFrameRasterMode.CullMode = D3D12_CULL_MODE_FRONT;
 	psoDesc.RasterizerState = wireFrameRasterMode;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
