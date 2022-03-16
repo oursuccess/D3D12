@@ -147,6 +147,8 @@
     <ClCompile Include="Quiz03.cpp" />
     <ClCompile Include="Quiz03PointList.cpp" />
     <ClCompile Include="Quiz04.cpp" />
+    <ClCompile Include="Quiz06.cpp" />
+    <ClCompile Include="Quiz07.cpp" />
     <ClCompile Include="quiz\Quiz01.cpp" />
     <ClCompile Include="quiz\Quiz02.cpp" />
   </ItemGroup>

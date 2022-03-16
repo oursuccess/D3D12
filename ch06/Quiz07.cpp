@@ -1,3 +1,4 @@
+//Quiz07
 
 #include "../QuizCommonHeader.h"
 
@@ -12,13 +13,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class Quiz04 : public D3DApp
+class Quiz07 : public D3DApp
 {
 public:
-	Quiz04(HINSTANCE hInstance);
-	Quiz04(const Quiz04& rhs) = delete;
-	Quiz04& operator=(const Quiz04& rhs) = delete;
-	~Quiz04();
+	Quiz07(HINSTANCE hInstance);
+	Quiz07(const Quiz07& rhs) = delete;
+	Quiz07& operator=(const Quiz07& rhs) = delete;
+	~Quiz07();
 
 	virtual bool Initialize() override;
 
@@ -53,7 +54,7 @@ private:
 	ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
 	XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
-	XMFLOAT4X4 mView = MathHelper::Identity4x4();
+	XMFLOAT4X4 mView = MathHelper::Identity4x4(); 
 	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
 	float mTheta = 1.5f * XM_PI;
@@ -63,7 +64,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -71,9 +71,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try
+	try 
 	{
-		Quiz04 theApp(hInstance);
+		Quiz07 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -83,17 +83,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz04::Quiz04(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz07::Quiz07(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz04::~Quiz04()
+Quiz07::~Quiz07()
 {
 }
 
-bool Quiz04::Initialize()
+bool Quiz07::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -118,7 +117,7 @@ bool Quiz04::Initialize()
 	return true;
 }
 
-void Quiz04::OnResize()
+void Quiz07::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -127,7 +126,7 @@ void Quiz04::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz04::Update(const GameTimer& gt)
+void Quiz07::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -152,7 +151,7 @@ void Quiz04::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz04::Draw(const GameTimer& gt)
+void Quiz07::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -188,7 +187,10 @@ void Quiz04::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
-	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["pyramid"].IndexCount, 1, 0, 0, 0);
+	auto submeshBox = mBoxGeo->DrawArgs["box"];
+	mCommandList->DrawIndexedInstanced(submeshBox.IndexCount, 1, submeshBox.StartIndexLocation, submeshBox.BaseVertexLocation, 0);
+	auto submeshPyramid = mBoxGeo->DrawArgs["pyramid"];
+	mCommandList->DrawIndexedInstanced(submeshPyramid.IndexCount, 1, submeshPyramid.StartIndexLocation, submeshPyramid.BaseVertexLocation, 0);
 
 	//indicate a state transition on the resource usage
 
@@ -198,7 +200,7 @@ void Quiz04::Draw(const GameTimer& gt)
 	ThrowIfFailed(mCommandList->Close());
 
 	//Add the command list to the queue for execution
-	ID3D12CommandList* cmdsList[] = { mCommandList.Get() };
+	ID3D12CommandList* cmdsList[] = { mCommandList.Get()};
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsList), cmdsList);
 
 	//swap the back and front buffers
@@ -209,7 +211,7 @@ void Quiz04::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz04::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz07::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -217,45 +219,45 @@ void Quiz04::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz04::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz07::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz04::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz07::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
-	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+    {
+        // Make each pixel correspond to a quarter of a degree.
+        float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+        float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-		// Update angles based on input to orbit camera around box.
-		mTheta += dx;
-		mPhi += dy;
+        // Update angles based on input to orbit camera around box.
+        mTheta += dx;
+        mPhi += dy;
 
-		// Restrict the angle mPhi.
-		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}
-	else if ((btnState & MK_RBUTTON) != 0)
-	{
-		// Make each pixel correspond to 0.005 unit in the scene.
-		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
-		float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
+        // Restrict the angle mPhi.
+        mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
+    }
+    else if((btnState & MK_RBUTTON) != 0)
+    {
+        // Make each pixel correspond to 0.005 unit in the scene.
+        float dx = 0.005f*static_cast<float>(x - mLastMousePos.x);
+        float dy = 0.005f*static_cast<float>(y - mLastMousePos.y);
 
-		// Update the camera radius based on input.
-		mRadius += dx - dy;
+        // Update the camera radius based on input.
+        mRadius += dx - dy;
 
-		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
-	}
+        // Restrict the radius.
+        mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
+    }
 
-	mLastMousePos.x = x;
-	mLastMousePos.y = y;
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
 
 }
 
-void Quiz04::BuildDescriptorHeaps()
+void Quiz07::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -266,7 +268,7 @@ void Quiz04::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz04::BuildConstantBuffers()
+void Quiz07::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -284,7 +286,7 @@ void Quiz04::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz04::BuildRootSignature()
+void Quiz07::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -311,7 +313,7 @@ void Quiz04::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz04::BuildShadersAndInputLayout()
+void Quiz07::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -325,23 +327,49 @@ void Quiz04::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz04::BuildBoxGeometry()
+void Quiz07::BuildBoxGeometry()
 {
-	std::array<Vertex, 8> vertices =
+	std::array<Vertex, 13> vertices =
 	{
-		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		//Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
-		//Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
 		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
-		//Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
-		//Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
+
+		//pyramid
+		Vertex({XMFLOAT3(+1.1f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+3.1f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+1.1f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+3.1f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+2.1f, +0.5f, +0.0f), XMFLOAT4(Colors::Red)}),
 	};
 
-	std::array<std::uint16_t, 36> indices =
+	std::array<std::uint16_t, 54> indices =
 	{
+		//front face
+		0, 1, 2,
+		0, 2, 3,
+		//back face
+		4, 6, 5,
+		4, 7, 6,
+		//left face
+		4, 5, 1,
+		4, 1, 0,
+		//right face
+		3, 2, 6,
+		3, 6, 7,
+		//top face
+		1, 5, 6,
+		1, 6, 2,
+		//bottom face
+		4, 0, 3,
+		4, 3, 7,
+
+		//pyramid
 		//front face
 		0, 4, 1,
 		//back face
@@ -359,7 +387,7 @@ void Quiz04::BuildBoxGeometry()
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	mBoxGeo = std::make_unique<MeshGeometry>();
-	mBoxGeo->Name = "pyramidGeo";
+	mBoxGeo->Name = "boxGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
 	CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -377,14 +405,20 @@ void Quiz04::BuildBoxGeometry()
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
-	submesh.IndexCount = (UINT)indices.size();
+	submesh.IndexCount = 36; //(UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
-	mBoxGeo->DrawArgs["pyramid"] = submesh;
+	mBoxGeo->DrawArgs["box"] = submesh;
+
+	SubmeshGeometry submeshPyramid;
+	submeshPyramid.IndexCount = 18;
+	submeshPyramid.StartIndexLocation = 36;
+	submeshPyramid.BaseVertexLocation = 8;
+	mBoxGeo->DrawArgs["pyramid"] = submeshPyramid;
 }
 
-void Quiz04::BuildPSO()
+void Quiz07::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));

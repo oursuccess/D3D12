@@ -1,3 +1,5 @@
+//FIXME: Not complete
+//quiz06
 
 #include "../QuizCommonHeader.h"
 
@@ -10,15 +12,16 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+	float gTime = 0.0f;
 };
 
-class Quiz04 : public D3DApp
+class Quiz06 : public D3DApp
 {
 public:
-	Quiz04(HINSTANCE hInstance);
-	Quiz04(const Quiz04& rhs) = delete;
-	Quiz04& operator=(const Quiz04& rhs) = delete;
-	~Quiz04();
+	Quiz06(HINSTANCE hInstance);
+	Quiz06(const Quiz06& rhs) = delete;
+	Quiz06& operator=(const Quiz06& rhs) = delete;
+	~Quiz06();
 
 	virtual bool Initialize() override;
 
@@ -73,7 +76,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try
 	{
-		Quiz04 theApp(hInstance);
+		Quiz06 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -85,15 +88,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 }
 */
 
-Quiz04::Quiz04(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz06::Quiz06(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz04::~Quiz04()
+Quiz06::~Quiz06()
 {
 }
 
-bool Quiz04::Initialize()
+bool Quiz06::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -118,7 +121,7 @@ bool Quiz04::Initialize()
 	return true;
 }
 
-void Quiz04::OnResize()
+void Quiz06::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -127,7 +130,7 @@ void Quiz04::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz04::Update(const GameTimer& gt)
+void Quiz06::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -148,11 +151,12 @@ void Quiz04::Update(const GameTimer& gt)
 
 	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
+	objConstants.gTime = gt.TotalTime();
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz04::Draw(const GameTimer& gt)
+void Quiz06::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -188,7 +192,7 @@ void Quiz04::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
-	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["pyramid"].IndexCount, 1, 0, 0, 0);
+	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
 
 	//indicate a state transition on the resource usage
 
@@ -209,7 +213,7 @@ void Quiz04::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz04::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz06::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -217,12 +221,12 @@ void Quiz04::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz04::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz06::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz04::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz06::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
@@ -255,7 +259,7 @@ void Quiz04::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void Quiz04::BuildDescriptorHeaps()
+void Quiz06::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -266,7 +270,7 @@ void Quiz04::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz04::BuildConstantBuffers()
+void Quiz06::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -284,7 +288,7 @@ void Quiz04::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz04::BuildRootSignature()
+void Quiz06::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -311,12 +315,12 @@ void Quiz04::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz04::BuildShadersAndInputLayout()
+void Quiz06::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
-	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz06.hlsl", nullptr, "VS06", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz06.hlsl", nullptr, "PS", "ps_5_0");
 
 	mInputLayout =
 	{
@@ -325,41 +329,47 @@ void Quiz04::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz04::BuildBoxGeometry()
+void Quiz06::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
-		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		//Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
-		//Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
 		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
-		//Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
-		//Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})
 	};
 
 	std::array<std::uint16_t, 36> indices =
 	{
 		//front face
-		0, 4, 1,
-		//back face
-		3, 4, 2,
-		//left face
-		2, 4, 0,
-		//right face
-		1, 4, 3,
-		//bottom face
 		0, 1, 2,
-		1, 3, 2,
+		0, 2, 3,
+		//back face
+		4, 6, 5,
+		4, 7, 6,
+		//left face
+		4, 5, 1,
+		4, 1, 0,
+		//right face
+		3, 2, 6,
+		3, 6, 7,
+		//top face
+		1, 5, 6,
+		1, 6, 2,
+		//bottom face
+		4, 0, 3,
+		4, 3, 7,
 	};
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	mBoxGeo = std::make_unique<MeshGeometry>();
-	mBoxGeo->Name = "pyramidGeo";
+	mBoxGeo->Name = "boxGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
 	CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -381,10 +391,10 @@ void Quiz04::BuildBoxGeometry()
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
-	mBoxGeo->DrawArgs["pyramid"] = submesh;
+	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz04::BuildPSO()
+void Quiz06::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
