@@ -57,6 +57,9 @@
     <ClCompile Include="Quiz07.cpp">
       <Filter>Source Files\Quiz</Filter>
     </ClCompile>
+    <ClCompile Include="Quiz08.cpp">
+      <Filter>Source Files\Quiz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h">
