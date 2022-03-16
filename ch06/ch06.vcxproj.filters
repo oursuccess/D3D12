@@ -75,6 +75,12 @@
     <ClCompile Include="Quiz12.cpp">
       <Filter>Source Files\Quiz</Filter>
     </ClCompile>
+    <ClCompile Include="Quiz14.cpp">
+      <Filter>Source Files\Quiz</Filter>
+    </ClCompile>
+    <ClCompile Include="Quiz15.cpp">
+      <Filter>Source Files\Quiz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h">

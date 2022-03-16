@@ -1,4 +1,4 @@
-//Quiz 13
+//Quiz 14
 
 #include "../QuizCommonHeader.h"
 
@@ -13,13 +13,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class Quiz13 : public D3DApp
+class Quiz14 : public D3DApp
 {
 public:
-	Quiz13(HINSTANCE hInstance);
-	Quiz13(const Quiz13& rhs) = delete;
-	Quiz13& operator=(const Quiz13& rhs) = delete;
-	~Quiz13();
+	Quiz14(HINSTANCE hInstance);
+	Quiz14(const Quiz14& rhs) = delete;
+	Quiz14& operator=(const Quiz14& rhs) = delete;
+	~Quiz14();
 
 	virtual bool Initialize() override;
 
@@ -74,7 +74,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		Quiz13 theApp(hInstance);
+		Quiz14 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -86,15 +86,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 }
 */
 
-Quiz13::Quiz13(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz14::Quiz14(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz13::~Quiz13()
+Quiz14::~Quiz14()
 {
 }
 
-bool Quiz13::Initialize()
+bool Quiz14::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -119,22 +119,16 @@ bool Quiz13::Initialize()
 	return true;
 }
 
-void Quiz13::OnResize()
+void Quiz14::OnResize()
 {
 	D3DApp::OnResize();
-
-#pragma region Quiz13
-	//为啥这么简单？ 不需要Commit? 
-	//因为我们每帧都在Draw
-	mScissorRect = { 0, 0, mClientWidth / 2, mClientHeight / 2 };
-#pragma endregion
 
 	//the window resized, so update the aspect ratio and recompute the projection matrix
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz13::Update(const GameTimer& gt)
+void Quiz14::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -159,7 +153,7 @@ void Quiz13::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz13::Draw(const GameTimer& gt)
+void Quiz14::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -216,7 +210,7 @@ void Quiz13::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz13::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz14::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -224,12 +218,12 @@ void Quiz13::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz13::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz14::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz13::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz14::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -262,7 +256,7 @@ void Quiz13::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void Quiz13::BuildDescriptorHeaps()
+void Quiz14::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -273,7 +267,7 @@ void Quiz13::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz13::BuildConstantBuffers()
+void Quiz14::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -291,7 +285,7 @@ void Quiz13::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz13::BuildRootSignature()
+void Quiz14::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -318,7 +312,7 @@ void Quiz13::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz13::BuildShadersAndInputLayout()
+void Quiz14::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -332,7 +326,7 @@ void Quiz13::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz13::BuildBoxGeometry()
+void Quiz14::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
@@ -397,7 +391,7 @@ void Quiz13::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz13::BuildPSO()
+void Quiz14::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
