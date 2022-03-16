@@ -153,6 +153,7 @@
     <ClCompile Include="Quiz09.cpp" />
     <ClCompile Include="Quiz10.cpp" />
     <ClCompile Include="Quiz11.cpp" />
+    <ClCompile Include="Quiz12.cpp" />
     <ClCompile Include="Quiz13.cpp" />
     <ClCompile Include="quiz\Quiz01.cpp" />
     <ClCompile Include="quiz\Quiz02.cpp" />
