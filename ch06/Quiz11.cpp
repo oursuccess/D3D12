@@ -1,12 +1,11 @@
-//Quiz10
+//Quiz11
 
 #include "../QuizCommonHeader.h"
 
 struct Vertex
 {
 	XMFLOAT3 Pos;
-	//XMFLOAT4 Color;
-	XMCOLOR Color;
+	XMFLOAT4 Color;
 };
 
 struct ObjectConstants
@@ -14,13 +13,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class Quiz10 : public D3DApp
+class Quiz11 : public D3DApp
 {
 public:
-	Quiz10(HINSTANCE hInstance);
-	Quiz10(const Quiz10& rhs) = delete;
-	Quiz10& operator=(const Quiz10& rhs) = delete;
-	~Quiz10();
+	Quiz11(HINSTANCE hInstance);
+	Quiz11(const Quiz11& rhs) = delete;
+	Quiz11& operator=(const Quiz11& rhs) = delete;
+	~Quiz11();
 
 	virtual bool Initialize() override;
 
@@ -65,7 +64,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -75,7 +73,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		Quiz10 theApp(hInstance);
+		Quiz11 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -85,17 +83,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz10::Quiz10(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz11::Quiz11(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz10::~Quiz10()
+Quiz11::~Quiz11()
 {
 }
 
-bool Quiz10::Initialize()
+bool Quiz11::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -120,7 +117,7 @@ bool Quiz10::Initialize()
 	return true;
 }
 
-void Quiz10::OnResize()
+void Quiz11::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -129,7 +126,7 @@ void Quiz10::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz10::Update(const GameTimer& gt)
+void Quiz11::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -154,7 +151,7 @@ void Quiz10::Update(const GameTimer& gt)
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz10::Draw(const GameTimer& gt)
+void Quiz11::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -211,7 +208,7 @@ void Quiz10::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz10::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz11::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -219,12 +216,12 @@ void Quiz10::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz10::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz11::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz10::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz11::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -257,7 +254,7 @@ void Quiz10::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void Quiz10::BuildDescriptorHeaps()
+void Quiz11::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -268,7 +265,7 @@ void Quiz10::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz10::BuildConstantBuffers()
+void Quiz11::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -286,7 +283,7 @@ void Quiz10::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz10::BuildRootSignature()
+void Quiz11::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -313,7 +310,7 @@ void Quiz10::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz10::BuildShadersAndInputLayout()
+void Quiz11::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
@@ -322,24 +319,25 @@ void Quiz10::BuildShadersAndInputLayout()
 
 	mInputLayout =
 	{
+		//这里交换顺序也不影响实际功能。 因为我们在这里实际是通过Offset指定的每个元素的实际偏移(0, 12)
+		//在Color.hlsl中的VertexIn中Color和Pos交换了也同样不会有问题。因为我们在这里通过POSITION和hlsl中的POSITION签名建立了关联，而非通过Offset之类的
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		//{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
-		{"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
-void Quiz10::BuildBoxGeometry()
+void Quiz11::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
-		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMCOLOR(Colors::White)}),
-		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Black)}),
-		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Red)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMCOLOR(Colors::Green)}),
-		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Blue)}),
-		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Yellow)}),
-		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Magenta)})
+		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})
 	};
 
 	std::array<std::uint16_t, 36> indices =
@@ -393,7 +391,7 @@ void Quiz10::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz10::BuildPSO()
+void Quiz11::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
