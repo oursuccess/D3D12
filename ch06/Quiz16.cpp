@@ -1,7 +1,7 @@
 //Quiz16
 
 #include "../QuizCommonHeader.h"
-
+#include <cmath>
 
 struct Vertex
 {
@@ -12,6 +12,8 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+	XMFLOAT4 pulseColor = XMFLOAT4(1, 1, 1, 1);
+	float time = 0;
 };
 
 class Quiz16 : public D3DApp
@@ -149,6 +151,9 @@ void Quiz16::Update(const GameTimer& gt)
 	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	auto totalTime = gt.TotalTime();
+	objConstants.time = totalTime;
+	objConstants.pulseColor = XMFLOAT4(sin(totalTime), cos(totalTime), sin(totalTime) / cos(totalTime), 1);
 	mObjectCB->CopyData(0, objConstants);
 }
 
@@ -315,8 +320,8 @@ void Quiz16::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
-	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz16.hlsl", nullptr, "VS", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz16.hlsl", nullptr, "PS", "ps_5_0");
 
 	mInputLayout =
 	{
