@@ -17,7 +17,6 @@ struct Vertex
 
 struct ObjectConstants
 {
-	float time = 0;
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
@@ -157,7 +156,6 @@ void JeBoxApp::Update(const GameTimer& gt)
 
 	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
-	objConstants.time = gt.TotalTime();
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 	mObjectCB->CopyData(0, objConstants);
 }

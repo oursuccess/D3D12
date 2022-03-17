@@ -1,6 +1,7 @@
-//Quiz 14
+//Quiz16
 
 #include "../QuizCommonHeader.h"
+
 
 struct Vertex
 {
@@ -11,16 +12,15 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
-	float time = 0;
 };
 
-class Quiz14 : public D3DApp
+class Quiz16 : public D3DApp
 {
 public:
-	Quiz14(HINSTANCE hInstance);
-	Quiz14(const Quiz14& rhs) = delete;
-	Quiz14& operator=(const Quiz14& rhs) = delete;
-	~Quiz14();
+	Quiz16(HINSTANCE hInstance);
+	Quiz16(const Quiz16& rhs) = delete;
+	Quiz16& operator=(const Quiz16& rhs) = delete;
+	~Quiz16();
 
 	virtual bool Initialize() override;
 
@@ -65,7 +65,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -75,7 +74,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try 
 	{
-		Quiz14 theApp(hInstance);
+		Quiz16 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 		return theApp.Run();
 	}
@@ -85,17 +84,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz14::Quiz14(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz16::Quiz16(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz14::~Quiz14()
+Quiz16::~Quiz16()
 {
 }
 
-bool Quiz14::Initialize()
+bool Quiz16::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -120,7 +118,7 @@ bool Quiz14::Initialize()
 	return true;
 }
 
-void Quiz14::OnResize()
+void Quiz16::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -129,7 +127,7 @@ void Quiz14::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz14::Update(const GameTimer& gt)
+void Quiz16::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -151,11 +149,10 @@ void Quiz14::Update(const GameTimer& gt)
 	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
-	objConstants.time = gt.TotalTime();
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz14::Draw(const GameTimer& gt)
+void Quiz16::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
@@ -212,7 +209,7 @@ void Quiz14::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void Quiz14::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz16::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -220,12 +217,12 @@ void Quiz14::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz14::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz16::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz14::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz16::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
     {
@@ -258,7 +255,7 @@ void Quiz14::OnMouseMove(WPARAM btnState, int x, int y)
 
 }
 
-void Quiz14::BuildDescriptorHeaps()
+void Quiz16::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -269,7 +266,7 @@ void Quiz14::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz14::BuildConstantBuffers()
+void Quiz16::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
@@ -287,7 +284,7 @@ void Quiz14::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz14::BuildRootSignature()
+void Quiz16::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -314,12 +311,12 @@ void Quiz14::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz14::BuildShadersAndInputLayout()
+void Quiz16::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
-	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz14.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz14.hlsl", nullptr, "PS", "ps_5_0");
+	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
 
 	mInputLayout =
 	{
@@ -328,7 +325,7 @@ void Quiz14::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz14::BuildBoxGeometry()
+void Quiz16::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
@@ -393,7 +390,7 @@ void Quiz14::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz14::BuildPSO()
+void Quiz16::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
