@@ -44,7 +44,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     float4 c = lerp(pin.Color, gPulseColor, s);
 
-    return pin.Color;
+    return c;
 }
 
 
