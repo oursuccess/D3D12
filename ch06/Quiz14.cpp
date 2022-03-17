@@ -11,6 +11,7 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+	float time = 0;
 };
 
 class Quiz14 : public D3DApp
@@ -64,7 +65,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	//enable runtime memory check for debug builds
@@ -84,7 +84,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
 Quiz14::Quiz14(HINSTANCE hInstance) : D3DApp(hInstance)
 {
@@ -150,6 +149,7 @@ void Quiz14::Update(const GameTimer& gt)
 	//update the constant buffer with the latest worldViewProj matrix
 	ObjectConstants objConstants;
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	objConstants.time = gt.TotalTime();
 	mObjectCB->CopyData(0, objConstants);
 }
 
@@ -316,8 +316,8 @@ void Quiz14::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
-	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz14.hlsl", nullptr, "VS", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\colorQuiz14.hlsl", nullptr, "PS", "ps_5_0");
 
 	mInputLayout =
 	{
