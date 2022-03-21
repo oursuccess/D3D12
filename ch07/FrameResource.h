@@ -28,7 +28,7 @@ struct PassConstants
 	float DeltaTime = 0.0f;
 };
 
-struct VerTex 
+struct Vertex 
 {
 	DirectX::XMFLOAT3 Pos;
 	DirectX::XMFLOAT4 Color;
