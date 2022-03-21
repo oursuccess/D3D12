@@ -96,6 +96,7 @@ private:
 	POINT mLastMousePos;
 };
 
+/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int ShowCmd)
 {
 #if defined(DEBUG) | defined(_DEBUG)
@@ -115,6 +116,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
+*/
 
 JeCh07ShapesApp::JeCh07ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance)
 {
@@ -574,7 +576,7 @@ void JeCh07ShapesApp::BuildPSOs()
 		mShaders["opaquePS"]->GetBufferSize(),
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	//opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	//opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
