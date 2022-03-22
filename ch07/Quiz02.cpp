@@ -1,12 +1,8 @@
-//Quiz0701
-
-#pragma once
+//Quiz0702
 
 #include "../QuizCommonHeader.h"
 #include "../d3d12book-master/Common/GeometryGenerator.h"
 #include "FrameResource.h"
-
-//const int gNumFrameResources = 3;
 
 //stores parameters to draw a shape
 struct RenderItem
@@ -28,13 +24,13 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
-class Quiz01App : public D3DApp
+class Quiz02App : public D3DApp
 {
 public:
-	Quiz01App(HINSTANCE hInstance);
-	Quiz01App(const Quiz01App& rhs) = delete;
-	Quiz01App& operator=(const Quiz01App& rhs) = delete;
-	~Quiz01App();
+	Quiz02App(HINSTANCE hInstance);
+	Quiz02App(const Quiz02App& rhs) = delete;
+	Quiz02App& operator=(const Quiz02App& rhs) = delete;
+	~Quiz02App();
 
 	virtual bool Initialize() override;
 
@@ -98,7 +94,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int ShowCmd)
 {
 #if defined(DEBUG) | defined(_DEBUG)
@@ -107,7 +102,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try
 	{
-		Quiz01App theApp(hInstance);
+		Quiz02App theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 
 		return theApp.Run();
@@ -118,18 +113,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz01App::Quiz01App(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz02App::Quiz02App(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz01App::~Quiz01App()
+Quiz02App::~Quiz02App()
 {
 	if (md3dDevice != nullptr) FlushCommandQueue();
 }
 
-bool Quiz01App::Initialize()
+bool Quiz02App::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -155,7 +149,7 @@ bool Quiz01App::Initialize()
 	return true;
 }
 
-void Quiz01App::OnResize()
+void Quiz02App::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -164,7 +158,7 @@ void Quiz01App::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz01App::Update(const GameTimer& gt)
+void Quiz02App::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -187,7 +181,7 @@ void Quiz01App::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
-void Quiz01App::Draw(const GameTimer& gt)
+void Quiz02App::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
@@ -218,7 +212,12 @@ void Quiz01App::Draw(const GameTimer& gt)
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
+#pragma region Quiz0702
+	XMFLOAT4X4 world = MathHelper::Identity4x4();
+	//why this?
+	XMStoreFloat4x4(&world, XMMatrixTranspose(XMMatrixTranslation(0.0f, 2.0f, 0.0f) * XMMatrixRotationX(0.f) * XMMatrixScaling(2.0f, 1.0f, 2.0f)));
+	mCommandList->SetGraphicsRoot32BitConstants(0, 16, world.m, 0);
+#pragma endregion
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
@@ -247,7 +246,7 @@ void Quiz01App::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void Quiz01App::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz02App::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -255,12 +254,12 @@ void Quiz01App::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz01App::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz02App::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz01App::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz02App::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0) {
 		//make each pixel correspond to a quarter of a degree
@@ -287,13 +286,13 @@ void Quiz01App::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void Quiz01App::OnKeyboardInput(const GameTimer& gt)
+void Quiz02App::OnKeyboardInput(const GameTimer& gt)
 {
 	if (GetAsyncKeyState('1') & 0x8000) mIsWireframe = true;
 	else mIsWireframe = false;
 }
 
-void Quiz01App::UpdateCamera(const GameTimer& gt)
+void Quiz02App::UpdateCamera(const GameTimer& gt)
 {
 	//convert spherical to cartesian coordinates
 	mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -309,7 +308,7 @@ void Quiz01App::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void Quiz01App::UpdateObjectCBs(const GameTimer& gt)
+void Quiz02App::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for (auto& e : mAllRitems)
@@ -329,7 +328,7 @@ void Quiz01App::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void Quiz01App::UpdateMainPassCB(const GameTimer& gt)
+void Quiz02App::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -358,13 +357,17 @@ void Quiz01App::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void Quiz01App::BuildDesciptorHeaps()
+void Quiz02App::BuildDesciptorHeaps()
 {
 	UINT objCount = (UINT)mOpaqueRitems.size();
 
-	UINT numDescriptors = (objCount + 1) * gNumFrameResources;
+#pragma region Quiz0702
+	//UINT numDescriptors = (objCount + 1) * gNumFrameResources;
+	UINT numDescriptors = gNumFrameResources;
 
-	mPassCbvOffset = objCount * gNumFrameResources;
+	//mPassCbvOffset = objCount * gNumFrameResources;
+	mPassCbvOffset = 0;
+#pragma endregion
 
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = numDescriptors;
@@ -374,12 +377,14 @@ void Quiz01App::BuildDesciptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz01App::BuildConstantBufferViews()
+void Quiz02App::BuildConstantBufferViews()
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
 	UINT objCount = (UINT)mOpaqueRitems.size();
 
+#pragma region Quiz0702
+	/*
 	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
 	{
 		auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
@@ -392,6 +397,7 @@ void Quiz01App::BuildConstantBufferViews()
 
 			//offset to the object cbv in the descriptor heap
 			int heapIndex = frameIndex * objCount + i;
+
 			auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 			handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
 
@@ -402,6 +408,8 @@ void Quiz01App::BuildConstantBufferViews()
 			md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
 		}
 	}
+	*/
+#pragma endregion
 
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
@@ -423,10 +431,11 @@ void Quiz01App::BuildConstantBufferViews()
 	}
 }
 
-void Quiz01App::BuildRootSignature()
+void Quiz02App::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE cbvTable0;
-	cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+#pragma region Quiz0702
+	//CD3DX12_DESCRIPTOR_RANGE cbvTable0;
+	//cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE cbvTable1;
 	cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
@@ -434,11 +443,13 @@ void Quiz01App::BuildRootSignature()
 	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
 	//create a root cbvs
-	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+	//slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+	slotRootParameter[0].InitAsConstants(16, 0);
 	slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
 
 	//a root signature is an array of root parameters
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+#pragma endregion
 
 	//create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -451,7 +462,7 @@ void Quiz01App::BuildRootSignature()
 	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void Quiz01App::BuildShadersAndInputLayout()
+void Quiz02App::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_1");
@@ -463,18 +474,12 @@ void Quiz01App::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz01App::BuildShapeGeometry()
+void Quiz02App::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-#pragma region Quiz01
-	//GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-	//GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(0.5f, 0);
-	//GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(0.5f, 1);
-	//GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(0.5f, 2);
-	GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(0.5f, 3);
-#pragma endregion
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
 	UINT boxVertexOffset = 0;
@@ -568,7 +573,7 @@ void Quiz01App::BuildShapeGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-void Quiz01App::BuildPSOs()
+void Quiz02App::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -584,7 +589,7 @@ void Quiz01App::BuildPSOs()
 		mShaders["opaquePS"]->GetBufferSize(),
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	//opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	//opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
@@ -603,7 +608,7 @@ void Quiz01App::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
-void Quiz01App::BuildFrameResources()
+void Quiz02App::BuildFrameResources()
 {
 	for (int i = 0; i < gNumFrameResources; ++i)
 	{
@@ -611,7 +616,7 @@ void Quiz01App::BuildFrameResources()
 	}
 }
 
-void Quiz01App::BuildRenderItems()
+void Quiz02App::BuildRenderItems()
 {
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
@@ -691,7 +696,7 @@ void Quiz01App::BuildRenderItems()
 
 }
 
-void Quiz01App::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void Quiz02App::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
@@ -705,11 +710,14 @@ void Quiz01App::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
-		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+#pragma region Quiz0702
+		//UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
 
-		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+		//auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		//cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+
+		//cmdList->SetGraphicsRootDescriptorTable(1, cbvHandle);
+#pragma endregion
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}

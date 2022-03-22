@@ -147,6 +147,7 @@
     <ClCompile Include="Ch07Shapes.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="Quiz01.cpp" />
+    <ClCompile Include="Quiz02.cpp" />
     <ClCompile Include="Waves.cpp" />
   </ItemGroup>
   <ItemGroup>
