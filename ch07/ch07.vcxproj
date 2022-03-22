@@ -146,6 +146,8 @@
     <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp" />
     <ClCompile Include="Ch07Shapes.cpp" />
     <ClCompile Include="FrameResource.cpp" />
+    <ClCompile Include="Quiz01.cpp" />
+    <ClCompile Include="Waves.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h" />
@@ -157,6 +159,7 @@
     <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h" />
     <ClInclude Include="..\QuizCommonHeader.h" />
     <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="Waves.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
