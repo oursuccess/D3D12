@@ -45,6 +45,9 @@
     <ClCompile Include="Quiz02.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Quiz03.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d12book-master\Common\d3dApp.h">
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Waves.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexQuiz03.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

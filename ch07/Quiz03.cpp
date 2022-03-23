@@ -1,8 +1,11 @@
-//Quiz0702
+//Quiz0703
+
+#pragma once
 
 #include "../QuizCommonHeader.h"
 #include "../d3d12book-master/Common/GeometryGenerator.h"
 #include "FrameResource.h"
+#include "VertexQuiz03.h"
 
 //stores parameters to draw a shape
 struct RenderItem
@@ -24,13 +27,13 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
-class Quiz02App : public D3DApp
+class Quiz03 : public D3DApp
 {
 public:
-	Quiz02App(HINSTANCE hInstance);
-	Quiz02App(const Quiz02App& rhs) = delete;
-	Quiz02App& operator=(const Quiz02App& rhs) = delete;
-	~Quiz02App();
+	Quiz03(HINSTANCE hInstance);
+	Quiz03(const Quiz03& rhs) = delete;
+	Quiz03& operator=(const Quiz03& rhs) = delete;
+	~Quiz03();
 
 	virtual bool Initialize() override;
 
@@ -52,7 +55,10 @@ private:
 	void BuildConstantBufferViews();
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
-	void BuildShapeGeometry();
+#pragma region Quiz0703
+	//void BuildShapeGeometry();
+	void BuildSkullGeometry();
+#pragma endregion
 	void BuildPSOs();
 	void BuildFrameResources();
 	void BuildRenderItems();
@@ -94,7 +100,6 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int ShowCmd)
 {
 #if defined(DEBUG) | defined(_DEBUG)
@@ -103,7 +108,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 	try
 	{
-		Quiz02App theApp(hInstance);
+		Quiz03 theApp(hInstance);
 		if (!theApp.Initialize()) return 0;
 
 		return theApp.Run();
@@ -114,18 +119,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz02App::Quiz02App(HINSTANCE hInstance) : D3DApp(hInstance)
+Quiz03::Quiz03(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz02App::~Quiz02App()
+Quiz03::~Quiz03()
 {
 	if (md3dDevice != nullptr) FlushCommandQueue();
 }
 
-bool Quiz02App::Initialize()
+bool Quiz03::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -133,7 +137,10 @@ bool Quiz02App::Initialize()
 
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
-	BuildShapeGeometry();
+	//BuildShapeGeometry();
+#pragma region Quiz0703
+	BuildSkullGeometry();
+#pragma endregion
 	BuildRenderItems();
 	BuildFrameResources();
 	BuildDesciptorHeaps();
@@ -151,7 +158,7 @@ bool Quiz02App::Initialize()
 	return true;
 }
 
-void Quiz02App::OnResize()
+void Quiz03::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -160,7 +167,7 @@ void Quiz02App::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz02App::Update(const GameTimer& gt)
+void Quiz03::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -183,7 +190,7 @@ void Quiz02App::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
-void Quiz02App::Draw(const GameTimer& gt)
+void Quiz03::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
@@ -214,12 +221,7 @@ void Quiz02App::Draw(const GameTimer& gt)
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-#pragma region Quiz0702
-	XMFLOAT4X4 world = MathHelper::Identity4x4();
-	//why this?
-	XMStoreFloat4x4(&world, XMMatrixTranspose(XMMatrixTranslation(0.0f, 2.0f, 0.0f) * XMMatrixRotationX(0.f) * XMMatrixScaling(2.0f, 1.0f, 2.0f)));
-	mCommandList->SetGraphicsRoot32BitConstants(0, 16, world.m, 0);
-#pragma endregion
+
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
@@ -248,7 +250,7 @@ void Quiz02App::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void Quiz02App::OnMouseDown(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -256,12 +258,12 @@ void Quiz02App::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz02App::OnMouseUp(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz02App::OnMouseMove(WPARAM btnState, int x, int y)
+void Quiz03::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0) {
 		//make each pixel correspond to a quarter of a degree
@@ -288,13 +290,13 @@ void Quiz02App::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void Quiz02App::OnKeyboardInput(const GameTimer& gt)
+void Quiz03::OnKeyboardInput(const GameTimer& gt)
 {
 	if (GetAsyncKeyState('1') & 0x8000) mIsWireframe = true;
 	else mIsWireframe = false;
 }
 
-void Quiz02App::UpdateCamera(const GameTimer& gt)
+void Quiz03::UpdateCamera(const GameTimer& gt)
 {
 	//convert spherical to cartesian coordinates
 	mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -310,7 +312,7 @@ void Quiz02App::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void Quiz02App::UpdateObjectCBs(const GameTimer& gt)
+void Quiz03::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for (auto& e : mAllRitems)
@@ -330,7 +332,7 @@ void Quiz02App::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void Quiz02App::UpdateMainPassCB(const GameTimer& gt)
+void Quiz03::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -359,17 +361,13 @@ void Quiz02App::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void Quiz02App::BuildDesciptorHeaps()
+void Quiz03::BuildDesciptorHeaps()
 {
 	UINT objCount = (UINT)mOpaqueRitems.size();
 
-#pragma region Quiz0702
-	//UINT numDescriptors = (objCount + 1) * gNumFrameResources;
-	UINT numDescriptors = gNumFrameResources;
+	UINT numDescriptors = (objCount + 1) * gNumFrameResources;
 
-	//mPassCbvOffset = objCount * gNumFrameResources;
-	mPassCbvOffset = 0;
-#pragma endregion
+	mPassCbvOffset = objCount * gNumFrameResources;
 
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = numDescriptors;
@@ -379,14 +377,12 @@ void Quiz02App::BuildDesciptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz02App::BuildConstantBufferViews()
+void Quiz03::BuildConstantBufferViews()
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
 	UINT objCount = (UINT)mOpaqueRitems.size();
 
-#pragma region Quiz0702
-	/*
 	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
 	{
 		auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
@@ -399,7 +395,6 @@ void Quiz02App::BuildConstantBufferViews()
 
 			//offset to the object cbv in the descriptor heap
 			int heapIndex = frameIndex * objCount + i;
-
 			auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 			handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
 
@@ -410,8 +405,6 @@ void Quiz02App::BuildConstantBufferViews()
 			md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
 		}
 	}
-	*/
-#pragma endregion
 
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
@@ -433,11 +426,10 @@ void Quiz02App::BuildConstantBufferViews()
 	}
 }
 
-void Quiz02App::BuildRootSignature()
+void Quiz03::BuildRootSignature()
 {
-#pragma region Quiz0702
-	//CD3DX12_DESCRIPTOR_RANGE cbvTable0;
-	//cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE cbvTable0;
+	cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE cbvTable1;
 	cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
@@ -445,13 +437,11 @@ void Quiz02App::BuildRootSignature()
 	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
 	//create a root cbvs
-	//slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
-	slotRootParameter[0].InitAsConstants(16, 0);
+	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
 	slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
 
 	//a root signature is an array of root parameters
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-#pragma endregion
 
 	//create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -464,7 +454,7 @@ void Quiz02App::BuildRootSignature()
 	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void Quiz02App::BuildShadersAndInputLayout()
+void Quiz03::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_1");
@@ -476,7 +466,9 @@ void Quiz02App::BuildShadersAndInputLayout()
 	};
 }
 
-void Quiz02App::BuildShapeGeometry()
+#pragma region Quiz0703
+/*
+void Quiz03::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
@@ -574,8 +566,70 @@ void Quiz02App::BuildShapeGeometry()
 
 	mGeometries[geo->Name] = std::move(geo);
 }
+*/
+#pragma endregion
 
-void Quiz02App::BuildPSOs()
+void Quiz03::BuildSkullGeometry()
+{
+	std::ifstream fin("Models/skull.txt");
+	if (!fin) {
+		MessageBox(0, L"Models/skull.txt not found", 0, 0);
+		return;
+	}
+
+	UINT vcount = 0, tcount = 0;
+	std::string ignore;
+	fin >> ignore >> vcount;
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore;
+
+	std::vector<VertexQuiz03> vertices(vcount);
+	for (UINT i = 0; i < vcount; ++i)
+	{
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+	}
+
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+
+	std::vector<std::int32_t> indices(3 * tcount);
+	for (UINT i = 0; i < tcount; ++i) 
+	{
+		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+	}
+	fin.close();
+
+	//pack the indices of all the meshes into one index buffer
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexQuiz03), ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+	
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "skullGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(VertexQuiz03);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["skull"] = submesh;
+	mGeometries[geo->Name] = std::move(geo);
+}
+
+void Quiz03::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -610,7 +664,7 @@ void Quiz02App::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
-void Quiz02App::BuildFrameResources()
+void Quiz03::BuildFrameResources()
 {
 	for (int i = 0; i < gNumFrameResources; ++i)
 	{
@@ -618,8 +672,10 @@ void Quiz02App::BuildFrameResources()
 	}
 }
 
-void Quiz02App::BuildRenderItems()
+void Quiz03::BuildRenderItems()
 {
+#pragma region Quiz0703
+	/*
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
 	boxRitem->ObjCBIndex = 0;
@@ -695,10 +751,20 @@ void Quiz02App::BuildRenderItems()
 	// All the render items are opaque.
 	for (auto& e : mAllRitems)
 		mOpaqueRitems.push_back(e.get());
-
+	*/
+	auto skullRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	skullRitem->ObjCBIndex = 0;
+	skullRitem->Geo = mGeometries["skullGeo"].get();
+	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	mAllRitems.push_back(std::move(skullRitem));
+#pragma endregion
 }
 
-void Quiz02App::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void Quiz03::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
@@ -712,14 +778,11 @@ void Quiz02App::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-#pragma region Quiz0702
-		//UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
+		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
+		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
 
-		//auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-		//cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
-
-		//cmdList->SetGraphicsRootDescriptorTable(1, cbvHandle);
-#pragma endregion
+		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
