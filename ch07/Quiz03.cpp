@@ -55,7 +55,7 @@ private:
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
 #pragma region Quiz0703
-	//void BuildShapeGeometry();
+	void BuildShapeGeometry();
 	void BuildSkullGeometry();
 #pragma endregion
 	void BuildPSOs();
@@ -136,7 +136,7 @@ bool Quiz03::Initialize()
 
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
-	//BuildShapeGeometry();
+	BuildShapeGeometry();
 #pragma region Quiz0703
 	BuildSkullGeometry();
 #pragma endregion
@@ -466,7 +466,6 @@ void Quiz03::BuildShadersAndInputLayout()
 }
 
 #pragma region Quiz0703
-/*
 void Quiz03::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
@@ -565,7 +564,6 @@ void Quiz03::BuildShapeGeometry()
 
 	mGeometries[geo->Name] = std::move(geo);
 }
-*/
 #pragma endregion
 
 void Quiz03::BuildSkullGeometry()
@@ -674,7 +672,6 @@ void Quiz03::BuildFrameResources()
 void Quiz03::BuildRenderItems()
 {
 #pragma region Quiz0703
-	/*
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
 	boxRitem->ObjCBIndex = 0;
@@ -695,7 +692,17 @@ void Quiz03::BuildRenderItems()
 	gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 	mAllRitems.push_back(std::move(gridRitem));
 
-	UINT objCBIndex = 2;
+	auto skullRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	skullRitem->ObjCBIndex = 2;
+	skullRitem->Geo = mGeometries["skullGeo"].get();
+	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	mAllRitems.push_back(std::move(skullRitem));
+
+	UINT objCBIndex = 3;
 	for (int i = 0; i < 5; ++i)
 	{
 		auto leftCylRitem = std::make_unique<RenderItem>();
@@ -750,16 +757,6 @@ void Quiz03::BuildRenderItems()
 	// All the render items are opaque.
 	for (auto& e : mAllRitems)
 		mOpaqueRitems.push_back(e.get());
-	*/
-	auto skullRitem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f));
-	skullRitem->ObjCBIndex = 0;
-	skullRitem->Geo = mGeometries["skullGeo"].get();
-	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
-	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
-	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
-	mAllRitems.push_back(std::move(skullRitem));
 #pragma endregion
 }
 
