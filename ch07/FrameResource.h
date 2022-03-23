@@ -32,6 +32,9 @@ struct Vertex
 {
 	DirectX::XMFLOAT3 Pos;
 	DirectX::XMFLOAT4 Color;
+#pragma region Quiz0703
+	DirectX::XMFLOAT3 Normal;
+#pragma endregion
 };
 
 //stores the resource needed for the CPU to build the command lists for a frame

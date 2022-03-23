@@ -5,7 +5,6 @@
 #include "../QuizCommonHeader.h"
 #include "../d3d12book-master/Common/GeometryGenerator.h"
 #include "FrameResource.h"
-#include "VertexQuiz03.h"
 
 //stores parameters to draw a shape
 struct RenderItem
@@ -583,7 +582,7 @@ void Quiz03::BuildSkullGeometry()
 	fin >> ignore >> tcount;
 	fin >> ignore >> ignore >> ignore >> ignore;
 
-	std::vector<VertexQuiz03> vertices(vcount);
+	std::vector<Vertex> vertices(vcount);
 	for (UINT i = 0; i < vcount; ++i)
 	{
 		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
@@ -602,7 +601,7 @@ void Quiz03::BuildSkullGeometry()
 	fin.close();
 
 	//pack the indices of all the meshes into one index buffer
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexQuiz03), ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex), ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 	
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "skullGeo";
@@ -615,7 +614,7 @@ void Quiz03::BuildSkullGeometry()
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-	geo->VertexByteStride = sizeof(VertexQuiz03);
+	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
@@ -645,7 +644,7 @@ void Quiz03::BuildPSOs()
 		mShaders["opaquePS"]->GetBufferSize(),
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	//opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	//opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);

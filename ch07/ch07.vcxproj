@@ -161,7 +161,6 @@
     <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h" />
     <ClInclude Include="..\QuizCommonHeader.h" />
     <ClInclude Include="FrameResource.h" />
-    <ClInclude Include="VertexQuiz03.h" />
     <ClInclude Include="Waves.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

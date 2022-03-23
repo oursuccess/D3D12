@@ -80,8 +80,5 @@
     <ClInclude Include="Waves.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="VertexQuiz03.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>
