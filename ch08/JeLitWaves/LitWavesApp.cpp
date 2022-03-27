@@ -20,7 +20,7 @@ struct RenderItem
 	XMFLOAT4X4 World = MathHelper::Identity4x4();
 	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 
-	int NumFrameDirty = gNumFrameResources;
+	int NumFramesDirty = gNumFrameResources;
 
 	UINT ObjCBIndex = -1;
 
@@ -315,7 +315,7 @@ void LitWavesApp::UpdateObjectCBs(const GameTimer& gt)
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for (auto& e : mAllRitems)
 	{
-		if (e->NumFrameDirty > 0) 
+		if (e->NumFramesDirty > 0) 
 		{
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
@@ -325,7 +325,7 @@ void LitWavesApp::UpdateObjectCBs(const GameTimer& gt)
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
-			--e->NumFrameDirty;
+			--e->NumFramesDirty;
 		}
 	}
 }
