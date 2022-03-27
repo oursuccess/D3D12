@@ -456,7 +456,7 @@ void Box::BuildBoxGeometry()
 	ThrowIfFailed(D3DCreateBlob(cbByteSize, &mBoxGeo->ColorBufferCPU));
 	CopyMemory(mBoxGeo->ColorBufferCPU->GetBufferPointer(), colors.data(), cbByteSize);
 
-	mBoxGeo->ColorBufferCPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), colors.data(), cbByteSize, mBoxGeo->ColorBufferUploader);
+	mBoxGeo->ColorBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), colors.data(), cbByteSize, mBoxGeo->ColorBufferUploader);
 	mBoxGeo->ColorByteStride = sizeof(VColorData);
 	mBoxGeo->ColorBufferByteSize = cbByteSize;
 #pragma endregion
