@@ -649,7 +649,7 @@ void LitWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std:
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
 
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-		cmdList->SetGraphicsRootShaderResourceView(1, matCBAddress);
+		cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
@@ -665,8 +665,7 @@ XMFLOAT3 LitWavesApp::GetHillsNormal(float x, float z) const
 	XMFLOAT3 n{
 		-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
 		1.0f,
-		-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z),
-	};
+		-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z),};
 	XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
 	XMStoreFloat3(&n, unitNormal);
 
