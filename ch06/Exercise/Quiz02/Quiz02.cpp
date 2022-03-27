@@ -198,7 +198,7 @@ void Box::Draw(const GameTimer& gt)
 #pragma region Quiz0602
 	//mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->PositionBufferView());
-	mCommandList->IASetVertexBuffers(1, 1, &mBoxGeo->PositionBufferView());
+	mCommandList->IASetVertexBuffers(1, 1, &mBoxGeo->ColorBufferView());
 #pragma endregion
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
 	mCommandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
