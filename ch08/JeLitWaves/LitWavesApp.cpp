@@ -298,9 +298,10 @@ void LitWavesApp::OnKeyboardInput(const GameTimer& gt)
 
 void LitWavesApp::UpdateCamera(const GameTimer& gt)
 {
+	//why this???
 	mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
-	mEyePos.y = mRadius * sinf(mPhi) * sinf(mTheta);
-	mEyePos.z = mRadius * cosf(mPhi);
+	mEyePos.z = mRadius * sinf(mPhi) * sinf(mTheta);
+	mEyePos.y = mRadius * cosf(mPhi);
 
 	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
 	XMVECTOR target = XMVectorZero();
