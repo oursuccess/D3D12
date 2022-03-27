@@ -79,17 +79,17 @@ void Waves::Update(float dt)
     static float t = 0;
     t += dt;
 
-    static auto jMax = mNumCols - 1;
-    static auto iMax = mNumRows - 1;
+    const auto jMax = mNumCols - 1;
+    const auto iMax = mNumRows - 1;
     if (t >= mTimeStep) 
     {
         //only update interior points, we use zero boundary conditions
-        concurrency::parallel_for(1, iMax, [this](int i)
+        concurrency::parallel_for(1, iMax, [this, jMax](int i)
             {
                 for (int j = 1; j < jMax; ++j) {
                     const auto idx = i * mNumCols + j;
                     mPrevSolution[idx].y = mK1 * mPrevSolution[idx].y + mK2 * mCurrSolution[idx].y + mK3 * (
-                        mCurrSolution[idx + i].y + mCurrSolution[idx - i].y + mCurrSolution[idx + 1].y + mCurrSolution[idx - 1].y);
+                        mCurrSolution[idx + mNumCols].y + mCurrSolution[idx - mNumCols].y + mCurrSolution[idx + 1].y + mCurrSolution[idx - 1].y);
                 }
             });
 
@@ -98,7 +98,7 @@ void Waves::Update(float dt)
         t = 0.0f;
 
         //compute normals using finite difference scheme
-        concurrency::parallel_for(1, iMax, [this](int i)
+        concurrency::parallel_for(1, iMax, [this, jMax](int i)
             {
                 for (int j = 1; j < jMax; ++j)
                 {
