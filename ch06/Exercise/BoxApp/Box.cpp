@@ -245,6 +245,7 @@ void Box::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
+//创建常量堆
 void Box::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
@@ -256,36 +257,46 @@ void Box::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
+//创建常量
 void Box::BuildConstantBuffers()
 {
+	//创建一个常量缓冲区的指针
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
+	//计算该常量缓冲区的大小
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	//获取GPU的虚拟地址
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
 
+	//不同的渲染对象理论上来说需要不同的地址偏移
 	int boxCBufIndex = 0;
 	cbAddress += boxCBufIndex * objCBByteSize;
 
+	//创建常量缓冲区描述符，并指定其大小和位置
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
 	cbvDesc.BufferLocation = cbAddress;
 	cbvDesc.SizeInBytes = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
+	//根据常量缓冲区描述符创建实际的常量缓冲区
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
+//创建根签名
 void Box::BuildRootSignature()
 {
+	//创建一个有一个元素的根参数
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
-	//create a single descriptor table of CBVs
+	//创建一个有1个元素的描述符表
 	CD3DX12_DESCRIPTOR_RANGE cbvTable;
 	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	//使用该描述符表初始化根参数
 	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
 
-	//a root signature is an array of root parameters
+	//根据根参数创建根签名的描述符
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	//create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	//准备根据根签名表创建根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
@@ -293,16 +304,20 @@ void Box::BuildRootSignature()
 	if (errorBlob != nullptr) ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	ThrowIfFailed(hr);
 
+	//将根签名上传至根签名中
 	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(&mRootSignature)));
 }
 
+//创建Shader并创建输入布局
 void Box::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
+	//读取shader
 	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
 	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
 
+	//初始化输入布局
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -310,8 +325,10 @@ void Box::BuildShadersAndInputLayout()
 	};
 }
 
+//构建顶点数据
 void Box::BuildBoxGeometry()
 {
+	//顶点
 	std::array<Vertex, 8> vertices =
 	{
 		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
@@ -324,6 +341,7 @@ void Box::BuildBoxGeometry()
 		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
 	};
 
+	//索引
 	std::array<std::uint16_t, 36> indices =
 	{
 		//front face
@@ -358,14 +376,17 @@ void Box::BuildBoxGeometry()
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
+	//创建顶点缓冲区
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
-	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
-
 	mBoxGeo->VertexByteStride = sizeof(Vertex);
 	mBoxGeo->VertexBufferByteSize = vbByteSize;
+
+	//创建索引缓冲区
+	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
 	mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
+	//将顶点和索引推入mBoxGeo中
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
@@ -374,6 +395,7 @@ void Box::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
+//创建流水线状态对象
 void Box::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
