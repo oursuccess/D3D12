@@ -194,6 +194,7 @@ void Box::Draw(const GameTimer& gt)
 
 	//swap the back and front buffers
 	ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
 	//wait until frame commands are complete. this waiting is ineffient and is done for simplicity
 	FlushCommandQueue();
@@ -227,7 +228,7 @@ void Box::OnMouseMove(WPARAM btnState, int x, int y)
 		//Restrict the angle mPhi
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
 	}
-	else
+	else if ((btnState & MK_RBUTTON) != 0)
 	{
 		//make each pixel correspond to 0.005 unit in the scene
 		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
