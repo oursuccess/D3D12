@@ -379,7 +379,7 @@ void LitWavesApp::UpdateMainPassCB(const GameTimer& gt)
 
 	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
 	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
-	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 1.0f };
+	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -584,6 +584,7 @@ void LitWavesApp::BuildMaterials()
 	grass->MatCBIndex = 0;
 	grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
 	grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+	grass->Roughness = 0.125f;
 
 	auto water = std::make_unique<Material>();
 	water->Name = "water";
@@ -656,7 +657,7 @@ void LitWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std:
 
 float LitWavesApp::GetHillsHeight(float x, float z) const
 {
-	return 0.3f * (z * sinf(0.1f * x)) + x * cosf(0.1f * z);
+	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
 }
 
 XMFLOAT3 LitWavesApp::GetHillsNormal(float x, float z) const
