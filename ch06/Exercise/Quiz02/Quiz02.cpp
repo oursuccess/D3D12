@@ -66,9 +66,7 @@ private:
 	ComPtr<ID3DBlob> mvsByteCode = nullptr;
 	ComPtr<ID3DBlob> mpsByteCode = nullptr;
 
-#pragma region Quiz0602
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
-#pragma endregion
 
 	ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
