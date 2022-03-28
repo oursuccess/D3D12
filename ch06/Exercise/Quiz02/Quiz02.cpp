@@ -1,3 +1,5 @@
+//solution of Quiz0602, By Je
+
 #include "../../../QuizCommonHeader.h"
 
 #pragma region Quiz0602

@@ -1,3 +1,5 @@
+//Solution of Quiz0603, By Je
+
 #include "../../../QuizCommonHeader.h"
 
 struct Vertex

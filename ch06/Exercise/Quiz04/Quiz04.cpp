@@ -1,3 +1,4 @@
+//solution of Quiz0604, By Je
 #include "../../../QuizCommonHeader.h"
 
 struct Vertex
