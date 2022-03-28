@@ -182,7 +182,12 @@ void Box::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
-	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+#pragma region Quiz0607
+	//mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+	auto box = mBoxGeo->DrawArgs["box"], pyramid = mBoxGeo->DrawArgs["pyramid"];
+	mCommandList->DrawIndexedInstanced(box.IndexCount, 1, box.StartIndexLocation, box.BaseVertexLocation, 0);
+	mCommandList->DrawIndexedInstanced(pyramid.IndexCount, 1, pyramid.StartIndexLocation, pyramid.BaseVertexLocation, 0);
+#pragma endregion
 
 	//将该缓冲区标记为可以显示状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -374,6 +379,7 @@ void Box::BuildBoxGeometry()
 		4, 3, 7,
 
 		//金字塔
+		/* 在添加BaseVertexLocal之前
 		//bottom
 		8, 9, 11,
 		8, 11, 10,
@@ -385,6 +391,18 @@ void Box::BuildBoxGeometry()
 		9, 12, 11,
 		//back
 		10, 12, 8,
+		*/
+		//bottom
+		0, 1, 3,
+		0, 3, 2,
+		//left
+		0, 4, 1,
+		//right
+		3, 4, 2,
+		//front
+		1, 4, 3,
+		//back
+		2, 4, 0,
 	};
 #pragma endregion
 
@@ -410,13 +428,31 @@ void Box::BuildBoxGeometry()
 	mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
+#pragma region Quiz0607
 	//将顶点和索引推入mBoxGeo中
+	/*
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
 	mBoxGeo->DrawArgs["box"] = submesh;
+	*/
+	const int boxIndexCount = 36;
+	const int boxVertexCount = 8;
+
+	SubmeshGeometry boxMesh;
+	boxMesh.IndexCount = boxIndexCount;
+	boxMesh.StartIndexLocation = 0;
+	boxMesh.BaseVertexLocation = 0;
+	mBoxGeo->DrawArgs["box"] = boxMesh;
+
+	SubmeshGeometry pyramidMesh;
+	pyramidMesh.IndexCount = 18;
+	pyramidMesh.StartIndexLocation = boxIndexCount;
+	pyramidMesh.BaseVertexLocation = boxVertexCount; //立方体有8个顶点
+	mBoxGeo->DrawArgs["pyramid"] = pyramidMesh;
+#pragma endregion
 }
 
 //创建流水线状态对象
