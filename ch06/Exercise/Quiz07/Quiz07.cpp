@@ -332,20 +332,23 @@ void Box::BuildBoxGeometry()
 {
 #pragma region Quiz0607
 	//顶点
-	std::array<Vertex, 11> vertices = //resize size from 8 to 11(我们共享了立方体和金字塔的两个顶点)
+	std::array<Vertex, 13> vertices = //resize size from 8 to 13
 	{
 		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
 		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
 		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}), //金字塔复用
+		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
 		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::White)}),
 		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
 		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}), //金字塔复用
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
+
 		//从这里开始金字塔
-		Vertex({XMFLOAT3(+3.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(+3.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Azure)}),
-		Vertex({XMFLOAT3(+2.0f, +0.0f, +0.0f), XMFLOAT4(Colors::Red)}),
+		Vertex({XMFLOAT3(+1.1f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}), 
+		Vertex({XMFLOAT3(+1.1f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+3.1f, -1.0f, +1.0f), XMFLOAT4(Colors::Green)}),
+		Vertex({XMFLOAT3(+3.1f, -1.0f, -1.0f), XMFLOAT4(Colors::Azure)}),
+		Vertex({XMFLOAT3(+2.1f, +0.0f, +0.0f), XMFLOAT4(Colors::Red)}),
 	};
 
 	//索引
@@ -369,18 +372,19 @@ void Box::BuildBoxGeometry()
 		//bottom face
 		4, 0, 3,
 		4, 3, 7,
+
 		//金字塔
 		//bottom
-		7, 3, 9,
-		7, 9, 8,
+		8, 9, 11,
+		8, 11, 10,
 		//left
-		7, 10, 3,
+		8, 12, 9,
 		//right
-		9, 10, 8,
+		11, 12, 10,
 		//front
-		3, 10, 9,
+		9, 12, 11,
 		//back
-		8, 10, 7,
+		10, 12, 8,
 	};
 #pragma endregion
 
