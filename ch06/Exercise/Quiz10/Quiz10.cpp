@@ -5,7 +5,10 @@
 struct Vertex
 {
 	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
+#pragma region Quiz0610
+	//XMFLOAT4 Color;
+	XMCOLOR Color;
+#pragma endregion
 };
 
 struct ObjectConstants
@@ -323,7 +326,10 @@ void Box::BuildShadersAndInputLayout()
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+#pragma region Quiz0610
+		//{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+#pragma endregion
 	};
 }
 
@@ -333,14 +339,17 @@ void Box::BuildBoxGeometry()
 	//¶¥µã
 	std::array<Vertex, 8> vertices =
 	{
-		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
-		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
-		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::White)}),
-		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
-		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
+#pragma region Quiz0610
+		//replace all XMFLOAT4 with XMCOLOR
+		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMCOLOR(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Black)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Red)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMCOLOR(Colors::Green)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMCOLOR(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Blue)}),
+		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Cyan)}),
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Magenta)}),
+#pragma endregion
 	};
 
 	//Ë÷Òý
