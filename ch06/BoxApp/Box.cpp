@@ -1,6 +1,4 @@
-//Quiz08
-
-#include "../QuizCommonHeader.h"
+#include "../../QuizCommonHeader.h"
 
 struct Vertex
 {
@@ -13,13 +11,13 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
 
-class Quiz08 : public D3DApp
+class Box : public D3DApp
 {
 public:
-	Quiz08(HINSTANCE hInstance);
-	Quiz08(const Quiz08& rhs) = delete;
-	Quiz08& operator=(const Quiz08& rhs) = delete;
-	~Quiz08();
+	Box(HINSTANCE hInstance);
+	Box(const Box& rhs) = delete;
+	Box& operator=(const Box& rhs) = delete;
+	~Box();
 
 	virtual bool Initialize() override;
 
@@ -42,10 +40,10 @@ private:
 private:
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
-
+	
 	std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
 	std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
-
+	
 	ComPtr<ID3DBlob> mvsByteCode = nullptr;
 	ComPtr<ID3DBlob> mpsByteCode = nullptr;
 
@@ -64,19 +62,17 @@ private:
 	POINT mLastMousePos;
 };
 
-/*
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
-	//enable runtime memory check for debug builds
 #if defined(DEBUG) | defined(_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try
+	try 
 	{
-		Quiz08 theApp(hInstance);
-		if (!theApp.Initialize()) return 0;
-		return theApp.Run();
+		Box box(hInstance);
+		if (!box.Initialize()) return 0;
+		return box.Run();
 	}
 	catch (DxException& e)
 	{
@@ -84,21 +80,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return 0;
 	}
 }
-*/
 
-Quiz08::Quiz08(HINSTANCE hInstance) : D3DApp(hInstance)
+Box::Box(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 }
 
-Quiz08::~Quiz08()
+Box::~Box()
 {
 }
 
-bool Quiz08::Initialize()
+bool Box::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
-	//reset the command list to prep for initialization commands
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	BuildDescriptorHeaps();
@@ -108,34 +102,31 @@ bool Quiz08::Initialize()
 	BuildBoxGeometry();
 	BuildPSO();
 
-	//execute the initialization commands
 	ThrowIfFailed(mCommandList->Close());
-	ID3D12CommandList* cmdsList[] = { mCommandList.Get() };
-	mCommandQueue->ExecuteCommandLists(_countof(cmdsList), cmdsList);
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	//wait until initialization is complete
 	FlushCommandQueue();
 
 	return true;
 }
 
-void Quiz08::OnResize()
+void Box::OnResize()
 {
 	D3DApp::OnResize();
 
-	//the window resized, so update the aspect ratio and recompute the projection matrix
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void Quiz08::Update(const GameTimer& gt)
+void Box::Update(const GameTimer& gt)
 {
 	//convert sperical to cartesian coordinates
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
 	float z = mRadius * sinf(mPhi) * sinf(mTheta);
 	float y = mRadius * cosf(mPhi);
 
-	//build the view matrix
+	 //build the view matrix
 	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -147,37 +138,37 @@ void Quiz08::Update(const GameTimer& gt)
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
 	XMMATRIX worldViewProj = world * view * proj;
 
-	//update the constant buffer with the latest worldViewProj matrix
+	//update the constant buffer with the lateset worldViewProject matrix
 	ObjectConstants objConstants;
 	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 	mObjectCB->CopyData(0, objConstants);
 }
 
-void Quiz08::Draw(const GameTimer& gt)
+void Box::Draw(const GameTimer& gt)
 {
 	//reuse the memory associated with command recording
 	//we can only reset when the associated command list have finished execution on the GPU
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
-	//a command list can be reset after it has beend added to the command queue via ExecuteCommandList
-	//reusing the command list reuses memory
+	//a command list can be reset after it has been added to the command queue via executeCommandList
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
-
+	
 	//indicate a state transition on the resource usage
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	//将一个缓冲区从当前正在显示变更为后台渲染缓冲区，从而防止影响更新缓冲区时影响屏幕显示
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	//clear the back buffer and depth buffer
+	//清空当前显示的内容和深度缓冲区。因为有的地方我们可能不渲染，若不清空，可能导致这些区域残留之前的内容
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	//若不清空深度缓冲，则小于上一帧深度的内容都将无法渲染
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	//specify the buffers we are going to render to
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	//specify the buffers we are going to render to
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
@@ -191,26 +182,25 @@ void Quiz08::Draw(const GameTimer& gt)
 
 	mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
 
-	//indicate a state transition on the resource usage
-
+	//将该缓冲区标记为可以显示状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	//done recording commands
 	ThrowIfFailed(mCommandList->Close());
 
-	//Add the command list to the queue for execution
-	ID3D12CommandList* cmdsList[] = { mCommandList.Get() };
-	mCommandQueue->ExecuteCommandLists(_countof(cmdsList), cmdsList);
+	//Add the commandlist to the queue for execution
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
 	//swap the back and front buffers
 	ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-	//wait until frame commands are complete. this waiting is ineffient and is done for simplicity.
+	//wait until frame commands are complete. this waiting is ineffient and is done for simplicity
 	FlushCommandQueue();
 }
 
-void Quiz08::OnMouseDown(WPARAM btnState, int x, int y)
+void Box::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -218,45 +208,45 @@ void Quiz08::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void Quiz08::OnMouseUp(WPARAM btnState, int x, int y)
+void Box::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void Quiz08::OnMouseMove(WPARAM btnState, int x, int y)
+void Box::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
-		// Make each pixel correspond to a quarter of a degree.
+		//make each pixel correspond to a quarter of a degree
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
-		// Update angles based on input to orbit camera around box.
+		//update angles based on input to orbit camera around box
 		mTheta += dx;
 		mPhi += dy;
 
-		// Restrict the angle mPhi.
+		//Restrict the angle mPhi
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
 	}
 	else if ((btnState & MK_RBUTTON) != 0)
 	{
-		// Make each pixel correspond to 0.005 unit in the scene.
+		//make each pixel correspond to 0.005 unit in the scene
 		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
 
-		// Update the camera radius based on input.
+		//update the camera radius based on input
 		mRadius += dx - dy;
 
-		// Restrict the radius.
+		//Restrict the radius
 		mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
 	}
 
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
-
 }
 
-void Quiz08::BuildDescriptorHeaps()
+//创建常量堆
+void Box::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = 1;
@@ -267,37 +257,46 @@ void Quiz08::BuildDescriptorHeaps()
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-void Quiz08::BuildConstantBuffers()
+//创建常量
+void Box::BuildConstantBuffers()
 {
+	//创建一个常量缓冲区的指针
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
+	//计算该常量缓冲区的大小
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
+	//获取GPU的虚拟地址
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
-	//offset to the ith object constant buffer in the buffer
+
+	//不同的渲染对象理论上来说需要不同的地址偏移
 	int boxCBufIndex = 0;
 	cbAddress += boxCBufIndex * objCBByteSize;
 
+	//创建常量缓冲区描述符，并指定其大小和位置
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
 	cbvDesc.BufferLocation = cbAddress;
 	cbvDesc.SizeInBytes = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
+	//根据常量缓冲区描述符创建实际的常量缓冲区
 	md3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Quiz08::BuildRootSignature()
+//创建根签名
+void Box::BuildRootSignature()
 {
+	//创建一个有一个元素的根参数
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
-	//create a single descriptor table of CBVs
+	//创建一个有1个元素的描述符表
 	CD3DX12_DESCRIPTOR_RANGE cbvTable;
 	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	//使用该描述符表初始化根参数
 	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
 
-	//a root signature is an array of root parameters
+	//根据根参数创建根签名的描述符
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	//create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	//准备根据根签名表创建根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
@@ -305,41 +304,44 @@ void Quiz08::BuildRootSignature()
 	if (errorBlob != nullptr) ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	ThrowIfFailed(hr);
 
-	ThrowIfFailed(md3dDevice->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(&mRootSignature)));
+	//将根签名上传至根签名中
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(&mRootSignature)));
 }
 
-void Quiz08::BuildShadersAndInputLayout()
+//创建Shader并创建输入布局
+void Box::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
+	//读取shader
 	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
 	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
 
+	//初始化输入布局
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
-void Quiz08::BuildBoxGeometry()
+//构建顶点数据
+void Box::BuildBoxGeometry()
 {
+	//顶点
 	std::array<Vertex, 8> vertices =
 	{
 		Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
 		Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
 		Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
 		Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
-		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+		Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::White)}),
+		Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
 		Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})
+		Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
 	};
 
+	//索引
 	std::array<std::uint16_t, 36> indices =
 	{
 		//front face
@@ -363,7 +365,7 @@ void Quiz08::BuildBoxGeometry()
 	};
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(indices);
 
 	mBoxGeo = std::make_unique<MeshGeometry>();
 	mBoxGeo->Name = "boxGeo";
@@ -374,15 +376,17 @@ void Quiz08::BuildBoxGeometry()
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
+	//创建顶点缓冲区
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
-
-	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
-
 	mBoxGeo->VertexByteStride = sizeof(Vertex);
 	mBoxGeo->VertexBufferByteSize = vbByteSize;
+
+	//创建索引缓冲区
+	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
 	mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	mBoxGeo->IndexBufferByteSize = ibByteSize;
 
+	//将顶点和索引推入mBoxGeo中
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
@@ -391,7 +395,8 @@ void Quiz08::BuildBoxGeometry()
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void Quiz08::BuildPSO()
+//创建流水线状态对象
+void Box::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -400,7 +405,7 @@ void Quiz08::BuildPSO()
 	psoDesc.pRootSignature = mRootSignature.Get();
 	psoDesc.VS = { reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()), mvsByteCode->GetBufferSize() };
 	psoDesc.PS = { reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()), mpsByteCode->GetBufferSize() };
-	//psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	psoDesc.SampleMask = UINT_MAX;
@@ -410,10 +415,6 @@ void Quiz08::BuildPSO()
 	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	psoDesc.DSVFormat = mDepthStencilFormat;
-
-	CD3DX12_RASTERIZER_DESC wireFrameRasterMode(D3D12_DEFAULT);
-	wireFrameRasterMode.FillMode = D3D12_FILL_MODE_WIREFRAME;
-	psoDesc.RasterizerState = wireFrameRasterMode;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }

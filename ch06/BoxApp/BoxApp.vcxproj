@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{debb0cd5-09e5-4676-b466-70b820f7245f}</ProjectGuid>
-    <RootNamespace>ch06</RootNamespace>
+    <ProjectGuid>{0088890d-9928-4d95-a15c-82cfff38d8d6}</ProjectGuid>
+    <RootNamespace>BoxApp</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -139,36 +139,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\d3d12book-master\Common\d3dApp.cpp" />
-    <ClCompile Include="..\d3d12book-master\Common\d3dUtil.cpp" />
-    <ClCompile Include="..\d3d12book-master\Common\GameTimer.cpp" />
-    <ClCompile Include="..\d3d12book-master\Common\MathHelper.cpp" />
-    <ClCompile Include="JeBoxApp.cpp" />
-    <ClCompile Include="Quiz03.cpp" />
-    <ClCompile Include="Quiz03PointList.cpp" />
-    <ClCompile Include="Quiz04.cpp" />
-    <ClCompile Include="Quiz06.cpp" />
-    <ClCompile Include="Quiz07.cpp" />
-    <ClCompile Include="Quiz08.cpp" />
-    <ClCompile Include="Quiz09.cpp" />
-    <ClCompile Include="Quiz10.cpp" />
-    <ClCompile Include="Quiz11.cpp" />
-    <ClCompile Include="Quiz12.cpp" />
-    <ClCompile Include="Quiz13.cpp" />
-    <ClCompile Include="Quiz14.cpp" />
-    <ClCompile Include="Quiz15.cpp" />
-    <ClCompile Include="Quiz16.cpp" />
-    <ClCompile Include="quiz\Quiz01.cpp" />
-    <ClCompile Include="quiz\Quiz02.cpp" />
+    <ClInclude Include="..\..\d3d12book-master\Common\d3dApp.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\d3dUtil.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\d3dx12.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\GameTimer.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\MathHelper.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\UploadBuffer.h" />
+    <ClInclude Include="..\..\QuizCommonHeader.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\d3d12book-master\Common\d3dApp.h" />
-    <ClInclude Include="..\d3d12book-master\Common\d3dUtil.h" />
-    <ClInclude Include="..\d3d12book-master\Common\GameTimer.h" />
-    <ClInclude Include="..\d3d12book-master\Common\MathHelper.h" />
-    <ClInclude Include="..\d3d12book-master\Common\UploadBuffer.h" />
-    <ClInclude Include="..\QuizCommonHeader.h" />
-    <ClInclude Include="quiz\Quiz02Geometry.h" />
+    <ClCompile Include="..\..\d3d12book-master\Common\d3dApp.cpp" />
+    <ClCompile Include="..\..\d3d12book-master\Common\d3dUtil.cpp" />
+    <ClCompile Include="..\..\d3d12book-master\Common\GameTimer.cpp" />
+    <ClCompile Include="..\..\d3d12book-master\Common\MathHelper.cpp" />
+    <ClCompile Include="Box.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
