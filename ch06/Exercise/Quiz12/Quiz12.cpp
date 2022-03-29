@@ -119,6 +119,10 @@ void Box::OnResize()
 
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
+
+#pragma region Quiz0612
+	mScreenViewport.TopLeftX = -0.25 * mScreenViewport.Width;
+#pragma endregion
 }
 
 void Box::Update(const GameTimer& gt)
