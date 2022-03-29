@@ -3,7 +3,6 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorldViewProj;
-    float gTime;
 };
 
 struct VertexIn
@@ -26,13 +25,9 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-//change PS
 float4 PS(VertexOut pin) : SV_Target
 {
-    //return pin.Color;
-    float4 color = pin.Color;
-    color.r = saturate(sin(gTime) * color.r);
-    color.g = saturate(cos(gTime) * color.g); 
-    color.b = saturate(sin(2*gTime) * color.b);
-    return color;
+    //add this
+    clip(pin.Color.r - 0.5f);
+    return pin.Color;
 }
