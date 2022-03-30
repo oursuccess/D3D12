@@ -1,17 +1,11 @@
 //copy of Shapes App by Frank Luna, ch07
+//Shapes中演示了使用多个顶点和索引缓冲区绘制不同形状几何体的方法，以及使用DrawIndexInstanced方法绘制多个相同形状的几何体的方法
 
 #include "../../QuizCommonHeader.h"
+#include "FrameResource.h"
+#include "RenderItem.h"
 
-struct Vertex
-{
-	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
-};
-
-struct ObjectConstants
-{
-	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
-};
+//extern const int gNumFrameResources;
 
 class Shapes : public D3DApp
 {
