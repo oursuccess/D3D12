@@ -147,6 +147,8 @@
     <ClInclude Include="..\..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\QuizCommonHeader.h" />
+    <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="RenderItem.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\d3d12book-master\Common\d3dApp.cpp" />
@@ -154,6 +156,7 @@
     <ClCompile Include="..\..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\MathHelper.cpp" />
+    <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="Shapes.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
