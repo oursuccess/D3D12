@@ -88,8 +88,8 @@ private:
 	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
 	float mTheta = 1.5f * XM_PI;
-	float mPhi = XM_PIDIV4;
-	float mRadius = 5.0f;
+	float mPhi = 0.2f * XM_PI;
+	float mRadius = 15.0f;
 
 	POINT mLastMousePos;
 };
@@ -127,12 +127,12 @@ bool Shapes::Initialize()
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	BuildDescriptorHeaps();
 	//BuildConstantBuffers();
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
 	BuildShapesGeometry();
 	BuildRenderItems();
+	BuildFrameResources();
 	BuildDescriptorHeaps();
 	BuildConstantBufferViews();
 	BuildPSO();
@@ -327,7 +327,7 @@ void Shapes::UpdateObjectCBs(const GameTimer& gt)
 			//update the constant buffer with the lateset worldViewProject matrix
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			currObjectCB->CopyData(0, objConstants);
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
 			e->NumFramesDirty--;
 		}
