@@ -31,7 +31,10 @@ private:
 	void UpdateMainPassCB(const GameTimer& gt);
 
 	void BuildDescriptorHeaps();
+#pragma region Quiz0702
+	//移除该方法
 	//void BuildConstantBuffers();
+#pragma endregion
 	void BuildConstantBufferViews();
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
@@ -377,7 +380,7 @@ void Quiz02::BuildDescriptorHeaps()
 	UINT numDescriptors = (objCount + 1) * gNumFrameResources;
 
 #pragma region Quiz0702
-	//由于现在只有逐帧的常量缓冲区，因此passCB现在不再需要偏移了
+	//由于现在只有逐帧的常量缓冲区，因此passCB现在不再需要偏移了。mPassCbvOffset默认为0
 	//mPassCbvOffset = objCount * gNumFrameResources;
 #pragma endregion
 
