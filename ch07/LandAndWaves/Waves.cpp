@@ -48,9 +48,12 @@ void Waves::Update(float dt)
 	{
 		concurrency::parallel_for(1, mNumRows - 1, [this](int i) 
 			{
-				const auto idx = i * mNumCols + j;
-				mPrevSolution[idx].y = mK1 * mPrevSolution[idx].y + mK2 * mCurrSolution[idx].y +
-					mK3 * (mCurrSolution[idx + mNumCols].y + mCurrSolution[idx - mNumCols].y + mCurrSolution[idx + 1].y + mCurrSolution[idx - 1].y);
+				for (int j = 1; j < mNumCols - 1; ++j)
+				{
+					const auto idx = i * mNumCols + j;
+					mPrevSolution[idx].y = mK1 * mPrevSolution[idx].y + mK2 * mCurrSolution[idx].y +
+						mK3 * (mCurrSolution[idx + mNumCols].y + mCurrSolution[idx - mNumCols].y + mCurrSolution[idx + 1].y + mCurrSolution[idx - 1].y);
+				}
 			});
 
 		std::swap(mPrevSolution, mCurrSolution);
