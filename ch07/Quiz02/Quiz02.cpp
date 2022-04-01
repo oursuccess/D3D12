@@ -27,7 +27,7 @@ private:
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
-	void UpdateObjectCBs(const GameTimer& gt);
+	//void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
 	void BuildDescriptorHeaps();
@@ -171,7 +171,10 @@ void Quiz02::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
-	UpdateObjectCBs(gt);
+#pragma region Quiz0702
+	//我们不再需要这个了
+	//UpdateObjectCBs(gt);
+#pragma endregion
 	UpdateMainPassCB(gt);
 
 }
@@ -314,6 +317,9 @@ void Quiz02::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
+#pragma region Quiz0702
+/*
+//move some implementations to DrawRenderItems
 void Quiz02::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
@@ -332,6 +338,8 @@ void Quiz02::UpdateObjectCBs(const GameTimer& gt)
 		}
 	}
 }
+*/
+#pragma endregion
 
 void Quiz02::UpdateMainPassCB(const GameTimer& gt)
 {
@@ -368,7 +376,10 @@ void Quiz02::BuildDescriptorHeaps()
 
 	UINT numDescriptors = (objCount + 1) * gNumFrameResources;
 
-	mPassCbvOffset = objCount * gNumFrameResources;
+#pragma region Quiz0702
+	//由于现在只有逐帧的常量缓冲区，因此passCB现在不再需要偏移了
+	//mPassCbvOffset = objCount * gNumFrameResources;
+#pragma endregion
 
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	//cbvHeapDesc.NumDescriptors = 1;
@@ -382,6 +393,9 @@ void Quiz02::BuildDescriptorHeaps()
 
 void Quiz02::BuildConstantBufferViews()
 {
+#pragma region Quiz0702
+	//由于世界矩阵不再通过描述符表设置，因此单物体的常量缓冲区也不再需要了
+	/*
 	//计算该常量缓冲区的大小
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
@@ -413,6 +427,8 @@ void Quiz02::BuildConstantBufferViews()
 
 		}
 	}
+	*/
+#pragma endregion
 
 	//我们还需要创建逐帧的常量缓冲区
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
@@ -441,11 +457,18 @@ void Quiz02::BuildRootSignature()
 	//创建一个有一个元素的根参数
 	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
+#pragma region Quiz0702
+	//我们使用根常量代替了描述符表
+	/*
 	//创建一个有1个元素的描述符表
 	CD3DX12_DESCRIPTOR_RANGE cbvTable0;
 	cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
 	//使用该描述符表初始化根参数
 	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+	*/
+	//创建一个有16个常量的根常量
+	slotRootParameter[0].InitAsConstants(16, 0);
+#pragma endregion
 
 	//创建一个有1个元素的描述符表
 	CD3DX12_DESCRIPTOR_RANGE cbvTable1;
@@ -739,12 +762,23 @@ void Quiz02::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
+#pragma region Quiz0702
+		//因为物体的世界矩阵并不是通过常量缓冲区传入的，因此我们不再需要这里的偏移了
+		/*
 		//calc offset
 		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
 		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
 
 		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+		*/
+
+		//取而代之的是，我们直接将缓冲区与根常量绑定
+		XMMATRIX world = XMLoadFloat4x4(&ri->World);
+		ObjectConstants objConstants;
+		XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+		cmdList->SetGraphicsRoot32BitConstants(0, 16, &objConstants, 0);
+#pragma endregion
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
