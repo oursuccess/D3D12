@@ -51,6 +51,10 @@ struct Vertex
 	DirectX::XMFLOAT3 Pos;
 	//顶点颜色
 	DirectX::XMFLOAT4 Color;
+#pragma region Quiz0703
+	//为了读取骷髅头，我们需要该数据
+	DirectX::XMFLOAT3 Normal;
+#pragma endregion
 };
 
 //存储了一帧中CPU构建命令列表(CommandList)所需的资源

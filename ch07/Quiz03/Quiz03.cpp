@@ -37,6 +37,10 @@ private:
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
 	void BuildQuiz03Geometry();
+#pragma region Quiz0703
+	//添加一个添加骷髅头的方法
+	void BuildSkullGeometry();
+#pragma endregion
 	void BuildPSO();
 
 	void BuildFrameResources();
@@ -131,6 +135,9 @@ bool Quiz03::Initialize()
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
 	BuildQuiz03Geometry();
+#pragma region Quiz0703
+	BuildSkullGeometry();
+#pragma endregion
 	BuildRenderItems();
 	BuildFrameResources();
 	BuildDescriptorHeaps();
@@ -610,6 +617,72 @@ void Quiz03::BuildQuiz03Geometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
+#pragma region Quiz0703
+//添加一下骷髅头 里面的实现和顶点数据的构建是相同的
+void Quiz03::BuildSkullGeometry()
+{
+	std::ifstream fin("Models/skull.txt");
+	if (!fin) 
+	{
+		MessageBox(0, L"Models/skull.txt not found!", 0, 0);
+		return;
+	}
+	//读取顶点数量和三角形数量
+	UINT vcount = 0, tcount = 0;
+	std::string ignore;	//我们将无需的内容读到ignore中
+	fin >> ignore >> vcount;	//fin会逐单词读取。在这里忽略了VertexCount:，将31076读入了vcount
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore; //将VetexList (pos, normal)与下一行的{ 忽略
+
+	//这里的Vertex添加了Normal数据
+	std::vector<Vertex> vertices(vcount);
+	for (UINT i = 0; i < vcount; ++i) 
+	{
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+	}
+
+	//准备读取indices 同样要跳过无用的数据
+	fin >> ignore >> ignore >> ignore;
+	std::vector<std::int32_t> indices(3 * tcount);
+	for (UINT i = 0; i < tcount; ++i)
+	{
+		//一个三角形有三个顶点
+		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+	}
+	//读取完毕 关闭文件
+	fin.close();
+
+	//将indices和vertices打包到常量缓冲区
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "skullGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+	
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry skullMesh;
+	skullMesh.IndexCount = (UINT)indices.size();
+	skullMesh.StartIndexLocation = 0;
+	skullMesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["skull"] = skullMesh;
+	mGeometries[geo->Name] = std::move(geo);
+}
+#pragma endregion
+
 //创建流水线状态对象
 void Quiz03::BuildPSO()
 {
@@ -669,7 +742,23 @@ void Quiz03::BuildRenderItems()
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 	mAllRitems.push_back(std::move(gridRitem));
 
-	UINT objCBIndex = 2;
+#pragma region Quiz0703
+	//将骷髅头填充到这里
+	auto skullRitem = std::make_unique<RenderItem>();
+	skullRitem->World = MathHelper::Identity4x4();
+	skullRitem->ObjCBIndex = 2;
+	const auto skullGeo = mGeometries["skullGeo"].get();
+	const auto skull = skullGeo->DrawArgs["skull"];
+	skullRitem->Geo = skullGeo;
+	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skullRitem->IndexCount = skull.IndexCount;
+	skullRitem->StartIndexLocation = skull.StartIndexLocation;
+	skullRitem->BaseVertexLocation = skull.BaseVertexLocation;
+	mAllRitems.push_back(std::move(skullRitem));
+
+	//这里的2被改为3 因为我们在上面添加了一个骷髅头
+	UINT objCBIndex = 3;
+#pragma endregion
 	for(int i = 0; i < 5; ++i)
 	{
 		auto leftCylRitem = std::make_unique<RenderItem>();
