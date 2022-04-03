@@ -58,7 +58,7 @@ struct Vertex
 	//顶点位置(模型空间内的位置)
 	DirectX::XMFLOAT3 Pos;
 	//法线。这是为了能够导入骷髅头
-	DirectX::XMFLOAT4 Normal;
+	DirectX::XMFLOAT3 Normal;
 };
 
 //存储了一帧中CPU构建命令列表(CommandList)所需的资源
