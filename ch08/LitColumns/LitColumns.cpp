@@ -137,16 +137,19 @@ bool LitColumns::Initialize()
 	if (!D3DApp::Initialize()) return false;
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+	
+	//添加了这一行。用来计算描述符的大小
+	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
 	BuildShapesGeometry();
 	//第8章中增加。构建骷髅头
 	BuildSkullGeometry();
+	//第8章中增加。构建材质 顺序不能错
+	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
-	//第8章中增加。构建材质
-	BuildMaterials();
 	//BuildDescriptorHeaps();
 	//BuildConstantBufferViews();
 	BuildPSO();
@@ -476,8 +479,8 @@ void LitColumns::BuildShadersAndInputLayout()
 	};
 
 	//读取shader。这里的shader等级从5_0改成5_1了
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\default.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\default.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
 
 	//初始化输入布局。这里的输入布局中，Color被移除，加入了Normal和Texcoord
 	mInputLayout =

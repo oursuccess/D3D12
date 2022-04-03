@@ -1,18 +1,26 @@
-//copy of Default.hlsl by Frank Luna, ch07
+//***************************************************************************************
+// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+//
+// Default shader, currently supports lighting.
+//***************************************************************************************
 
+// Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
-    #define NUM_DIR_LIHGTS 3
+    #define NUM_DIR_LIGHTS 3
 #endif
 
 #ifndef NUM_POINT_LIGHTS
-    #define NUM_POINT_LIHGTS 0
+    #define NUM_POINT_LIGHTS 0
 #endif
 
 #ifndef NUM_SPOT_LIGHTS
     #define NUM_SPOT_LIGHTS 0
 #endif
 
+// Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
+
+// Constant data that varies per frame.
 
 cbuffer cbPerObject : register(b0)
 {
@@ -21,12 +29,13 @@ cbuffer cbPerObject : register(b0)
 
 cbuffer cbMaterial : register(b1)
 {
-    float4 gDiffuseAlbedo;
+	float4 gDiffuseAlbedo;
     float3 gFresnelR0;
-    float gRoughness;
-    float4x4 gMatTransform;
+    float  gRoughness;
+	float4x4 gMatTransform;
 };
 
+// Constant data that varies per material.
 cbuffer cbPass : register(b2)
 {
     float4x4 gView;
@@ -45,32 +54,38 @@ cbuffer cbPass : register(b2)
     float gDeltaTime;
     float4 gAmbientLight;
 
+    // Indices [0, NUM_DIR_LIGHTS) are directional lights;
+    // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
+    // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
+    // are spot lights for a maximum of MaxLights per object.
     Light gLights[MaxLights];
 };
-
+ 
 struct VertexIn
 {
-    float3 PosL : POSITIONT;
+	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
 };
 
 struct VertexOut
 {
-    float4 PosH : SV_POSTION;
-    float3 PosW : POSITION;
+	float4 PosH    : SV_POSITION;
+    float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
 };
 
 VertexOut VS(VertexIn vin)
 {
-    VertexOut vout = (VertexOut) 0.0f;
-
-    //这里和Unity Shader入门精要的顺序是相反的。 是因为这里的gWorld是按照行来排列的
+	VertexOut vout = (VertexOut)0.0f;
+	
+    // Transform to world space.
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
 
-    //这里同样和UnityShader入门精要里方向相反了 因为这里的gWorld是Object2World
-    vout.NormalW = mul(vin.NormalL, (float3x3) gWorld);
+    // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+    vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+
+    // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 
     return vout;
@@ -78,22 +93,27 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    // Interpolating normal can unnormalize it, so renormalize it.
     pin.NormalW = normalize(pin.NormalW);
 
+    // Vector from point being lit to eye. 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-    //漫反射
-    float4 ambient = gAmbientLight * gDiffuseAlbedo;
-    //高光反射
-    const float shiniess = 1.0f - gRoughness;
-    Material mat = { gDiffuseAlbedo, gFresnelR0, shiniess };
+	// Indirect lighting.
+    float4 ambient = gAmbientLight*gDiffuseAlbedo;
+
+    const float shininess = 1.0f - gRoughness;
+    Material mat = { gDiffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
+    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, 
+        pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 
+    // Common convention to take alpha from diffuse material.
     litColor.a = gDiffuseAlbedo.a;
 
     return litColor;
-    
 }
+
+
