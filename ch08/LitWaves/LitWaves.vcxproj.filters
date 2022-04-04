@@ -39,6 +39,9 @@
     <ClCompile Include="Waves.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\d3d12book-master\Common\GeometryGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\d3d12book-master\Common\d3dApp.h">
@@ -68,13 +71,8 @@
     <ClInclude Include="Waves.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="Shaders\LightingUtil.hlsl">
-      <Filter>Resource Files</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Default.hlsl">
-      <Filter>Resource Files</Filter>
-    </FxCompile>
+    <ClInclude Include="..\..\d3d12book-master\Common\GeometryGenerator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -143,6 +143,7 @@
     <ClCompile Include="..\..\d3d12book-master\Common\d3dUtil.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\DDSTextureLoader.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\GameTimer.cpp" />
+    <ClCompile Include="..\..\d3d12book-master\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\MathHelper.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="LitWaves.cpp" />
@@ -154,14 +155,11 @@
     <ClInclude Include="..\..\d3d12book-master\Common\d3dx12.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\DDSTextureLoader.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\GameTimer.h" />
+    <ClInclude Include="..\..\d3d12book-master\Common\GeometryGenerator.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\UploadBuffer.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="Waves.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="Shaders\Default.hlsl" />
-    <FxCompile Include="Shaders\LightingUtil.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
