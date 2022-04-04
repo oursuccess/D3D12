@@ -83,7 +83,7 @@ float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
-float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, flaot3 toEye)
+float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
 {
     float3 lightVec = L.Position - pos;
     float d = length(lightVec);
