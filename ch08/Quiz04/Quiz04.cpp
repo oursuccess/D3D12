@@ -101,8 +101,8 @@ private:
 	POINT mLastMousePos;
 
 #pragma region Quiz0804
-	//我们用这个矩阵来存储所有的光源的位置
-	std::vector<XMMATRIX> mLightPoss;
+	//我们存储所有的光源的位置
+	std::vector<XMFLOAT3> mLightPoss;
 	//我们用这个来计算光线的mSunTheta
 	float mSunTheta = 1.25f * XM_PI;
 	float mSunPhi = XM_PIDIV4;
@@ -449,7 +449,9 @@ void LitColumns::UpdateMainPassCB(const GameTimer& gt)
 		mMainPassCB.Lights[i+1].Strength = { 1.0f, 0.0f, 0.0f };
 		//对于点光源，我们还要填充FalloffStart和FalloffEnd
 		mMainPassCB.Lights[i + 1].FalloffStart = 0.1f;
-		mMainPassCB.Lights[i + 1].FalloffEnd = 50.0f;
+		mMainPassCB.Lights[i + 1].FalloffEnd = 10.0f;
+		//最重要的，我们要调整点光源的位置
+		mMainPassCB.Lights[i + 1].Position = mLightPoss[i];
 	}
 #pragma endregion
 
@@ -859,8 +861,8 @@ void LitColumns::BuildRenderItems()
 
 #pragma region Quiz0804
 		//在这里，我们将球体的位置存储光源的位置中。因为我们现在要在每个球体中心添加光源
-		mLightPoss.push_back(leftSphereWorld);
-		mLightPoss.push_back(rightSphereWorld);
+		mLightPoss.push_back({-5.0f, 3.5f, -10.0f + i * 5.0f});
+		mLightPoss.push_back({+5.0f, 3.5f, -10.0f + i * 5.0f});
 #pragma endregion
 
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
