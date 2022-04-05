@@ -1,4 +1,5 @@
 //copy of LightingUtil, Frank Luna, ch08, Lit Waves
+//add simple toon light shader by Je
 
 #define MaxLights 16
 
@@ -54,14 +55,40 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
     return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;
 }
 
+//自行实现的ToonLight
+float3 ToonLight(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, Material mat)
+{
+    //是光泽度。和粗糙度刚好相反了！
+    const float m = mat.Shineness * 256.0f;
+    float3 halfVec = normalize(toEye + lightVec);
+
+    float roughnessFactor = pow(max(dot(halfVec, normal), 0.0f), m);
+    //在这里加上一个ks的离散化
+    roughnessFactor = roughnessFactor <= 0.1f ? 0.0f : (roughnessFactor <= 0.8f ? 0.5f : 0.8f);
+    roughnessFactor *= (m + 8.0f) / 8.0f;
+
+    float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);
+
+    float3 specAlbedo = fresnelFactor * roughnessFactor;
+
+    specAlbedo = specAlbedo / (specAlbedo + 1.0f);
+
+    return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;
+}
+
+//在下面的所有的光照中，我们要将ndotl进行离散化，并将最后的光照调用修改为ToonLight。后面所有光源都要修改，因此不再赘述
 float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEye)
 {
     float3 lightVec = -L.Direction;
 
+    //离散化，后面相同，不再赘述
     float ndotl = max(dot(lightVec, normal), 0.0f);
+    ndotl = ndotl <= 0.02f ? 0.4f : (ndotl <= 0.5f ? 0.6f : 1.0f);
+
     float3 lightStrength = L.Strength * ndotl;
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    //将BlinnPhong修改为ToonLight，后面相同 不再赘述
+    return ToonLight(lightStrength, lightVec, normal, toEye, mat);
 }
 
 float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
@@ -74,13 +101,16 @@ float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float
     
     lightVec /= d;
 
+    //离散化，后面相同，不再赘述
     float ndotl = max(dot(lightVec, normal), 0.0f);
+    ndotl = ndotl <= 0.02f ? 0.4f : (ndotl <= 0.5f ? 0.6f : 1.0f);
+
     float3 lightStrength = L.Strength * ndotl;
     
     float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
     lightStrength *= att;
     
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return ToonLight(lightStrength, lightVec, normal, toEye, mat);
 }
 
 float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
@@ -92,8 +122,11 @@ float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3
         return 0.0f;
     
     lightVec /= d;
-    
+
+    //离散化，后面相同，不再赘述
     float ndotl = max(dot(lightVec, normal), 0.0f);
+    ndotl = ndotl <= 0.02f ? 0.4f : (ndotl <= 0.5f ? 0.6f : 1.0f);
+    
     float3 lightStrength = L.Strength * ndotl;
     
     float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
@@ -102,7 +135,7 @@ float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3
     float spotFactor = pow(max(dot(-lightVec, L.Direction), 0.0f), L.SpotPower);
     lightStrength *= spotFactor;
     
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return ToonLight(lightStrength, lightVec, normal, toEye, mat);
 }
 
 float4 ComputeLighting(Light gLights[MaxLights], Material mat, float3 pos, float3 normal, float3 toEye, float3 shadowFactor)
