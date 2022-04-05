@@ -764,14 +764,23 @@ void LitWaves::BuildMaterials()
 	grass->MatCBIndex = 0;
 	grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
 	grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
-	grass->Roughness = 0.125f;
+#pragma region Quiz0802
+	//¼òµ¥ĞŞ¸ÄRoughness¼´¿É
+	//grass->Roughness = 0.125f;
+	//grass->Roughness = 0.5f;
+	grass->Roughness = 0.95f;
+#pragma endregion
 
 	auto water = std::make_unique<Material>();
 	water->Name = "water";
 	water->MatCBIndex = 1;
 	water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	water->Roughness = 0.0f;
+#pragma region Quiz0802
+	//water->Roughness = 0.0f;
+	//water->Roughness = 0.5f;
+	water->Roughness = 0.9f;
+#pragma endregion
 
 	mMaterials["grass"] = std::move(grass);
 	mMaterials["water"] = std::move(water);
