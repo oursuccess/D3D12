@@ -412,12 +412,21 @@ void LitColumns::UpdateMainPassCB(const GameTimer& gt)
 	//传入漫反射颜色
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	//我们在这里传入三个光源
+#pragma region Quiz0803
+	//LitColumns里本来就传入了三个光源...
+	//这是从左前面照向物体的主光
 	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	//主光光强是最高的
 	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	//这是从右前面照向物体的辅助光
 	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	//辅助光的光强为主光的一半
 	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	//这是从右上边照向物体的轮廓光
 	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	//轮廓光的光强为辅助光的一半
 	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+#pragma endregion
 
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
