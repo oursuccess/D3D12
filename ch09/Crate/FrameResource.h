@@ -4,51 +4,40 @@
 #include "../../d3d12book-master/Common/MathHelper.h"
 #include "../../d3d12book-master/Common/UploadBuffer.h"
 
-//ÎïÌåĞèÒªµÄ³£Á¿
+//ç‰©ä½“å¸¸é‡ç¼“å†²åŒº
 struct ObjectConstants
 {
 	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 };
 
-//Ã¿¸öPassĞèÒªµÄ³£Á¿
+//æ¯å¸§éœ€è¦çš„å¸¸é‡ç¼“å†²åŒº
 struct PassConstants
 {
-	//¹Û²ì¾ØÕóºÍ¹Û²ì¾ØÕóµÄÄæ¾ØÕó¡£¹Û²ì¾ØÕó½«ÎïÌå´ÓÊÀ½ç¿Õ¼ä×ª»»µ½¹Û²ì¿Õ¼ä
 	DirectX::XMFLOAT4X4 View = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 InvView = MathHelper::Identity4x4();
-	//Í¶Ó°¾ØÕóºÍÍ¶Ó°¾ØÕóµÄÄæ¾ØÕó¡£Í¶Ó°¾ØÕó½«ÎïÌå´Ó¹Û²ì¿Õ¼ä×ª»»µ½Í¶Ó°¿Õ¼ä
 	DirectX::XMFLOAT4X4 Proj = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
-	//¹Û²ìÍ¶Ó°¾ØÕóºÍÆäÄæ¾ØÕó¡£¹Û²ìÍ¶Ó°¾ØÕó½«ÎïÌå´ÓÊÀ½ç¿Õ¼äÖ±½Ó×ª»»µ½Í¶Ó°¿Õ¼ä
 	DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
 
-	//¹Û²ìµãµÄÎ»ÖÃ¡£Ïà»úËùÔÚµÄÎ»ÖÃ
 	DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-	//¶ÔÆëÓÃµÄÌî³ä
 	float cbPerObjectPad1 = 0.0f;
-	//»º³åÇø´óĞ¡ºÍÆäµ¹Êı
 	DirectX::XMFLOAT2 RenderTargetSize{ 0.0f, 0.0f };
 	DirectX::XMFLOAT2 InvRenderTargetSize{ 0.0f, 0.0f };
-	//½ü²Ã¼ô¾àÀëºÍÔ¶²Ã¼ô¾àÀë
 	float NearZ = 0.0f;
 	float FarZ = 0.0f;
-	//×ÜÊ±¼äºÍµ±Ç°Ö¡µÄÊ±¼ä
 	float TotalTime = 0.0f;
 	float DeltaTime = 0.0f;
-	//»·¾³¹âµÄÑÕÉ«
 	DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-	//¹âÕÕÃÇ
 	Light Lights[MaxLights];
 };
 
-//¶¥µãÊôĞÔ
+//é¡¶ç‚¹æ‰€éœ€çš„æ•°æ®
 struct Vertex
 {
 	DirectX::XMFLOAT3 Pos;
 	DirectX::XMFLOAT3 Normal;
-	//ÌùÍ¼Î»ÖÃ
 	DirectX::XMFLOAT2 TexC;
 };
 
@@ -60,14 +49,12 @@ public:
 	FrameResource& operator=(const FrameResource& rhs) = delete;
 	~FrameResource();
 
-	//Ã¿¸öÖ¡×ÊÔ´¶¼ĞèÒªÒ»¸öÃüÁî·ÖÅäÆ÷ºÍÏàÓ¦µÄ»º³åÇø
 	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
 	std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
 	std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 	std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
 
-	//Î§À¸Öµ
 	UINT64 Fence = 0;
 };
 
