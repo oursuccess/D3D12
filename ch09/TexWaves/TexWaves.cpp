@@ -42,13 +42,13 @@ enum class RenderLayer : int
 	Count
 };
 
-class LitWaves : public D3DApp
+class TexWaves : public D3DApp
 {
 public:
-    LitWaves(HINSTANCE hInstance);
-    LitWaves(const LitWaves& rhs) = delete;
-    LitWaves& operator=(const LitWaves& rhs) = delete;
-    ~LitWaves();
+    TexWaves(HINSTANCE hInstance);
+    TexWaves(const TexWaves& rhs) = delete;
+    TexWaves& operator=(const TexWaves& rhs) = delete;
+    ~TexWaves();
 
     virtual bool Initialize()override;
 
@@ -63,20 +63,36 @@ private:
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
+	//ch09, 添加一个动画(更新顶点材质属性)方法
+	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	void UpdateWaves(const GameTimer& gt);
 
+	//ch09,添加一个读取贴图的方法
+	void LoadTextures();
     void BuildRootSignature();
+	//ch09,添加一个创建描述符堆的方法，用于存放SRV描述符
+	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildLandGeometry();
-    void BuildWavesGeometryBuffers();
+	//ch09,下面这个方法被移除，替换为构建Land、Waves的几何的方法
+    //void BuildWavesGeometryBuffers();
+	//ch09,添加Land
+	void BuildLandGeometry();
+	//ch09,添加Wave
+	void BuildWavesGeometry();
+	//ch09,添加Box
+	void BuildBoxGeometry();
     void BuildPSOs();
     void BuildFrameResources();
 	void BuildMaterials();
     void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+
+	//ch09,添加一个获取静态采样器的方法
+	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
     float GetHillsHeight(float x, float z)const;
     XMFLOAT3 GetHillsNormal(float x, float z)const;
@@ -91,10 +107,12 @@ private:
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
+	//ch09,添加一个描述符堆
+	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
-
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
@@ -104,6 +122,7 @@ private:
 
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
+	//render items devided by PSO
 	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
 	std::unique_ptr<Waves> mWaves;
@@ -120,6 +139,7 @@ private:
     float mPhi = XM_PIDIV2 - 0.1f;
     float mRadius = 50.0f;
 
+	//这两个参数在ch09里又没了。 但是我不予以删除
 	float mSunTheta = 1.25f*XM_PI;
 	float mSunPhi = XM_PIDIV4;
 
@@ -135,7 +155,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
-        LitWaves theApp(hInstance);
+        TexWaves theApp(hInstance);
         if(!theApp.Initialize())
             return 0;
 
@@ -148,18 +168,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     }
 }
 
-LitWaves::LitWaves(HINSTANCE hInstance)
+TexWaves::TexWaves(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
 }
 
-LitWaves::~LitWaves()
+TexWaves::~TexWaves()
 {
     if(md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
-bool LitWaves::Initialize()
+bool TexWaves::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
@@ -170,13 +190,20 @@ bool LitWaves::Initialize()
 
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
+	//ch09,首先加载材质
+	LoadTextures();
     BuildRootSignature();
+	//ch09,然后，创建描述符堆
+	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
 	BuildLandGeometry();
-    BuildWavesGeometryBuffers();
+	//ch09,这个方法都删除了
+    //BuildWavesGeometryBuffers();
+	//ch09,修改为添加Waves和Box的几何顶点
+	BuildWavesGeometry();
+	BuildBoxGeometry();
 	BuildMaterials();
     BuildRenderItems();
-	BuildRenderItems();
     BuildFrameResources();
 	BuildPSOs();
 
@@ -189,7 +216,7 @@ bool LitWaves::Initialize()
     return true;
 }
  
-void LitWaves::OnResize()
+void TexWaves::OnResize()
 {
     D3DApp::OnResize();
 
@@ -197,7 +224,7 @@ void LitWaves::OnResize()
     XMStoreFloat4x4(&mProj, P);
 }
 
-void LitWaves::Update(const GameTimer& gt)
+void TexWaves::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -213,18 +240,21 @@ void LitWaves::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
+	//ch09,添加一个动画方法
+	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
 	UpdateWaves(gt);
 }
 
-void LitWaves::Draw(const GameTimer& gt)
+void TexWaves::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
 	ThrowIfFailed(cmdListAlloc->Reset());
 
+	//ch09中，不再存在opaque和opaque_wireframe两种绘制方式，取而代之的只有一种opaque。但这里没改
     if(mIsWireframe)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
@@ -244,6 +274,10 @@ void LitWaves::Draw(const GameTimer& gt)
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+	//ch09,添加设置描述符堆的方法
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
@@ -268,7 +302,7 @@ void LitWaves::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void LitWaves::OnMouseDown(WPARAM btnState, int x, int y)
+void TexWaves::OnMouseDown(WPARAM btnState, int x, int y)
 {
     mLastMousePos.x = x;
     mLastMousePos.y = y;
@@ -276,12 +310,12 @@ void LitWaves::OnMouseDown(WPARAM btnState, int x, int y)
     SetCapture(mhMainWnd);
 }
 
-void LitWaves::OnMouseUp(WPARAM btnState, int x, int y)
+void TexWaves::OnMouseUp(WPARAM btnState, int x, int y)
 {
     ReleaseCapture();
 }
 
-void LitWaves::OnMouseMove(WPARAM btnState, int x, int y)
+void TexWaves::OnMouseMove(WPARAM btnState, int x, int y)
 {
     if((btnState & MK_LBUTTON) != 0)
     {
@@ -307,8 +341,9 @@ void LitWaves::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
-void LitWaves::OnKeyboardInput(const GameTimer& gt)
+void TexWaves::OnKeyboardInput(const GameTimer& gt)
 {
+	//ch09, 所有的键盘响应方法都被删除了
     if(GetAsyncKeyState('1') & 0x8000)
         mIsWireframe = true;
     else
@@ -322,7 +357,7 @@ void LitWaves::OnKeyboardInput(const GameTimer& gt)
 	mSunPhi = MathHelper::Clamp(mSunPhi, 0.1f, XM_PIDIV2);
 }
 
-void LitWaves::UpdateCamera(const GameTimer& gt)
+void TexWaves::UpdateCamera(const GameTimer& gt)
 {
 	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
 	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
@@ -336,7 +371,11 @@ void LitWaves::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void LitWaves::UpdateObjectCBs(const GameTimer& gt)
+void TexWaves::AnimateMaterials(const GameTimer& gt)
+{
+}
+
+void TexWaves::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for(auto& e : mAllRitems)
@@ -356,7 +395,7 @@ void LitWaves::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void LitWaves::UpdateMaterialCBs(const GameTimer& gt)
+void TexWaves::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
 	for (auto& e : mMaterials) 
@@ -378,7 +417,7 @@ void LitWaves::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
-void LitWaves::UpdateMainPassCB(const GameTimer& gt)
+void TexWaves::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -410,7 +449,7 @@ void LitWaves::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void LitWaves::UpdateWaves(const GameTimer& gt)
+void TexWaves::UpdateWaves(const GameTimer& gt)
 {
 	static float t_base = 0.0f;
 	if((mTimer.TotalTime() - t_base) >= 0.25f)
@@ -441,7 +480,11 @@ void LitWaves::UpdateWaves(const GameTimer& gt)
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
-void LitWaves::BuildRootSignature()
+void TexWaves::LoadTextures()
+{
+}
+
+void TexWaves::BuildRootSignature()
 {
     CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 
@@ -469,7 +512,11 @@ void LitWaves::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void LitWaves::BuildShadersAndInputLayout()
+void TexWaves::BuildDescriptorHeaps()
+{
+}
+
+void TexWaves::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_0");
@@ -481,7 +528,7 @@ void LitWaves::BuildShadersAndInputLayout()
     };
 }
 
-void LitWaves::BuildLandGeometry()
+void TexWaves::BuildLandGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
@@ -530,7 +577,11 @@ void LitWaves::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
-void LitWaves::BuildWavesGeometryBuffers()
+void TexWaves::BuildWavesGeometry()
+{
+}
+
+void TexWaves::BuildWavesGeometryBuffers()
 {
 	std::vector<std::uint16_t> indices(3 * mWaves->TriangleCount()); // 3 indices per face
 	assert(mWaves->VertexCount() < 0x0000ffff);
@@ -584,7 +635,11 @@ void LitWaves::BuildWavesGeometryBuffers()
 	mGeometries["waterGeo"] = std::move(geo);
 }
 
-void LitWaves::BuildPSOs()
+void TexWaves::BuildBoxGeometry()
+{
+}
+
+void TexWaves::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -619,7 +674,7 @@ void LitWaves::BuildPSOs()
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
-void LitWaves::BuildFrameResources()
+void TexWaves::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
@@ -628,7 +683,7 @@ void LitWaves::BuildFrameResources()
     }
 }
 
-void LitWaves::BuildMaterials()
+void TexWaves::BuildMaterials()
 {
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
@@ -648,7 +703,7 @@ void LitWaves::BuildMaterials()
 	mMaterials["water"] = std::move(water);
 }
 
-void LitWaves::BuildRenderItems()
+void TexWaves::BuildRenderItems()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->World = MathHelper::Identity4x4();
@@ -680,7 +735,7 @@ void LitWaves::BuildRenderItems()
 	mAllRitems.push_back(std::move(gridRitem));
 }
 
-void LitWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void TexWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
@@ -707,12 +762,17 @@ void LitWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 	}
 }
 
-float LitWaves::GetHillsHeight(float x, float z)const
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexWaves::GetStaticSamplers()
+{
+	return std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6>();
+}
+
+float TexWaves::GetHillsHeight(float x, float z)const
 {
     return 0.3f*(z*sinf(0.1f*x) + x*cosf(0.1f*z));
 }
 
-XMFLOAT3 LitWaves::GetHillsNormal(float x, float z)const
+XMFLOAT3 TexWaves::GetHillsNormal(float x, float z)const
 {
     // n = (-df/dx, 1, -df/dz)
     XMFLOAT3 n(
