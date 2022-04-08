@@ -907,6 +907,8 @@ void TexWaves::BuildRenderItems()
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
+
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
 	//ch09, 将箱子推入渲染队列中
@@ -937,10 +939,12 @@ void TexWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+		//ch09, 现在这里要从0变成1了
+		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
 
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
-		cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
+		//ch09，现在这里要从1变成3了
+		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
 
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
