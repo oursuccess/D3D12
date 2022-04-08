@@ -5,6 +5,8 @@
 struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+    //ch09,娣诲姞涓�涓猅exTransform
+    DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 };
 
 struct PassConstants
@@ -23,7 +25,6 @@ struct PassConstants
     float FarZ = 0.0f;
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
-    //第8章中添加了光照和漫反射强度
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
     Light Lights[MaxLights];
 };
@@ -31,9 +32,9 @@ struct PassConstants
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
-    //第8章中，移除了Color，改为Normal
-    //DirectX::XMFLOAT4 Color;
     DirectX::XMFLOAT3 Normal;
+    //ch09,娣诲姞鏉愯川鐨剈v鍧愭爣
+    DirectX::XMFLOAT2 TexC;
 };
 
 // Stores the resources needed for the CPU to build the command lists
@@ -55,7 +56,6 @@ public:
     // that reference it.  So each frame needs their own cbuffers.
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
-    //第8章中，添加了材质的常量缓冲区
     std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
     // We cannot update a dynamic vertex buffer until the GPU is done processing
