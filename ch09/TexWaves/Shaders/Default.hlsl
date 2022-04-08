@@ -111,14 +111,15 @@ float4 PS(VertexOut pin) : SV_Target
     
     const float shininess = 1.0f - gRoughness;
 
-    Material mat = { gDiffuseAlbedo, gFresnelR0, shininess };
+    //现在diffuseAlbedo是通过gDiffuseAlbedo和贴图采样共同计算获得的
+    Material mat = { diffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
     
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 
-    litColor.a = gDiffuseAlbedo.a;
+    litColor.a = diffuseAlbedo.a;
 
     return litColor;
 }
