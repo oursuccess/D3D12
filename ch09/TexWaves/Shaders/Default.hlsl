@@ -33,6 +33,15 @@ cbuffer cbPerObject : register(b0)
     float4x4 gTexTransform;
 };
 
+//这里，我们认为材质比Pass更稳定，因此Material为b2，而Pass为b1!!!
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo;
+    float3 gFresnelR0;
+    float gRoughness;
+    float4x4 gMatTransform;
+};
+
 //参看cbMaterial上面的注释
 cbuffer cbPass : register(b1)
 {
@@ -54,17 +63,6 @@ cbuffer cbPass : register(b1)
     float4 gAmbientLight;
     Light gLights[MaxLights];
 };
-
-//这里，我们认为材质比Pass更稳定，因此Material为b2，而Pass为b1!!!
-//因此，我们必须把这个挪到cbPass的下面声明
-cbuffer cbMaterial : register(b2)
-{
-    float4 gDiffuseAlbedo;
-    float3 gFresnelR0;
-    float gRoughness;
-    float4x4 gMatTransform;
-};
-
 
 struct VertexIn
 {
