@@ -83,7 +83,7 @@ private:
 	int mCurrFrameResourceIndex = 0;
 
 	//用于在缓冲区中找到指定的缓冲区，我们使用该大小乘上偏移的index，即可得到偏移量
-	UINT mCbvDrvDescriptorSize = 0;
+	UINT mCbvSrvDescriptorSize = 0;
 
 	//根签名。由于资源的SRV无法作为根描述符被绑定，因此我们必须使用根签名
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -166,7 +166,7 @@ bool Crate::Initialize()
 	//重置命令列表，从而为命令列表的初始化做准备
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 	//计算CbvSrv描述符的大小
-	mCbvDrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	//贴图加载
 	LoadTextures();
