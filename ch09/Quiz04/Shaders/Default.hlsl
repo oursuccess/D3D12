@@ -97,12 +97,17 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 
+    //将uv的取值范围映射到[-0.5, 0.5],因为我们必须让贴图的旋转中心为(0.5, 0.5), 而非(0, 0)
+    vin.TexC -= float2(0.5f, 0.5f);
+
 	// Output vertex attributes for interpolation across triangle.
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(texC, gMatTransform).xy;
+    //在这里旋转也是一样的，但是这样多了一个矩阵点乘
+    //vout.TexC = mul(vout.TexC, float2x2(cos(gTotalTime), sin(gTotalTime), -sin(gTotalTime), cos(gTotalTime)));
 
-    //我们乘一下时间，从而实现一个旋转效果
-    vout.TexC = mul(vout.TexC, float2x2(cos(gTotalTime), sin(gTotalTime), -sin(gTotalTime), cos(gTotalTime)));
+    //然后将uv重新映射回[0, 1]
+    vout.TexC += float2(0.5f, 0.5f);
 
     return vout;
 }

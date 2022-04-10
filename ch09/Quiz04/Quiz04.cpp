@@ -350,6 +350,13 @@ void Crate::UpdateCamera(const GameTimer& gt)
 
 void Crate::AnimateMaterials(const GameTimer& gt)
 {
+#pragma region Quiz0904
+	//在这里更新贴图顶点,让其绕着z轴旋转
+	auto mat = mMaterials["woodCrate"].get();
+	XMStoreFloat4x4(&mat->MatTransform, XMMatrixRotationZ(gt.TotalTime()));
+	//我们更新了其顶点，因此我们将其标记为脏
+	mat->NumFramesDirty = 3;
+#pragma endregion
 }
 
 void Crate::UpdateObjectCBs(const GameTimer& gt)
