@@ -729,6 +729,7 @@ void TexColumns::BuildMaterials()
 	auto bricks0 = std::make_unique<Material>();
 	bricks0->Name = "bricks0";
 	bricks0->MatCBIndex = 0;
+	//这里的HeapIndex与上面的BuildDescriptorHeaps里的CreateShaderResourceView中的顺序严格对应!
 	bricks0->DiffuseSrvHeapIndex = 0;
 	//ch09, 现在漫反射是根据材质来计算的了, 下同
 	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
