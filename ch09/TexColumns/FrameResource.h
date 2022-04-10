@@ -51,4 +51,4 @@ public:
 	std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
 	UINT64 Fence = 0;
-}
+};

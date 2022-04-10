@@ -4,7 +4,7 @@
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
 
-//extern const int gNumFrameResources;
+const int gNumFrameResources = 3;
 
 //渲染项
 struct RenderItem
