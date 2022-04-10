@@ -29,6 +29,8 @@ SamplerState gsamLinearWrap : register(s2);
 SamplerState gsamLinearClamp : register(s3);
 SamplerState gsamAnisotropicWrap : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
+SamplerState gsamLinearBorder : register(s6);
+SamplerState gsamLinearMirror : register(s7);
 
 
 // Constant data that varies per frame.
@@ -112,7 +114,16 @@ float4 PS(VertexOut pin) : SV_Target
 {
     //然后，我们在采样的时候，修改采样器状态即可
     //float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
-    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamPointWarp, pin.TexC) * gDiffuseAlbedo;
+    //常量插值重复
+    //float4 diffuseAlbedo = gDiffuseMap.Sample(gsamPointWarp, pin.TexC) * gDiffuseAlbedo;
+    //线性钳位寻址
+    //float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicClamp, pin.TexC) * gDiffuseAlbedo;
+    //线性重复
+    //float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinearWrap, pin.TexC) * gDiffuseAlbedo;
+    //线性边框
+    //float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinearBorder, pin.TexC) * gDiffuseAlbedo;
+    //线性镜像
+    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinearMirror, pin.TexC) * gDiffuseAlbedo;
 
 
     // Interpolating normal can unnormalize it, so renormalize it.

@@ -74,7 +74,10 @@ private:
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
-	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+#pragma region Quiz0901
+	//我们添加两个寻址模式，分别是线性边框和线性镜像。 为此，我们将数组大小从6改为8
+	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 8> GetStaticSamplers();
+#pragma endregion
 
 private:
 	//指向当前的帧资源
@@ -608,6 +611,10 @@ void Crate::BuildRenderItems()
 {
 	auto boxRitem = std::make_unique<RenderItem>();
 	boxRitem->ObjCBIndex = 0;
+#pragma region Quiz0901
+	//我们将箱子的纹理映射到[0, 5],从而看出重复和边框等的区别
+	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+#pragma endregion
 	boxRitem->Mat = mMaterials["woodCrate"].get();
 	boxRitem->Geo = mGeometries["boxGeo"].get();
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -651,7 +658,7 @@ void Crate::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vecto
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Crate::GetStaticSamplers()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 8> Crate::GetStaticSamplers()
 {
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
 		0, // shaderRegister
@@ -699,8 +706,16 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Crate::GetStaticSamplers()
 		0.0f,                              // mipLODBias
 		8);                                // maxAnisotropy
 
+#pragma region Quiz0901
+	//添加两个分别对应边框和镜像寻址模式的采样器
+	const CD3DX12_STATIC_SAMPLER_DESC linearBorder(6, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER);
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearMirror(7, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_MIRROR, D3D12_TEXTURE_ADDRESS_MODE_MIRROR, D3D12_TEXTURE_ADDRESS_MODE_MIRROR);
+
 	return {
 		pointWrap, pointClamp,
 		linearWrap, linearClamp,
-		anisotropicWrap, anisotropicClamp };
+		anisotropicWrap, anisotropicClamp,
+		linearBorder, linearMirror};
+#pragma endregion
 }
