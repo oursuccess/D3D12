@@ -96,10 +96,13 @@ VertexOut VS(VertexIn vin)
 
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
-	
+
 	// Output vertex attributes for interpolation across triangle.
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(texC, gMatTransform).xy;
+
+    //我们乘一下时间，从而实现一个旋转效果
+    vout.TexC = mul(vout.TexC, float2x2(cos(gTotalTime), sin(gTotalTime), -sin(gTotalTime), cos(gTotalTime)));
 
     return vout;
 }
