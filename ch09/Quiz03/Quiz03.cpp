@@ -83,7 +83,7 @@ private:
 	int mCurrFrameResourceIndex = 0;
 
 	//用于在缓冲区中找到指定的缓冲区，我们使用该大小乘上偏移的index，即可得到偏移量
-	UINT mCbvDrvDescriptorSize = 0;
+	UINT mCbvSrvDescriptorSize = 0;
 
 	//根签名。由于资源的SRV无法作为根描述符被绑定，因此我们必须使用根签名
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -166,7 +166,7 @@ bool Crate::Initialize()
 	//重置命令列表，从而为命令列表的初始化做准备
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 	//计算CbvSrv描述符的大小
-	mCbvDrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	//贴图加载
 	LoadTextures();
@@ -440,16 +440,35 @@ void Crate::LoadTextures()
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(), mCommandList.Get(), woodCrateTex->Filename.c_str(), woodCrateTex->Resource, woodCrateTex->UploadHeap));
 
 	mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
+
+#pragma region Quiz0903
+	//加载Flare和FlareAlpha
+	auto flareTex = std::make_unique<Texture>();
+	flareTex->Name = "flareTex";
+	flareTex->Filename = L"Textures/flare.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(), mCommandList.Get(), flareTex->Filename.c_str(), flareTex->Resource, flareTex->UploadHeap));
+
+	mTextures[flareTex->Name] = std::move(flareTex);
+
+	auto flareAlphaTex = std::make_unique<Texture>();
+	flareAlphaTex->Name = "flareAlphaTex";
+	flareAlphaTex->Filename = L"Textures/flarealpha.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(), mCommandList.Get(), flareAlphaTex->Filename.c_str(), flareAlphaTex->Resource, flareAlphaTex->UploadHeap));
+
+	mTextures[flareAlphaTex->Name] = std::move(flareAlphaTex);
+#pragma endregion
 }
 
 void Crate::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
+	CD3DX12_DESCRIPTOR_RANGE texTable;
+#pragma region Quiz0903
+	//现在，我们一次要传入2个纹理视口，因此,这里的1要改为2
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0);
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+#pragma endregion
 	slotRootParameter[1].InitAsConstantBufferView(0);
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
@@ -473,14 +492,17 @@ void Crate::BuildRootSignature()
 
 void Crate::BuildDescriptorHeaps()
 {
+#pragma region Quiz0903
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 1;
+	//现在有两个,因此1改成2
+	srvHeapDesc.NumDescriptors = 2;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+	//wood原本的贴图我们不需要了,但是这里我们不删除，是为了省事
 	auto woodCrateTex = mTextures["woodCrateTex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -491,7 +513,22 @@ void Crate::BuildDescriptorHeaps()
 	srvDesc.Texture2D.MipLevels = woodCrateTex->GetDesc().MipLevels;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-	md3dDevice->CreateShaderResourceView(woodCrateTex.Get(), &srvDesc, hDescriptor);
+	//因为不需要了，所以这里一定要删除
+	//md3dDevice->CreateShaderResourceView(woodCrateTex.Get(), &srvDesc, hDescriptor);
+
+	//实际有用的是火焰和alpha
+	auto flareTex = mTextures["flareTex"]->Resource;
+	srvDesc.Format = flareTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = flareTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(flareTex.Get(), &srvDesc, hDescriptor);
+	
+	//hDescriptor步进,开始创建alpha的
+	hDescriptor.Offset(mCbvSrvDescriptorSize);
+	auto flareAlphaTex = mTextures["flareAlphaTex"]->Resource;
+	srvDesc.Format = flareAlphaTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = flareAlphaTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(flareAlphaTex.Get(), &srvDesc, hDescriptor);
+#pragma endregion
 }
 
 void Crate::BuildShadersAndInputLayout()
@@ -643,7 +680,14 @@ void Crate::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vecto
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
 
+#pragma region Quiz0903
+		//现在，我们要把tex和alphaTex一起传进去
+		//但是，由于我们在创建时即让tex和alphaTex紧连着，因此我们传入tex之后，会自动步进到alphaTex
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
+		//CD3DX12_GPU_DESCRIPTOR_HANDLE alphaTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		//alphaTex.Offset(ri->Mat->DiffuseSrvHeapIndex + 1, mCbvSrvDescriptorSize);
+		//cmdList->SetGraphicsRootDescriptorTable(0, alphaTex);
+#pragma endregion
 		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
 		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
 
