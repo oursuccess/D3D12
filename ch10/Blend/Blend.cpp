@@ -1,4 +1,4 @@
-//copy of TexWaves by Frank Luna, ch09. evoluted from LightWaves
+//copy of BlendDemo by Frank Luna, ch10. evoluted from TexWaves
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
@@ -39,16 +39,19 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	//ch10,添加两个渲染层级，分别为透明和alpha测试
+	Transparent,
+	AlphaTested,
 	Count
 };
 
-class TexWaves : public D3DApp
+class Blend : public D3DApp
 {
 public:
-    TexWaves(HINSTANCE hInstance);
-    TexWaves(const TexWaves& rhs) = delete;
-    TexWaves& operator=(const TexWaves& rhs) = delete;
-    ~TexWaves();
+    Blend(HINSTANCE hInstance);
+    Blend(const Blend& rhs) = delete;
+    Blend& operator=(const Blend& rhs) = delete;
+    ~Blend();
 
     virtual bool Initialize()override;
 
@@ -153,7 +156,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
-        TexWaves theApp(hInstance);
+        Blend theApp(hInstance);
         if(!theApp.Initialize())
             return 0;
 
@@ -166,18 +169,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     }
 }
 
-TexWaves::TexWaves(HINSTANCE hInstance)
+Blend::Blend(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
 }
 
-TexWaves::~TexWaves()
+Blend::~Blend()
 {
     if(md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
-bool TexWaves::Initialize()
+bool Blend::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
@@ -214,7 +217,7 @@ bool TexWaves::Initialize()
     return true;
 }
  
-void TexWaves::OnResize()
+void Blend::OnResize()
 {
     D3DApp::OnResize();
 
@@ -222,7 +225,7 @@ void TexWaves::OnResize()
     XMStoreFloat4x4(&mProj, P);
 }
 
-void TexWaves::Update(const GameTimer& gt)
+void Blend::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -246,7 +249,7 @@ void TexWaves::Update(const GameTimer& gt)
 	UpdateWaves(gt);
 }
 
-void TexWaves::Draw(const GameTimer& gt)
+void Blend::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -300,7 +303,7 @@ void TexWaves::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void TexWaves::OnMouseDown(WPARAM btnState, int x, int y)
+void Blend::OnMouseDown(WPARAM btnState, int x, int y)
 {
     mLastMousePos.x = x;
     mLastMousePos.y = y;
@@ -308,12 +311,12 @@ void TexWaves::OnMouseDown(WPARAM btnState, int x, int y)
     SetCapture(mhMainWnd);
 }
 
-void TexWaves::OnMouseUp(WPARAM btnState, int x, int y)
+void Blend::OnMouseUp(WPARAM btnState, int x, int y)
 {
     ReleaseCapture();
 }
 
-void TexWaves::OnMouseMove(WPARAM btnState, int x, int y)
+void Blend::OnMouseMove(WPARAM btnState, int x, int y)
 {
     if((btnState & MK_LBUTTON) != 0)
     {
@@ -339,7 +342,7 @@ void TexWaves::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
-void TexWaves::OnKeyboardInput(const GameTimer& gt)
+void Blend::OnKeyboardInput(const GameTimer& gt)
 {
 	//ch09, 所有的键盘响应方法都被删除了。这里没有删除更改了绘制模式的方法，但是关于更新方向光朝向的同步删除了
     if(GetAsyncKeyState('1') & 0x8000)
@@ -357,7 +360,7 @@ void TexWaves::OnKeyboardInput(const GameTimer& gt)
 	*/
 }
 
-void TexWaves::UpdateCamera(const GameTimer& gt)
+void Blend::UpdateCamera(const GameTimer& gt)
 {
 	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
 	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
@@ -371,7 +374,7 @@ void TexWaves::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void TexWaves::AnimateMaterials(const GameTimer& gt)
+void Blend::AnimateMaterials(const GameTimer& gt)
 {
 	//将水的材质贴图进行滚动
 	auto waterMat = mMaterials["water"].get();
@@ -395,7 +398,7 @@ void TexWaves::AnimateMaterials(const GameTimer& gt)
 	waterMat->NumFramesDirty = gNumFrameResources;
 }
 
-void TexWaves::UpdateObjectCBs(const GameTimer& gt)
+void Blend::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for(auto& e : mAllRitems)
@@ -417,7 +420,7 @@ void TexWaves::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void TexWaves::UpdateMaterialCBs(const GameTimer& gt)
+void Blend::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
 	for (auto& e : mMaterials) 
@@ -441,7 +444,7 @@ void TexWaves::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
-void TexWaves::UpdateMainPassCB(const GameTimer& gt)
+void Blend::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -485,7 +488,7 @@ void TexWaves::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void TexWaves::UpdateWaves(const GameTimer& gt)
+void Blend::UpdateWaves(const GameTimer& gt)
 {
 	static float t_base = 0.0f;
 	if((mTimer.TotalTime() - t_base) >= 0.25f)
@@ -521,7 +524,7 @@ void TexWaves::UpdateWaves(const GameTimer& gt)
 }
 
 //ch09。加载各种贴图
-void TexWaves::LoadTextures()
+void Blend::LoadTextures()
 {
 	auto grassTex = std::make_unique<Texture>();
 	grassTex->Name = "grassTex";
@@ -543,7 +546,7 @@ void TexWaves::LoadTextures()
 	mTextures[fenceTex->Name] = std::move(fenceTex);
 }
 
-void TexWaves::BuildRootSignature()
+void Blend::BuildRootSignature()
 {
 	//ch09, 添加回描述符表，用于存放材质的SRV
 	CD3DX12_DESCRIPTOR_RANGE texTable;
@@ -583,7 +586,7 @@ void TexWaves::BuildRootSignature()
 }
 
 //ch09。构建描述符堆
-void TexWaves::BuildDescriptorHeaps()
+void Blend::BuildDescriptorHeaps()
 {
 	//创建SRV堆
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
@@ -619,7 +622,7 @@ void TexWaves::BuildDescriptorHeaps()
 	md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, hDescriptor);
 }
 
-void TexWaves::BuildShadersAndInputLayout()
+void Blend::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_0");
@@ -633,7 +636,7 @@ void TexWaves::BuildShadersAndInputLayout()
     };
 }
 
-void TexWaves::BuildLandGeometry()
+void Blend::BuildLandGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
@@ -684,7 +687,7 @@ void TexWaves::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
-void TexWaves::BuildWavesGeometry()
+void Blend::BuildWavesGeometry()
 {
 	std::vector<std::uint16_t> indices(3 * mWaves->TriangleCount()); // 3 indices per face
 	assert(mWaves->VertexCount() < 0x0000ffff);
@@ -739,7 +742,7 @@ void TexWaves::BuildWavesGeometry()
 }
 
 //ch09, 添加一个Box
-void TexWaves::BuildBoxGeometry()
+void Blend::BuildBoxGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
@@ -785,7 +788,7 @@ void TexWaves::BuildBoxGeometry()
 	mGeometries["boxGeo"] = std::move(geo);
 }
 
-void TexWaves::BuildPSOs()
+void Blend::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -820,7 +823,7 @@ void TexWaves::BuildPSOs()
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
-void TexWaves::BuildFrameResources()
+void Blend::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
@@ -829,7 +832,7 @@ void TexWaves::BuildFrameResources()
     }
 }
 
-void TexWaves::BuildMaterials()
+void Blend::BuildMaterials()
 {
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
@@ -868,7 +871,7 @@ void TexWaves::BuildMaterials()
 	mMaterials["wirefence"] = std::move(wirefence);
 }
 
-void TexWaves::BuildRenderItems()
+void Blend::BuildRenderItems()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->World = MathHelper::Identity4x4();
@@ -919,7 +922,7 @@ void TexWaves::BuildRenderItems()
 	mAllRitems.push_back(std::move(boxRitem));
 }
 
-void TexWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void Blend::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
@@ -955,7 +958,7 @@ void TexWaves::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexWaves::GetStaticSamplers()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Blend::GetStaticSamplers()
 {
 	//建立6个不同的采样器
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP);
@@ -968,12 +971,12 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexWaves::GetStaticSamplers()
 	return { pointWrap, pointClamp, linearWrap, linearClamp, anisotropicWrap, anisotropicClamp };
 }
 
-float TexWaves::GetHillsHeight(float x, float z)const
+float Blend::GetHillsHeight(float x, float z)const
 {
     return 0.3f*(z*sinf(0.1f*x) + x*cosf(0.1f*z));
 }
 
-XMFLOAT3 TexWaves::GetHillsNormal(float x, float z)const
+XMFLOAT3 Blend::GetHillsNormal(float x, float z)const
 {
     // n = (-df/dx, 1, -df/dz)
     XMFLOAT3 n(
