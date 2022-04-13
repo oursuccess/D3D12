@@ -117,11 +117,14 @@ float4 PS(VertexOut pin) : SV_Target
 
     pin.NormalW = normalize(pin.NormalW);
 
-    float3 toEyeW = normalize(gEyePosW - pin.PosW);
+    //ch10,我们现在需要一个distToEye参数
+    float3 toEyeW = gEyePosW - pin.PosW;
+    float distToEye = length(toEyeW);
+    toEyeW /= distToEye;    //其实就是normalize，但是这样我们减少了一次求距离的运算
+
     float4 ambient = gAmbientLight * gDiffuseAlbedo;
     
     const float shininess = 1.0f - gRoughness;
-
     //现在diffuseAlbedo是通过gDiffuseAlbedo和贴图采样共同计算获得的
     Material mat = { diffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
