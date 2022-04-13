@@ -66,25 +66,18 @@ private:
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
-	//ch09, 添加一个动画(更新顶点材质属性)方法
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	void UpdateWaves(const GameTimer& gt);
 
-	//ch09,添加一个读取贴图的方法
 	void LoadTextures();
     void BuildRootSignature();
-	//ch09,添加一个创建描述符堆的方法，用于存放SRV描述符
 	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildLandGeometry();
-	//ch09,下面这个方法被移除，替换为构建Waves的几何的方法
-    //void BuildWavesGeometryBuffers();
-	//ch09,添加Wave
 	void BuildWavesGeometry();
-	//ch09,添加Box
 	void BuildBoxGeometry();
     void BuildPSOs();
     void BuildFrameResources();
@@ -92,7 +85,6 @@ private:
     void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
-	//ch09,添加一个获取静态采样器的方法
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
     float GetHillsHeight(float x, float z)const;
@@ -108,7 +100,6 @@ private:
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
-	//ch09,添加一个描述符堆
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
@@ -130,7 +121,8 @@ private:
 
     PassConstants mMainPassCB;
 
-    bool mIsWireframe = false;
+	//ch10, 这个删除了。因为我们现在再也没有线框模式了
+    //bool mIsWireframe = false;
 
 	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
 	XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -139,10 +131,6 @@ private:
     float mTheta = 1.5f*XM_PI;
     float mPhi = XM_PIDIV2 - 0.1f;
     float mRadius = 50.0f;
-
-	//ch09,这两个参数在ch09里又没了。 因为现在的样例使用了三点布光
-	//float mSunTheta = 1.25f*XM_PI;
-	//float mSunPhi = XM_PIDIV4;
 
     POINT mLastMousePos;
 };
@@ -191,16 +179,11 @@ bool Blend::Initialize()
 
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
-	//ch09,首先加载材质
 	LoadTextures();
     BuildRootSignature();
-	//ch09,然后，创建描述符堆
 	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
 	BuildLandGeometry();
-	//ch09,这个方法都删除了
-    //BuildWavesGeometryBuffers();
-	//ch09,修改为添加Waves和Box的几何顶点
 	BuildWavesGeometry();
 	BuildBoxGeometry();
 	BuildMaterials();
@@ -255,15 +238,7 @@ void Blend::Draw(const GameTimer& gt)
 
 	ThrowIfFailed(cmdListAlloc->Reset());
 
-	//ch09中，不再存在opaque和opaque_wireframe两种绘制方式，取而代之的只有一种opaque。但这里没改
-    if(mIsWireframe)
-    {
-        ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
-    }
-    else
-    {
-        ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
-    }
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -271,12 +246,12 @@ void Blend::Draw(const GameTimer& gt)
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	//ch10，我们现在使用雾气颜色来清除，而非原本的蓝色
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	//ch09,添加设置描述符堆的方法
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
@@ -286,6 +261,14 @@ void Blend::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	//ch10,绘制alphaTested和transparent两个图层
+	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
+
+	//ch10,transparent图层
+	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -344,20 +327,6 @@ void Blend::OnMouseMove(WPARAM btnState, int x, int y)
 
 void Blend::OnKeyboardInput(const GameTimer& gt)
 {
-	//ch09, 所有的键盘响应方法都被删除了。这里没有删除更改了绘制模式的方法，但是关于更新方向光朝向的同步删除了
-    if(GetAsyncKeyState('1') & 0x8000)
-        mIsWireframe = true;
-    else
-        mIsWireframe = false;
-
-	/*
-	const float dt = gt.DeltaTime();
-	if (GetAsyncKeyState(VK_LEFT) & 0x8000) mSunTheta -= dt;
-	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) mSunTheta += dt;
-	if (GetAsyncKeyState(VK_UP) & 0x8000) mSunPhi -= dt;
-	if (GetAsyncKeyState(VK_DOWN) & 0x8000) mSunPhi += dt;
-	mSunPhi = MathHelper::Clamp(mSunPhi, 0.1f, XM_PIDIV2);
-	*/
 }
 
 void Blend::UpdateCamera(const GameTimer& gt)
@@ -410,7 +379,6 @@ void Blend::UpdateObjectCBs(const GameTimer& gt)
 
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			//ch09, 额外传入一个TexTransform
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
@@ -434,7 +402,6 @@ void Blend::UpdateMaterialCBs(const GameTimer& gt)
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
-			//ch09, 更新MatTransform
 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
@@ -468,12 +435,6 @@ void Blend::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	//ch09, 原本的方向光变为了三点布光
-	/*
-	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
-	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
-	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
-	*/
 	//从左前方向下打的主光源
 	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
 	mMainPassCB.Lights[0].Strength = { 0.9f, 0.9f, 0.9f };
@@ -523,7 +484,6 @@ void Blend::UpdateWaves(const GameTimer& gt)
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
-//ch09。加载各种贴图
 void Blend::LoadTextures()
 {
 	auto grassTex = std::make_unique<Texture>();
@@ -538,7 +498,9 @@ void Blend::LoadTextures()
 
 	auto fenceTex = std::make_unique<Texture>();
 	fenceTex->Name = "fenceTex";
-	fenceTex->Filename = L"Textures/WoodCrate01.dds";
+	//ch10,箱子现在的材质改为线框了
+	//fenceTex->Filename = L"Textures/WoodCrate01.dds";
+	fenceTex->Filename = L"Textures/WireFence.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(), mCommandList.Get(), fenceTex->Filename.c_str(), fenceTex->Resource, fenceTex->UploadHeap));
 
 	mTextures[grassTex->Name] = std::move(grassTex);
@@ -548,21 +510,19 @@ void Blend::LoadTextures()
 
 void Blend::BuildRootSignature()
 {
-	//ch09, 添加回描述符表，用于存放材质的SRV
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-	//ch09, 由于多了一个描述符表，因此我们的根参数从3个变为4个了
     CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
-	//ch09,将0初始化为描述符表(因为我们应该按照变更频率从高到低的顺序来排列常量!),因此后面的依次上升(0->1, 1->2, 2->3)
+	//将0初始化为描述符表(因为我们应该按照变更频率从高到低的顺序来排列常量!),因此后面的依次上升(0->1, 1->2, 2->3)
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	//但是后面的还是从0开始的(绑定的GPU寄存器的序号还是0)，因为我们的SRV是传入到了GPU的t0上，而非b0
     slotRootParameter[1].InitAsConstantBufferView(0);
     slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 
-	//ch09,现在根签名描述中的数量也要是4个了。同时，我们要把采样器传进去
+	//现在根签名描述中的数量也要是4个了。同时，我们要把采样器传进去
 	//CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	auto staticSamplers = GetStaticSamplers();
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -585,7 +545,6 @@ void Blend::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-//ch09。构建描述符堆
 void Blend::BuildDescriptorHeaps()
 {
 	//创建SRV堆
@@ -624,14 +583,28 @@ void Blend::BuildDescriptorHeaps()
 
 void Blend::BuildShadersAndInputLayout()
 {
+	//ch10,添加两个渲染宏
+	const D3D_SHADER_MACRO defines[] = {
+		"FOG", "1",
+		NULL, NULL
+	};
+
+	const D3D_SHADER_MACRO alphaTestDefines[] = {
+		"FOG", "1",
+		"ALPHA_TEST", "1",
+		NULL, NULL
+	};
+
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_0");
+	//ch10,现在我们要传入有雾的宏
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
+	//ch10,添加alpha测试的shader
+	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		//ch09, 添加一个TEXCOORD
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 }
@@ -648,7 +621,6 @@ void Blend::BuildLandGeometry()
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
 		vertices[i].Normal = GetHillsNormal(p.x, p.z);
-		//ch09, 添加TexC
 		vertices[i].TexC = grid.Vertices[i].TexC;
 	}
     
@@ -818,9 +790,31 @@ void Blend::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
-    opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+	//ch10,创建一个transparent所需要的PSO
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
+
+	//ch10,创建一个alphaTested所需要的PSO
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
+	alphaTestedPsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
+		mShaders["alphaTestedPS"]->GetBufferSize()
+	};
+	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
 }
 
 void Blend::BuildFrameResources()
@@ -837,10 +831,7 @@ void Blend::BuildMaterials()
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
 	grass->MatCBIndex = 0;
-	//ch09, 我们现在根据描述符堆中的SRV来访问其材质了。而对于草来说，其材质在堆中的偏移为0
 	grass->DiffuseSrvHeapIndex = 0;
-	//ch09,我们现在使用材质来描述其漫反射，因此原来我们模拟的草的颜色可以删除了
-	//grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
 	grass->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
 	grass->Roughness = 0.125f;
@@ -848,15 +839,11 @@ void Blend::BuildMaterials()
 	auto water = std::make_unique<Material>();
 	water->Name = "water";
 	water->MatCBIndex = 1;
-	//ch09, 我们现在根据描述符堆中的SRV来访问其材质了。而对于水来说，其材质在堆中的偏移为1
 	water->DiffuseSrvHeapIndex = 1;
-	//ch09, 水的漫反射同样使用材质。
-	//water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
 	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	water->Roughness = 0.0f;
 
-	//ch09,添加箱子的材质
 	auto wirefence = std::make_unique<Material>();
 	wirefence->Name = "wirefence";
 	wirefence->MatCBIndex = 2;
@@ -867,7 +854,6 @@ void Blend::BuildMaterials()
 
 	mMaterials["grass"] = std::move(grass);
 	mMaterials["water"] = std::move(water);
-	//ch09,将箱子的材质加入到材质列表中
 	mMaterials["wirefence"] = std::move(wirefence);
 }
 
@@ -875,7 +861,6 @@ void Blend::BuildRenderItems()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->World = MathHelper::Identity4x4();
-	//ch09, 将纹理映射到[0, 5]之间
 	XMStoreFloat4x4(&wavesRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
 	wavesRitem->ObjCBIndex = 0;
 	wavesRitem->Mat = mMaterials["water"].get();
@@ -887,11 +872,11 @@ void Blend::BuildRenderItems()
 
 	mWavesRitem = wavesRitem.get();
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(wavesRitem.get());
+	//ch10, 现在水是半透明的,因此RenderLayer要是Transparent
+	mRitemLayer[(int)RenderLayer::Transparent].push_back(wavesRitem.get());
 
 	auto gridRitem = std::make_unique<RenderItem>();
 	gridRitem->World = MathHelper::Identity4x4();
-	//ch09, 将纹理映射到[0, 5]之间
 	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
 	gridRitem->ObjCBIndex = 1;
 	gridRitem->Mat = mMaterials["grass"].get();
@@ -903,7 +888,6 @@ void Blend::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 
-	//ch09。构建箱子的渲染项
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
 	boxRitem->ObjCBIndex = 2;
@@ -914,11 +898,11 @@ void Blend::BuildRenderItems()
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
+	//ch10,现在箱子要是透明测试的
+	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
 
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
-	//ch09, 将箱子推入渲染队列中
 	mAllRitems.push_back(std::move(boxRitem));
 }
 
@@ -938,21 +922,15 @@ void Blend::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vecto
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		//ch09, 更新材质
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		//将材质根据偏移量进行偏移
 		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
-		//然后更新描述符表
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		//ch09, 现在这里要从0变成1了
 		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
 
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
-		//ch09，现在这里要从1变成3了
 		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
-
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}

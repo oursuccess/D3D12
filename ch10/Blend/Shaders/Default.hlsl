@@ -1,4 +1,4 @@
-//copy of Default.hlsl by Frank Luna, ch08
+//copy of Default.hlsl by Frank Luna, ch10
 
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
@@ -60,6 +60,12 @@ cbuffer cbPass : register(b1)
     float gTotalTime;
     float gDeltaTime;
 
+    //ch10，我们添加雾效相关的参数
+    float4 gFogColor;
+    float gFogStart;
+    float gFogRange;
+    float2 cbPerObjectPad2;
+
     float4 gAmbientLight;
     Light gLights[MaxLights];
 };
@@ -104,6 +110,11 @@ float4 PS(VertexOut pin) : SV_Target
     //sample 
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
 
+    //是否开启AlphaTest
+#ifdef ALPHA_TEST
+    clip(diffuseAlbedo.a - 0.1f);
+#endif
+
     pin.NormalW = normalize(pin.NormalW);
 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
@@ -118,6 +129,12 @@ float4 PS(VertexOut pin) : SV_Target
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
+
+    //是否开启雾效
+#ifdef FOG
+    float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
+    litColor = lerp(litColor, gFogColor, fogAmount);
+#endif
 
     litColor.a = diffuseAlbedo.a;
 
