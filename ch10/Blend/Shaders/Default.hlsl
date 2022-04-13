@@ -59,6 +59,8 @@ cbuffer cbPass : register(b1)
     float gFarZ;
     float gTotalTime;
     float gDeltaTime;
+    //shunxu不能错...
+    float4 gAmbientLight;
 
     //ch10，我们添加雾效相关的参数
     float4 gFogColor;
@@ -66,7 +68,6 @@ cbuffer cbPass : register(b1)
     float gFogRange;
     float2 cbPerObjectPad2;
 
-    float4 gAmbientLight;
     Light gLights[MaxLights];
 };
 
