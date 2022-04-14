@@ -795,9 +795,38 @@ void Blend::BuildPSOs()
 	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
 	transparencyBlendDesc.BlendEnable = true;
 	transparencyBlendDesc.LogicOpEnable = false;
-	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+#pragma region Quiz1001
+	/*
+	 * BlendFactor有:
+	 * D3D12_BLEND_ZERO
+	 * D3D12_BLEND_ONE
+	 * D3D12_BLEND_SRC_COLOR
+	 * D3D12_BLEND_SRC_ALPHA
+	 * D3D12_BLEND_INV_SRC_COLOR
+	 * D3D12_BLEND_INV_SRC_ALPHA
+	 * D3D12_BLEND_DEST_COLOR
+	 * D3D12_BLEND_DEST_ALPHA
+	 * D3D12_BLEND_INV_DEST_COLOR
+	 * D3D12_BLEND_INV_DEST_ALPHA
+	 * D3D12_BLEND_BLEND_FACTOR
+	 * D3D12_BLEND_INV_BLEND_FACTOR
+	*/
+	//transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	//transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_COLOR;
+	//transparencyBlendDesc.DestBlend = D3D12_BLEND_DEST_COLOR;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_COLOR;
+	/*
+	 * BLENDOP有
+	 * D3D12_BLEND_OP_ADD
+	 * D3D12_BLEND_OP_SUBTRACT
+	 * D3D12_BLEND_OP_REV_SUBTRACT
+	 * D3D12_BLEND_OP_MIN
+	 * D3D12_BLEND_OP_MAX
+	*/
+	//transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_SUBTRACT;
+#pragma endregion
 	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
 	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
