@@ -1107,11 +1107,11 @@ void Stencil::BuildRenderItems()
 
 #pragma region Quiz1111
 	auto reflectedFloorRitem = std::make_unique<RenderItem>();
+	*reflectedFloorRitem = *floorRitem;
 	//我们要更新一下地板的世界矩阵
 	XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 	XMMATRIX R = XMMatrixReflect(mirrorPlane);
 	XMStoreFloat4x4(&reflectedFloorRitem->World, XMLoadFloat4x4(&floorRitem->World) * R);
-	*reflectedFloorRitem = *floorRitem;
 	reflectedFloorRitem->ObjCBIndex = 6;
 	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedFloorRitem.get());
 #pragma endregion
