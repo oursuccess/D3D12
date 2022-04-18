@@ -246,8 +246,10 @@ void Stencil::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
+#pragma region Quiz1003
+	//我们关闭模板缓冲区相关的内容
 	//ch11, 绘制镜子覆盖的地方的模板缓冲区
-	mCommandList->OMSetStencilRef(1);
+	//mCommandList->OMSetStencilRef(1);
 	mCommandList->SetPipelineState(mPSOs["markStencilMirrors"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Mirrors]);
 
@@ -258,7 +260,8 @@ void Stencil::Draw(const GameTimer& gt)
 
 	//ch11, 恢复模板缓冲区和MainPass的常量缓冲区
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
-	mCommandList->OMSetStencilRef(0);
+	//mCommandList->OMSetStencilRef(0);
+#pragma endregion
 
 	//ch11, 绘制镜子
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
@@ -898,10 +901,14 @@ void Stencil::BuildPSOs()
 	CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
 	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
 
+#pragma region Quiz1003
+	//这里和模板缓冲区相关的基本上也可以全都删掉。 但是不删也行
 	D3D12_DEPTH_STENCIL_DESC mirrorDSS;
 	mirrorDSS.DepthEnable = true;
 	mirrorDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	mirrorDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	mirrorDSS.StencilEnable = false;
+	/*
 	mirrorDSS.StencilEnable = true;
 	mirrorDSS.StencilReadMask = 0xff;
 	mirrorDSS.StencilWriteMask = 0xff;
@@ -916,11 +923,13 @@ void Stencil::BuildPSOs()
 	mirrorDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	mirrorDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
 	mirrorDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	*/
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC markMirrorsPsoDesc = opaquePsoDesc;
 	markMirrorsPsoDesc.BlendState = mirrorBlendState;
 	markMirrorsPsoDesc.DepthStencilState = mirrorDSS;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
+#pragma endregion
 
 	//
 	// PSO for stencil reflections.
@@ -930,6 +939,10 @@ void Stencil::BuildPSOs()
 	reflectionsDSS.DepthEnable = true;
 	reflectionsDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 	reflectionsDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+#pragma region Quiz1003
+	//骷髅头镜像同理
+	reflectionsDSS.StencilEnable = false;
+	/*
 	reflectionsDSS.StencilEnable = true;
 	reflectionsDSS.StencilReadMask = 0xff;
 	reflectionsDSS.StencilWriteMask = 0xff;
@@ -944,6 +957,8 @@ void Stencil::BuildPSOs()
 	reflectionsDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	*/
+#pragma endregion
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC drawReflectionsPsoDesc = opaquePsoDesc;
 	drawReflectionsPsoDesc.DepthStencilState = reflectionsDSS;
