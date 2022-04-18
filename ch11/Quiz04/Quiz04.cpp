@@ -955,11 +955,15 @@ void Stencil::BuildPSOs()
 	// PSO for shadow objects
 	//
 
+#pragma region Quiz1104
 	// We are going to draw shadows with transparency, so base it off the transparency description.
 	D3D12_DEPTH_STENCIL_DESC shadowDSS;
 	shadowDSS.DepthEnable = true;
 	shadowDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 	shadowDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	//11.10要的是双重混合的效果，因此我们直接关闭模板缓冲区相关的测试和替换即可
+	shadowDSS.StencilEnable = false;
+	/*
 	shadowDSS.StencilEnable = true;
 	shadowDSS.StencilReadMask = 0xff;
 	shadowDSS.StencilWriteMask = 0xff;
@@ -974,6 +978,8 @@ void Stencil::BuildPSOs()
 	shadowDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	shadowDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
 	shadowDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	*/
+#pragma endregion
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = transparentPsoDesc;
 	shadowPsoDesc.DepthStencilState = shadowDSS;
