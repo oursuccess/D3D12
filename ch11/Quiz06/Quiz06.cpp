@@ -948,7 +948,10 @@ void Stencil::BuildPSOs()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC drawReflectionsPsoDesc = opaquePsoDesc;
 	drawReflectionsPsoDesc.DepthStencilState = reflectionsDSS;
 	drawReflectionsPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-	drawReflectionsPsoDesc.RasterizerState.FrontCounterClockwise = true;
+#pragma region Quiz1106
+	//不调转三角形的绕序的话，我们直接注掉下面这一句话即可
+	//drawReflectionsPsoDesc.RasterizerState.FrontCounterClockwise = true;
+#pragma endregion
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawReflectionsPsoDesc, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));
 
 	//
