@@ -247,7 +247,10 @@ void Stencil::Draw(const GameTimer& gt)
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	//ch11, 绘制镜子覆盖的地方的模板缓冲区
-	mCommandList->OMSetStencilRef(1);
+#pragma region Quiz1105
+	//本题不涉及模板缓冲区，因此我们需要将之禁用，才能看到效果
+	//mCommandList->OMSetStencilRef(1);
+#pragma endregion
 	mCommandList->SetPipelineState(mPSOs["markStencilMirrors"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Mirrors]);
 
@@ -860,7 +863,19 @@ void Stencil::BuildPSOs()
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+#pragma region Quiz1105
+	//要修改墙,我们需要替换这里的深度状态。 事实上，由于这里的深度状态会影响正常的骷髅头和地面，因此我们尽量不要在这里修改
+	//opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	D3D12_DEPTH_STENCIL_DESC stencilDepthDesc;
+	//第一次测试
+	//stencilDepthDesc.DepthEnable = false;
+	//第二次测试
+	stencilDepthDesc.DepthEnable = true;
+	stencilDepthDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	stencilDepthDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	stencilDepthDesc.StencilEnable = false;
+	opaquePsoDesc.DepthStencilState = stencilDepthDesc;
+#pragma endregion
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
