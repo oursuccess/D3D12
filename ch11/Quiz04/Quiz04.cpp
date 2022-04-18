@@ -1,4 +1,4 @@
-//solution for quiz1004, by Je
+//solution for quiz1104, by Je
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"

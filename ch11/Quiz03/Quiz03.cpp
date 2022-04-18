@@ -1,4 +1,4 @@
-//solution for quiz1003, be Je
+//solution for quiz1103, be Je
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
@@ -246,7 +246,7 @@ void Stencil::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-#pragma region Quiz1003
+#pragma region Quiz1103
 	//我们关闭模板缓冲区相关的内容
 	//ch11, 绘制镜子覆盖的地方的模板缓冲区
 	//mCommandList->OMSetStencilRef(1);
@@ -901,7 +901,7 @@ void Stencil::BuildPSOs()
 	CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
 	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
 
-#pragma region Quiz1003
+#pragma region Quiz1103
 	//这里和模板缓冲区相关的基本上也可以全都删掉。 但是不删也行
 	D3D12_DEPTH_STENCIL_DESC mirrorDSS;
 	mirrorDSS.DepthEnable = true;
@@ -939,7 +939,7 @@ void Stencil::BuildPSOs()
 	reflectionsDSS.DepthEnable = true;
 	reflectionsDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 	reflectionsDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-#pragma region Quiz1003
+#pragma region Quiz1103
 	//骷髅头镜像同理
 	reflectionsDSS.StencilEnable = false;
 	/*
