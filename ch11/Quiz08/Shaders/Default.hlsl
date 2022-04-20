@@ -144,3 +144,9 @@ float4 PS(VertexOut pin) : SV_Target
 
     return litColor;
 }
+
+float4 DepthPS(VertexOut pin) : SV_Target
+{
+    float4 col = {1, 1, 1, 1};
+    return col;
+}

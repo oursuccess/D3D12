@@ -13,10 +13,6 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-#pragma region Quiz1108
-#define DEPTH_TEST
-#pragma endregion
-
 struct RenderItem
 {
 	RenderItem() = default;
@@ -119,10 +115,6 @@ private:
 
 	RenderItem* mWavesRitem = nullptr;
 
-#pragma region Quiz1108
-	RenderItem* mFullScreenRitem = nullptr;
-#pragma endregion
-
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
 	//render items devided by PSO
@@ -197,9 +189,6 @@ bool Blend::Initialize()
 	BuildLandGeometry();
 	BuildWavesGeometry();
 	BuildBoxGeometry();
-#pragma region Quiz1108
-	BuildFullScreenGeometry();
-#pragma endregion
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -283,6 +272,20 @@ void Blend::Draw(const GameTimer& gt)
 	//ch10,transparent图层
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
+
+#pragma region Quiz1108
+	//开始设置模板参考值并绘制每一个模板值(从1到6)
+	std::string depthDrawPsoPrefix = "depthDrawPsoDesc";
+	for (int i = 1; i <= 6; ++i) 
+	{
+		mCommandList->OMSetStencilRef(i);
+		auto curDepthPso = mPSOs[depthDrawPsoPrefix + std::to_string(i)];
+		mCommandList->SetPipelineState(curDepthPso.Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
+	}
+#pragma endregion
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -615,6 +618,10 @@ void Blend::BuildShadersAndInputLayout()
 	//ch10,添加alpha测试的shader
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
+#pragma region Quiz1108
+	mShaders["depthPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "DepthPS", "ps_5_0");
+#pragma endregion
+
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -774,54 +781,10 @@ void Blend::BuildBoxGeometry()
 	mGeometries["boxGeo"] = std::move(geo);
 }
 
-#pragma region Quiz1108
-void Blend::BuildFullScreenGeometry()
-{
-	std::vector<Vertex> vertices(4);
-	vertices[0].Pos = { 0, 0, 0 };
-	vertices[1].Pos = { 0, 1, 0 };
-	vertices[2].Pos = { 1, 1, 0 };
-	vertices[3].Pos = { 1, 0, 0 };
-
-	std::vector<uint16_t> indices{
-		0, 3, 1, 2,
-	};
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "fullScreen";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	SubmeshGeometry submesh;
-	submesh.IndexCount = (UINT)indices.size();
-	submesh.StartIndexLocation = 0;
-	submesh.BaseVertexLocation = 0;
-
-	geo->DrawArgs["fullScreen"] = submesh;
-
-	mGeometries["fullScreen"] = std::move(geo);
-}
-#pragma endregion
-
 void Blend::BuildPSOs()
 {	
 #pragma region Quiz1108
-#if defined(DEPTH_TEST)
-	//创建一个深度测试所需的PSO
+	//创建一个模板测试所需的PSO
 	D3D12_DEPTH_STENCIL_DESC depthTestStencilDesc;
 	depthTestStencilDesc.DepthEnable = true;
 	depthTestStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -837,7 +800,13 @@ void Blend::BuildPSOs()
 	depthTestStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	depthTestStencilDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	depthTestStencilDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-#endif
+
+	//创建一个写入到后台缓冲区，但是需要进行模板测试的PSO
+	D3D12_DEPTH_STENCIL_DESC depthDrawStencilDesc = depthTestStencilDesc;
+	depthDrawStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	depthDrawStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	depthDrawStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	depthDrawStencilDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 #pragma endregion
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
@@ -858,11 +827,9 @@ void Blend::BuildPSOs()
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 #pragma region Quiz1108
-#if defined(DEPTH_TEST)
+	//禁止写入后台缓冲区，仅仅允许更新模板值
+	opaquePsoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0;
 	opaquePsoDesc.DepthStencilState = depthTestStencilDesc;
-#else
-	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-#endif
 #pragma endregion
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -873,6 +840,27 @@ void Blend::BuildPSOs()
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
+#pragma region Quiz1108
+	//我们将深度1写入R、深度2写入G、深度3写入B、深度4写入RG、深度5写入GB、深度6写入RGB
+	auto depthDrawPso1Desc = opaquePsoDesc; 
+	depthDrawPso1Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED;
+	depthDrawPso1Desc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["depthPS"]->GetBufferPointer()),
+		mShaders["depthPS"]->GetBufferSize()
+	};
+	auto depthDrawPso2Desc = depthDrawPso1Desc, depthDrawPso3Desc = depthDrawPso1Desc, depthDrawPso4Desc = depthDrawPso1Desc, depthDrawPso5Desc = depthDrawPso1Desc, depthDrawPso6Desc = depthDrawPso1Desc;
+	depthDrawPso2Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_GREEN;
+	depthDrawPso3Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_BLUE;
+	depthDrawPso4Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED | D3D12_COLOR_WRITE_ENABLE_GREEN;
+	depthDrawPso5Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_GREEN | D3D12_COLOR_WRITE_ENABLE_BLUE;
+	depthDrawPso6Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso1Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc1"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso2Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc2"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso3Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc3"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso4Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc4"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso5Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc5"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso6Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc6"])));
 
 	//ch10,创建一个transparent所需要的PSO
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
@@ -886,9 +874,12 @@ void Blend::BuildPSOs()
 	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
-	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	//水也不能写入后台缓冲区
+	//transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	transparencyBlendDesc.RenderTargetWriteMask = 0;
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
+#pragma endregion
 
 	//ch10,创建一个alphaTested所需要的PSO
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
@@ -898,7 +889,6 @@ void Blend::BuildPSOs()
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
-
 }
 
 void Blend::BuildFrameResources()
@@ -985,48 +975,10 @@ void Blend::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
 
-#pragma region Quiz1108
-	//我们要添加一个全屏的矩形(两个三角形)
-	//直接用坐标与MVP矩阵的逆矩阵相乘即可得到原本的坐标。 我们也可以使用第12章的几何着色器
-	auto fullScreenRitem = std::make_unique<RenderItem>();
-	fullScreenRitem->ObjCBIndex = 3;
-	fullScreenRitem->Geo = mGeometries["fullScreen"].get();
-	fullScreenRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-	fullScreenRitem->IndexCount = fullScreenRitem->Geo->DrawArgs["fullScreen"].IndexCount;
-	fullScreenRitem->StartIndexLocation = fullScreenRitem->Geo->DrawArgs["fullScreen"].StartIndexLocation;
-	fullScreenRitem->BaseVertexLocation = fullScreenRitem->Geo->DrawArgs["fullScreen"].BaseVertexLocation;
-
-	mFullScreenRitem = fullScreenRitem.get();
-
-	mRitemLayer[(int)RenderLayer::DepthTest].push_back(fullScreenRitem.get());
-#pragma endregion
-
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
 	mAllRitems.push_back(std::move(boxRitem));
 }
-
-#pragma region Quiz1108
-void Blend::DrawDepthTestBuffer(ID3D12GraphicsCommandList* cmdList)
-{
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-
-	auto ritems = mRitemLayer[(int)RenderLayer::DepthTest];
-	for (size_t i = 0; i < ritems.size(); ++i)
-	{
-		auto ri = ritems[i];
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
-
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
-		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
-
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
-	}
-}
-#pragma endregion
 
 void Blend::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
