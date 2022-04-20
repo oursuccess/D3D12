@@ -787,7 +787,7 @@ void Blend::BuildPSOs()
 	//创建一个模板测试所需的PSO
 	D3D12_DEPTH_STENCIL_DESC depthTestStencilDesc;
 	depthTestStencilDesc.DepthEnable = true;
-	depthTestStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	depthTestStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	//这儿一定要禁止深度写入 但是为啥？
 	depthTestStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 	depthTestStencilDesc.StencilEnable = true;
 	depthTestStencilDesc.StencilWriteMask = 0xff;
@@ -842,7 +842,7 @@ void Blend::BuildPSOs()
 
 #pragma region Quiz1108
 	//我们将深度1写入R、深度2写入G、深度3写入B、深度4写入RG、深度5写入GB、深度6写入RGB
-	auto depthDrawPso1Desc = opaquePsoDesc; 
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC depthDrawPso1Desc = opaquePsoDesc;
 	depthDrawPso1Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED;
 	depthDrawPso1Desc.DepthStencilState = depthDrawStencilDesc;
 	depthDrawPso1Desc.PS =
