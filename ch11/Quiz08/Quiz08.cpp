@@ -250,7 +250,7 @@ void Blend::Draw(const GameTimer& gt)
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	//ch10，我们现在使用雾气颜色来清除，而非原本的蓝色
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Black, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
@@ -844,6 +844,7 @@ void Blend::BuildPSOs()
 	//我们将深度1写入R、深度2写入G、深度3写入B、深度4写入RG、深度5写入GB、深度6写入RGB
 	auto depthDrawPso1Desc = opaquePsoDesc; 
 	depthDrawPso1Desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED;
+	depthDrawPso1Desc.DepthStencilState = depthDrawStencilDesc;
 	depthDrawPso1Desc.PS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["depthPS"]->GetBufferPointer()),
