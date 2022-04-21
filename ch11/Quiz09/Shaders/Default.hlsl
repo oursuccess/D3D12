@@ -147,6 +147,6 @@ float4 PS(VertexOut pin) : SV_Target
 
 float4 DepthPS(VertexOut pin) : SV_Target
 {
-    float4 col = {1, 1, 1, 1};
+    float4 col = {0.05, 0.05, 0.05, 1};
     return col;
 }

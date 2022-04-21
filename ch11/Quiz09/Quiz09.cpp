@@ -42,6 +42,7 @@ enum class RenderLayer : int
 	//ch10,添加两个渲染层级，分别为透明和alpha测试
 	Transparent,
 	AlphaTested,
+	DepthTest,
 	Count
 };
 
@@ -238,7 +239,11 @@ void Blend::Draw(const GameTimer& gt)
 
 	ThrowIfFailed(cmdListAlloc->Reset());
 
-    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+#pragma region Quiz1109
+	//我们现在使用深度测试的PSO来进行绘制
+    //ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["depthTest"].Get()));
+#pragma endregion
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -246,8 +251,11 @@ void Blend::Draw(const GameTimer& gt)
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	//ch10，我们现在使用雾气颜色来清除，而非原本的蓝色
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+#pragma region Quiz1109
+	//我们现在使用黑色来清空缓冲区
+	//mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Black, 0, nullptr);
+#pragma endregion
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
@@ -260,6 +268,10 @@ void Blend::Draw(const GameTimer& gt)
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
+#pragma region Quiz1109
+	//只需要绘制深度测试图层
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::DepthTest]);
+	/*
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	//ch10,绘制alphaTested和transparent两个图层
@@ -269,6 +281,8 @@ void Blend::Draw(const GameTimer& gt)
 	//ch10,transparent图层
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
+	*/
+#pragma endregion
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -601,6 +615,10 @@ void Blend::BuildShadersAndInputLayout()
 	//ch10,添加alpha测试的shader
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
+#pragma region Quiz1109
+	mShaders["depthTestPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "DepthPS", "ps_5_0");
+#pragma endregion
+
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -815,6 +833,30 @@ void Blend::BuildPSOs()
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+
+#pragma region Quiz1109
+	//新建一个深度测试用的PSO
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC depthTestPsoDesc = opaquePsoDesc;
+	depthTestPsoDesc.DepthStencilState.DepthEnable = false;
+	depthTestPsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["depthTestPS"]->GetBufferPointer()),
+		mShaders["depthTestPS"]->GetBufferSize()
+	};
+
+	D3D12_RENDER_TARGET_BLEND_DESC depthTestBlendDesc;
+	depthTestBlendDesc.BlendEnable = true;
+	depthTestBlendDesc.LogicOpEnable = false;
+	depthTestBlendDesc.SrcBlend = D3D12_BLEND_ONE;
+	depthTestBlendDesc.DestBlend = D3D12_BLEND_ONE;
+	depthTestBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	depthTestBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	depthTestBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	depthTestBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	depthTestBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	depthTestBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	depthTestPsoDesc.BlendState.RenderTarget[0] = depthTestBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthTestPsoDesc, IID_PPV_ARGS(&mPSOs["depthTest"])));
+#pragma endregion
 }
 
 void Blend::BuildFrameResources()
@@ -901,6 +943,13 @@ void Blend::BuildRenderItems()
 
 	//ch10,现在箱子要是透明测试的
 	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
+
+#pragma region Quiz1109
+	//我们把所有物体都推入DepthTest中
+	mRitemLayer[(int)RenderLayer::DepthTest].push_back(gridRitem.get());
+	mRitemLayer[(int)RenderLayer::DepthTest].push_back(wavesRitem.get());
+	mRitemLayer[(int)RenderLayer::DepthTest].push_back(boxRitem.get());
+#pragma endregion
 
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
