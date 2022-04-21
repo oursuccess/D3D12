@@ -42,7 +42,9 @@ enum class RenderLayer : int
 	//ch10,添加两个渲染层级，分别为透明和alpha测试
 	Transparent,
 	AlphaTested,
+#pragma region Quiz1108
 	DepthTest,
+#pragma endregion
 	Count
 };
 
@@ -249,8 +251,10 @@ void Blend::Draw(const GameTimer& gt)
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	//ch10，我们现在使用雾气颜色来清除，而非原本的蓝色
+#pragma region Quiz1108
+	//现在使用黑色来重置缓冲区
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Black, 0, nullptr);
+#pragma endregion
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
@@ -827,7 +831,7 @@ void Blend::BuildPSOs()
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 #pragma region Quiz1108
-	//禁止写入后台缓冲区，仅仅允许更新模板值
+	//禁止写入后台缓冲区，仅仅允许更新模板值。由于透明和透明测试都是继承了opaquePsoDesc，因此我们改了这儿，其它两个PSO也自然修改了
 	opaquePsoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0;
 	opaquePsoDesc.DepthStencilState = depthTestStencilDesc;
 #pragma endregion
@@ -862,6 +866,7 @@ void Blend::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso4Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc4"])));
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso5Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc5"])));
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&depthDrawPso6Desc, IID_PPV_ARGS(&mPSOs["depthDrawPsoDesc6"])));
+#pragma endregion
 
 	//ch10,创建一个transparent所需要的PSO
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
@@ -875,12 +880,13 @@ void Blend::BuildPSOs()
 	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+#pragma region Quiz1108
 	//水也不能写入后台缓冲区
 	//transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 	transparencyBlendDesc.RenderTargetWriteMask = 0;
+#pragma endregion
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
-#pragma endregion
 
 	//ch10,创建一个alphaTested所需要的PSO
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
