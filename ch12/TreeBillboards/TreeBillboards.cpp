@@ -45,13 +45,13 @@ enum class RenderLayer : int
 	Count
 };
 
-class Blend : public D3DApp
+class TreeBillboards : public D3DApp
 {
 public:
-    Blend(HINSTANCE hInstance);
-    Blend(const Blend& rhs) = delete;
-    Blend& operator=(const Blend& rhs) = delete;
-    ~Blend();
+    TreeBillboards(HINSTANCE hInstance);
+    TreeBillboards(const TreeBillboards& rhs) = delete;
+    TreeBillboards& operator=(const TreeBillboards& rhs) = delete;
+    ~TreeBillboards();
 
     virtual bool Initialize()override;
 
@@ -144,7 +144,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
-        Blend theApp(hInstance);
+        TreeBillboards theApp(hInstance);
         if(!theApp.Initialize())
             return 0;
 
@@ -157,18 +157,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     }
 }
 
-Blend::Blend(HINSTANCE hInstance)
+TreeBillboards::TreeBillboards(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
 }
 
-Blend::~Blend()
+TreeBillboards::~TreeBillboards()
 {
     if(md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
-bool Blend::Initialize()
+bool TreeBillboards::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
@@ -200,7 +200,7 @@ bool Blend::Initialize()
     return true;
 }
  
-void Blend::OnResize()
+void TreeBillboards::OnResize()
 {
     D3DApp::OnResize();
 
@@ -208,7 +208,7 @@ void Blend::OnResize()
     XMStoreFloat4x4(&mProj, P);
 }
 
-void Blend::Update(const GameTimer& gt)
+void TreeBillboards::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -232,7 +232,7 @@ void Blend::Update(const GameTimer& gt)
 	UpdateWaves(gt);
 }
 
-void Blend::Draw(const GameTimer& gt)
+void TreeBillboards::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -286,7 +286,7 @@ void Blend::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void Blend::OnMouseDown(WPARAM btnState, int x, int y)
+void TreeBillboards::OnMouseDown(WPARAM btnState, int x, int y)
 {
     mLastMousePos.x = x;
     mLastMousePos.y = y;
@@ -294,12 +294,12 @@ void Blend::OnMouseDown(WPARAM btnState, int x, int y)
     SetCapture(mhMainWnd);
 }
 
-void Blend::OnMouseUp(WPARAM btnState, int x, int y)
+void TreeBillboards::OnMouseUp(WPARAM btnState, int x, int y)
 {
     ReleaseCapture();
 }
 
-void Blend::OnMouseMove(WPARAM btnState, int x, int y)
+void TreeBillboards::OnMouseMove(WPARAM btnState, int x, int y)
 {
     if((btnState & MK_LBUTTON) != 0)
     {
@@ -325,11 +325,11 @@ void Blend::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
-void Blend::OnKeyboardInput(const GameTimer& gt)
+void TreeBillboards::OnKeyboardInput(const GameTimer& gt)
 {
 }
 
-void Blend::UpdateCamera(const GameTimer& gt)
+void TreeBillboards::UpdateCamera(const GameTimer& gt)
 {
 	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
 	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
@@ -343,7 +343,7 @@ void Blend::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void Blend::AnimateMaterials(const GameTimer& gt)
+void TreeBillboards::AnimateMaterials(const GameTimer& gt)
 {
 	//将水的材质贴图进行滚动
 	auto waterMat = mMaterials["water"].get();
@@ -367,7 +367,7 @@ void Blend::AnimateMaterials(const GameTimer& gt)
 	waterMat->NumFramesDirty = gNumFrameResources;
 }
 
-void Blend::UpdateObjectCBs(const GameTimer& gt)
+void TreeBillboards::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for(auto& e : mAllRitems)
@@ -388,7 +388,7 @@ void Blend::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void Blend::UpdateMaterialCBs(const GameTimer& gt)
+void TreeBillboards::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
 	for (auto& e : mMaterials) 
@@ -411,7 +411,7 @@ void Blend::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
-void Blend::UpdateMainPassCB(const GameTimer& gt)
+void TreeBillboards::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -449,7 +449,7 @@ void Blend::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void Blend::UpdateWaves(const GameTimer& gt)
+void TreeBillboards::UpdateWaves(const GameTimer& gt)
 {
 	static float t_base = 0.0f;
 	if((mTimer.TotalTime() - t_base) >= 0.25f)
@@ -484,7 +484,7 @@ void Blend::UpdateWaves(const GameTimer& gt)
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
-void Blend::LoadTextures()
+void TreeBillboards::LoadTextures()
 {
 	auto grassTex = std::make_unique<Texture>();
 	grassTex->Name = "grassTex";
@@ -508,7 +508,7 @@ void Blend::LoadTextures()
 	mTextures[fenceTex->Name] = std::move(fenceTex);
 }
 
-void Blend::BuildRootSignature()
+void TreeBillboards::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
@@ -545,7 +545,7 @@ void Blend::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void Blend::BuildDescriptorHeaps()
+void TreeBillboards::BuildDescriptorHeaps()
 {
 	//创建SRV堆
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
@@ -581,7 +581,7 @@ void Blend::BuildDescriptorHeaps()
 	md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, hDescriptor);
 }
 
-void Blend::BuildShadersAndInputLayout()
+void TreeBillboards::BuildShadersAndInputLayout()
 {
 	//ch10,添加两个渲染宏
 	const D3D_SHADER_MACRO defines[] = {
@@ -609,7 +609,7 @@ void Blend::BuildShadersAndInputLayout()
     };
 }
 
-void Blend::BuildLandGeometry()
+void TreeBillboards::BuildLandGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
@@ -659,7 +659,7 @@ void Blend::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
-void Blend::BuildWavesGeometry()
+void TreeBillboards::BuildWavesGeometry()
 {
 	std::vector<std::uint16_t> indices(3 * mWaves->TriangleCount()); // 3 indices per face
 	assert(mWaves->VertexCount() < 0x0000ffff);
@@ -714,7 +714,7 @@ void Blend::BuildWavesGeometry()
 }
 
 //ch09, 添加一个Box
-void Blend::BuildBoxGeometry()
+void TreeBillboards::BuildBoxGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
@@ -760,7 +760,7 @@ void Blend::BuildBoxGeometry()
 	mGeometries["boxGeo"] = std::move(geo);
 }
 
-void Blend::BuildPSOs()
+void TreeBillboards::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -817,7 +817,7 @@ void Blend::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
 }
 
-void Blend::BuildFrameResources()
+void TreeBillboards::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
@@ -826,7 +826,7 @@ void Blend::BuildFrameResources()
     }
 }
 
-void Blend::BuildMaterials()
+void TreeBillboards::BuildMaterials()
 {
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
@@ -858,7 +858,7 @@ void Blend::BuildMaterials()
 	mMaterials["wirefence"] = std::move(wirefence);
 }
 
-void Blend::BuildRenderItems()
+void TreeBillboards::BuildRenderItems()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->World = MathHelper::Identity4x4();
@@ -907,7 +907,7 @@ void Blend::BuildRenderItems()
 	mAllRitems.push_back(std::move(boxRitem));
 }
 
-void Blend::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void TreeBillboards::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
@@ -937,7 +937,7 @@ void Blend::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vecto
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Blend::GetStaticSamplers()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TreeBillboards::GetStaticSamplers()
 {
 	//建立6个不同的采样器
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP);
@@ -950,12 +950,12 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Blend::GetStaticSamplers()
 	return { pointWrap, pointClamp, linearWrap, linearClamp, anisotropicWrap, anisotropicClamp };
 }
 
-float Blend::GetHillsHeight(float x, float z)const
+float TreeBillboards::GetHillsHeight(float x, float z)const
 {
     return 0.3f*(z*sinf(0.1f*x) + x*cosf(0.1f*z));
 }
 
-XMFLOAT3 Blend::GetHillsNormal(float x, float z)const
+XMFLOAT3 TreeBillboards::GetHillsNormal(float x, float z)const
 {
     // n = (-df/dx, 1, -df/dz)
     XMFLOAT3 n(
