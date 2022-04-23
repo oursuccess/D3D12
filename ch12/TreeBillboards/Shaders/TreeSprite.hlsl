@@ -119,17 +119,17 @@ void GS(point VertexOut gin[1], uint primID : SV_PrimitiveID, inout TriangleStre
     float halfHeight = 0.5f * gin[0].SizeW.y;
 
     float4 v[4];
-    v[0] = float4(gin[0].CenterW + halfWidth * right - halfHeight * up, 1.0f);  //右下
+    v[0] = float4(gin[0].CenterW + halfWidth * right - halfHeight * up, 1.0f);  //右下。这个右，在经过我们的叉乘后，实际上对应的是屏幕的左边。因为我们算出来的这个是正面朝向镜头的，因此，它的右边是镜头的左边。
     v[1] = float4(gin[0].CenterW + halfWidth * right + halfHeight * up, 1.0f);  //右上
     v[2] = float4(gin[0].CenterW - halfWidth * right - halfWidth * up, 1.0f);   //左下
     v[3] = float4(gin[0].CenterW - halfWidth * right + halfHeight * up, 1.0f);  //左上
 
     float2 texC[4] =
     {
-        float2(0.0f, 1.0f),
-        float2(0.0f, 0.0f),
-        float2(1.0f, 1.0f),
-        float2(1.0f, 0.0f),
+        float2(0.0f, 1.0f), //左下    //为啥这里和上面的比，左右颠倒了？？
+        float2(0.0f, 0.0f), //左上
+        float2(1.0f, 1.0f), //右下
+        float2(1.0f, 0.0f), //右上
     };
 
     GeoOut gout;
