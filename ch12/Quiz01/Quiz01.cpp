@@ -1035,8 +1035,8 @@ void TreeBillboards::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["circlePS"]->GetBufferPointer()),
 		mShaders["circlePS"]->GetBufferSize()
 	};
-	circlePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-	circlePsoDesc.InputLayout = { mCircleInputLayout.data(), (UINT)mTreeSpriteInputLayout.size() };
+	circlePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+	circlePsoDesc.InputLayout = { mCircleInputLayout.data(), (UINT)mCircleInputLayout.size() };
 	circlePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&circlePsoDesc, IID_PPV_ARGS(&mPSOs["circle"])));
 #pragma endregion
