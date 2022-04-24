@@ -104,7 +104,7 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-[maxvertexcount(10)]    //这里，我们将一个圆变成了5层的圆柱. 10是因为我们在cpp中将一个圆转为了10边形
+[maxvertexcount(50)]    //这里，我们将一个圆变成了5层的圆柱. 10是因为我们在cpp中将一个圆转为了10边形
 void GS(line VertexOut gin[2], inout LineStream<GeoOut> lineStream)
 {
     GeoOut gout[10];
@@ -112,12 +112,18 @@ void GS(line VertexOut gin[2], inout LineStream<GeoOut> lineStream)
     for (int i = 0; i < 5; ++i)
     {
         float4 a = float4(gin[0].PosW, 1);
-        a[2] = i + 12; //y
+        a.y += i; //y
         gout[i * 2].PosH = mul(a, gViewProj);
+        //gout[i * 2].PosW = a.xyz;
 
         float4 b = float4(gin[1].PosW, 1);
-        b[2] = i + 12; //y
+        b.y += i; //y
         gout[i * 2 + 1].PosH = mul(b, gViewProj);
+        //gout[i * 2 + 1].PosW = b.xyz;
+
+        lineStream.Append(gout[i * 2]);
+        lineStream.Append(gout[i * 2 + 1]);
+        lineStream.RestartStrip();
     }
 }
 
