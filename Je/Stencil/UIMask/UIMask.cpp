@@ -43,6 +43,8 @@ enum class RenderLayer : int
 	Reflected,
 	Transparent,
 	Shadow,
+	UI,
+	UIMask,
 	Count
 };
 
@@ -82,6 +84,10 @@ private:
 	//ch11, 构建房间
 	void BuildRoomGeometry();
 	void BuildSkullGeometry();
+#pragma region UIMask
+	void BuildMaskUIGeometry();
+	void BuildMaskedUIGeometry();
+#pragma endregion
 	void BuildPSOs();
 	void BuildFrameResources();
 	void BuildMaterials();
@@ -107,6 +113,10 @@ private:
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
+#pragma region UIMask
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mUIInputLayout;
+#pragma endregion
 
 	RenderItem* mSkullRitem = nullptr;
 	RenderItem* mReflectedSkullRitem = nullptr;
@@ -174,6 +184,10 @@ bool Stencil::Initialize()
 	BuildShadersAndInputLayout();
 	BuildRoomGeometry();
 	BuildSkullGeometry();
+#pragma region UIMask
+	BuildMaskedUIGeometry();
+	BuildMaskUIGeometry();
+#pragma endregion
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -269,6 +283,15 @@ void Stencil::Draw(const GameTimer& gt)
 	//ch11, 绘制影子
 	mCommandList->SetPipelineState(mPSOs["shadow"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Shadow]);
+
+#pragma region UIMask
+	mCommandList->OMSetStencilRef(1);
+	mCommandList->SetPipelineState(mPSOs["uiMask"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UIMask]);
+
+	mCommandList->SetPipelineState(mPSOs["ui"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UI]);
+#pragma endregion
 
 	//将后台缓冲区重新设置为可以显示状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -639,6 +662,18 @@ void Stencil::BuildShadersAndInputLayout()
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
+
+#pragma region UIMask
+	mShaders["uiVS"] = d3dUtil::CompileShader(L"Shaders\\UI.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["uiGS"] = d3dUtil::CompileShader(L"Shaders\\UI.hlsl", nullptr, "GS", "gs_5_0");
+	mShaders["uiPS"] = d3dUtil::CompileShader(L"Shaders\\UI.hlsl", nullptr, "PS", "ps_5_0");
+
+	mUIInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+#pragma endregion
 	
     mInputLayout =
     {
@@ -840,6 +875,114 @@ void Stencil::BuildSkullGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
+#pragma region UIMask
+void Stencil::BuildMaskUIGeometry()
+{
+	struct SpriteVertex
+	{
+		XMFLOAT3 Pos;
+		XMFLOAT2 Size;
+	};
+
+	static const int uiCount = 1;
+	std::array<SpriteVertex, uiCount> vertices;
+	for (UINT i = 0; i < uiCount; ++i)
+	{
+		float x = 10 * (i+1);
+		float z = 10 * (i+1);
+		float y = 10 * (i+1);
+
+		vertices[i].Pos = XMFLOAT3(x, y, z);
+		vertices[i].Size = XMFLOAT2(20.0f, 20.0f);
+	}
+
+	std::array<std::uint16_t, uiCount> indices =
+	{
+		0,
+	};
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SpriteVertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "uiMaskSpriteGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(SpriteVertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+	geo->DrawArgs["uiMask"] = submesh;
+	mGeometries["uiMaskSpriteGeo"] = std::move(geo);
+}
+
+void Stencil::BuildMaskedUIGeometry()
+{
+	struct SpriteVertex
+	{
+		XMFLOAT3 Pos;
+		XMFLOAT2 Size;
+	};
+
+	static const int uiCount = 1;
+	std::array<SpriteVertex, uiCount> vertices;
+	for (UINT i = 0; i < uiCount; ++i)
+	{
+		float x = 10 * (i+1);
+		float z = 10 * (i+1);
+		float y = 10 * (i+1);
+
+		vertices[i].Pos = XMFLOAT3(x, y, z);
+		vertices[i].Size = XMFLOAT2(30.0f, 30.0f);
+	}
+
+	std::array<std::uint16_t, uiCount> indices =
+	{
+		0,
+	};
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SpriteVertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "uiSpriteGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(SpriteVertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+	geo->DrawArgs["ui"] = submesh;
+	mGeometries["uiSpriteGeo"] = std::move(geo);
+}
+#pragma endregion
+
 void Stencil::BuildPSOs()
 {
 	 D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
@@ -980,6 +1123,58 @@ void Stencil::BuildPSOs()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = transparentPsoDesc;
 	shadowPsoDesc.DepthStencilState = shadowDSS;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
+
+#pragma region UIMask
+	D3D12_DEPTH_STENCIL_DESC uiMaskDesc;
+	uiMaskDesc.DepthEnable = false;
+	uiMaskDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	uiMaskDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	uiMaskDesc.StencilEnable = true;
+	uiMaskDesc.StencilWriteMask = 0xff;
+	uiMaskDesc.StencilReadMask = 0xff;
+
+	uiMaskDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	uiMaskDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	uiMaskDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	uiMaskDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+
+	uiMaskDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	uiMaskDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	uiMaskDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	uiMaskDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC uiMaskPsoDesc = transparentPsoDesc;
+	uiMaskPsoDesc.DepthStencilState = uiMaskDesc;
+	uiMaskPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	uiMaskPsoDesc.InputLayout = { mUIInputLayout.data(), (UINT)mUIInputLayout.size() };
+	uiMaskPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	uiMaskPsoDesc.VS = 
+	{
+		reinterpret_cast<BYTE*>(mShaders["uiVS"]->GetBufferPointer()),
+		mShaders["uiVS"]->GetBufferSize()
+	};
+	uiMaskPsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["uiGS"]->GetBufferPointer()),
+		mShaders["uiGS"]->GetBufferSize()
+	};
+	uiMaskPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["uiPS"]->GetBufferPointer()),
+		mShaders["uiPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiMaskPsoDesc, IID_PPV_ARGS(&mPSOs["uiMask"])));
+
+	D3D12_DEPTH_STENCIL_DESC uiDesc = uiMaskDesc;
+	uiDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	uiDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	uiDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	uiDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC uiPsoDesc = uiMaskPsoDesc;
+	uiPsoDesc.DepthStencilState = uiDesc;
+	uiPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiPsoDesc, IID_PPV_ARGS(&mPSOs["ui"])));
+#pragma endregion
 }
 
 void Stencil::BuildFrameResources()
@@ -1113,6 +1308,36 @@ void Stencil::BuildRenderItems()
 	mAllRitems.push_back(std::move(reflectedSkullRitem));
 	mAllRitems.push_back(std::move(shadowedSkullRitem));
 	mAllRitems.push_back(std::move(mirrorRitem));
+
+#pragma region UIMask
+	auto uiRitem = std::make_unique<RenderItem>();
+	uiRitem->World = MathHelper::Identity4x4();
+	uiRitem->ObjCBIndex = 6;
+	uiRitem->Mat = mMaterials["icemirror"].get();
+	uiRitem->Geo = mGeometries["uiSpriteGeo"].get();
+	uiRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+	uiRitem->IndexCount = uiRitem->Geo->DrawArgs["ui"].IndexCount;
+	uiRitem->StartIndexLocation = uiRitem->Geo->DrawArgs["ui"].StartIndexLocation;
+	uiRitem->BaseVertexLocation = uiRitem->Geo->DrawArgs["ui"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::UI].push_back(uiRitem.get());
+
+	mAllRitems.push_back(std::move(uiRitem));
+
+	auto uiMaskRitem = std::make_unique<RenderItem>();
+	uiMaskRitem->World = MathHelper::Identity4x4();
+	uiMaskRitem->ObjCBIndex = 7;
+	uiMaskRitem->Mat = mMaterials["bricks"].get();
+	uiMaskRitem->Geo = mGeometries["uiMaskSpriteGeo"].get();
+	uiMaskRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+	uiMaskRitem->IndexCount = uiMaskRitem->Geo->DrawArgs["uiMask"].IndexCount;
+	uiMaskRitem->StartIndexLocation = uiMaskRitem->Geo->DrawArgs["uiMask"].StartIndexLocation;
+	uiMaskRitem->BaseVertexLocation = uiMaskRitem->Geo->DrawArgs["uiMask"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::UIMask].push_back(uiMaskRitem.get());
+
+	mAllRitems.push_back(std::move(uiMaskRitem));
+#pragma endregion
 }
 
 void Stencil::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
