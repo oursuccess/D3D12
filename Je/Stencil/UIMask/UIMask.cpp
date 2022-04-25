@@ -45,6 +45,7 @@ enum class RenderLayer : int
 	Shadow,
 	UI,
 	UIMask,
+	AllUIWithoutMask,
 	Count
 };
 
@@ -116,6 +117,8 @@ private:
 
 #pragma region UIMask
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mUIInputLayout;
+	bool mEnableMask = false;
+	bool mInvertMask = false;
 #pragma endregion
 
 	RenderItem* mSkullRitem = nullptr;
@@ -285,12 +288,24 @@ void Stencil::Draw(const GameTimer& gt)
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Shadow]);
 
 #pragma region UIMask
-	mCommandList->OMSetStencilRef(1);
-	mCommandList->SetPipelineState(mPSOs["uiMask"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UIMask]);
-
-	mCommandList->SetPipelineState(mPSOs["ui"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UI]);
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	if (mEnableMask) 
+	{
+		mCommandList->OMSetStencilRef(1);
+		mCommandList->SetPipelineState(mPSOs["uiMask"].Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UIMask]);
+		if (mInvertMask)
+		{
+			mCommandList->OMSetStencilRef(0);
+		}
+		mCommandList->SetPipelineState(mPSOs["ui"].Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::UI]);
+	}
+	else
+	{
+		mCommandList->SetPipelineState(mPSOs["withoutMaskUI"].Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AllUIWithoutMask]);
+	}
 #pragma endregion
 
 	//将后台缓冲区重新设置为可以显示状态
@@ -370,6 +385,13 @@ void Stencil::OnKeyboardInput()
 		mSkullTranslation.y -= 1.0f * dt;
 
 	mSkullTranslation.y = MathHelper::Max(mSkullTranslation.y, 0.0f);
+
+#pragma region UIMask
+	if (GetAsyncKeyState('1') & 0x8000) mEnableMask = false;
+	else mEnableMask = true;
+	if (GetAsyncKeyState('2') & 0x8000) mInvertMask = true;
+	else mInvertMask = false;
+#pragma endregion
 
 	XMMATRIX skullRotate = XMMatrixRotationY(0.5f * MathHelper::Pi);
 	XMMATRIX skullScale = XMMatrixScaling(0.45f, 0.45f, 0.45f);
@@ -1172,8 +1194,12 @@ void Stencil::BuildPSOs()
 	uiDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC uiPsoDesc = uiMaskPsoDesc;
 	uiPsoDesc.DepthStencilState = uiDesc;
-	uiPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiPsoDesc, IID_PPV_ARGS(&mPSOs["ui"])));
+
+	D3D12_DEPTH_STENCIL_DESC withoutMaskDSS = uiMaskDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC withoutMaskUIPsoDesc = uiMaskPsoDesc;
+	withoutMaskUIPsoDesc.DepthStencilState = withoutMaskDSS;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&withoutMaskUIPsoDesc, IID_PPV_ARGS(&mPSOs["withoutMaskUI"])));
 #pragma endregion
 }
 
@@ -1322,8 +1348,6 @@ void Stencil::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::UI].push_back(uiRitem.get());
 
-	mAllRitems.push_back(std::move(uiRitem));
-
 	auto uiMaskRitem = std::make_unique<RenderItem>();
 	uiMaskRitem->World = MathHelper::Identity4x4();
 	uiMaskRitem->ObjCBIndex = 7;
@@ -1336,6 +1360,11 @@ void Stencil::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::UIMask].push_back(uiMaskRitem.get());
 
+	//先绘制uiMask，再绘制ui
+	mRitemLayer[(int)RenderLayer::AllUIWithoutMask].push_back(uiMaskRitem.get());
+	mRitemLayer[(int)RenderLayer::AllUIWithoutMask].push_back(uiRitem.get());
+
+	mAllRitems.push_back(std::move(uiRitem));
 	mAllRitems.push_back(std::move(uiMaskRitem));
 #pragma endregion
 }
