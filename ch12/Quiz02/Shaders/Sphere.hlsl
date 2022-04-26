@@ -31,7 +31,7 @@ cbuffer cbPerObject : register(b0)
     float4x4 gWorld;
     //添加一个世界到模型空间的逆矩阵的转置矩阵
     float4x4 gWorldInvTranspose;
-    //添加一个从模型空间直接转换到投影空间的矩阵
+    //添加一个从模型空间直接转换到空间的矩阵
     float4x4 gWorldViewProj;
     //添加贴图矩阵
     float4x4 gTexTransform;
@@ -171,9 +171,11 @@ void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
 }
 
 [maxvertexcount(8)] //我们最多区分细分两次，一次为3*3，二次为3*3*3
-void GS(triangle VertexOut gin[1], inout TriangleStream<GeoOut> triStream)
+void GS(triangle VertexOut gin[3], inout TriangleStream<GeoOut> triStream)
 {
     VertexOut v[6];
+    SubDivide(gin, v);
+    OutputSubdivision(v, triStream);
 }
 
 float4 PS(GeoOut pin) : SV_Target

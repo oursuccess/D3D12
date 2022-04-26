@@ -76,6 +76,9 @@ private:
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	void UpdateWaves(const GameTimer& gt);
+#pragma region Quiz1202
+	void UpdateSphere(const GameTimer& gt);
+#pragma endregion
 
 	void LoadTextures();
     void BuildRootSignature();
@@ -123,6 +126,9 @@ private:
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
 
 	RenderItem* mWavesRitem = nullptr;
+#pragma region Quiz1202
+	RenderItem* mSphereRitem = nullptr;
+#pragma endregion
 
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
@@ -404,8 +410,17 @@ void TreeBillboards::UpdateObjectCBs(const GameTimer& gt)
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
 			ObjectConstants objConstants;
+#pragma region Quiz1202
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConstants.WorldInvTranspose, XMMatrixInverse(&XMMatrixDeterminant(world), world));
+
+			auto view = XMLoadFloat4x4(&mView);
+			auto proj = XMLoadFloat4x4(&mProj);
+			auto worldViewProj = XMMatrixMultiply(XMMatrixMultiply(world, view), proj);
+			XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+#pragma endregion
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -509,6 +524,13 @@ void TreeBillboards::UpdateWaves(const GameTimer& gt)
 
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
+
+#pragma region Quiz1202
+void TreeBillboards::UpdateSphere(const GameTimer& gt)
+{
+	mSphereRitem->NumFramesDirty = gNumFrameResources;
+}
+#pragma endregion
 
 void TreeBillboards::LoadTextures()
 {
@@ -654,6 +676,12 @@ void TreeBillboards::BuildShadersAndInputLayout()
 	mShaders["treeSpriteVS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "GS", "gs_5_0");
 	mShaders["treeSpritePS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", alphaTestDefines, "PS", "ps_5_0");
+
+#pragma region Quiz1202
+	mShaders["sphereVS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["spherePS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "PS", "ps_5_0");
+	mShaders["sphereGS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "GS", "gs_5_0");
+#pragma endregion
 
 	mInputLayout =
 	{
@@ -1146,11 +1174,13 @@ void TreeBillboards::BuildRenderItems()
 	sphereRitem->World = MathHelper::Identity4x4();
 	sphereRitem->ObjCBIndex = 4;
 	sphereRitem->Mat = mMaterials["wirefence"].get();	//随便给一个就行，我们不用
+	sphereRitem->Geo = mGeometries["sphereGeo"].get();
 	sphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 	sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 	sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
 
+	mSphereRitem = sphereRitem.get();
 	mRitemLayer[(int)RenderLayer::Sphere].push_back(sphereRitem.get());
 	mAllRitems.push_back(std::move(sphereRitem));
 #pragma endregion

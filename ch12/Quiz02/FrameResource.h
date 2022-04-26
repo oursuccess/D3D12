@@ -5,6 +5,10 @@
 struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+#pragma region Quiz1202
+    DirectX::XMFLOAT4X4 WorldInvTranspose = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+#pragma endregion
     //ch09,添加一个TexTransform
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 };
