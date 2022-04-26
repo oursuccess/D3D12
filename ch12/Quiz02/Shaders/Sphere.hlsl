@@ -155,7 +155,8 @@ void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
         float4 posW = mul(float4(v[i].PosL, 1.0f), gWorld);
         gout[i].PosW = posW.xyz;
         gout[i].PosW = mul(float4(v[i].PosL, 1.0f), gWorld).xyz;
-        gout[i].NormalW = mul(v[i].NormalL, (float3x3) gWorld); //这个错了吧
+        //gout[i].NormalW = mul(v[i].NormalL, (float3x3) gWorld); //这个错了吧
+        gout[i].NormalW = mul((float3x3) gWorld, v[i].NormalL);
 
         gout[i].PosH = mul(posW, gViewProj);
         gout[i].TexC = v[i].TexC;

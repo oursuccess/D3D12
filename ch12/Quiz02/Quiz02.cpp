@@ -1041,6 +1041,8 @@ void TreeBillboards::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["spherePS"]->GetBufferPointer()),
 		mShaders["spherePS"]->GetBufferSize(),
 	};
+	spherePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	spherePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&spherePsoDesc, IID_PPV_ARGS(&mPSOs["sphere"])));
 #pragma endregion
 }
