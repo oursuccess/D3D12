@@ -98,8 +98,6 @@ struct GeoOut
     float3 NormalW : NORMAL;
     //添加贴图采样的uv坐标
     float2 TexC : TEXCOORD;
-    //id
-    uint PrimID : SV_PrimitiveID;
 };
 
 VertexOut VS(VertexIn vin)
@@ -127,6 +125,10 @@ void SubDivide(VertexOut inVerts[3], out VertexOut outVerts[6])
     m[0].PosL = normalize(m[0].PosL);
     m[1].PosL = normalize(m[1].PosL);
     m[2].PosL = normalize(m[2].PosL);
+
+    m[0].NormalL = m[0].PosL;
+    m[1].NormalL = m[1].PosL;
+    m[2].NormalL = m[2].PosL;
 
     //纹理插值(这一步不要了)
     m[0].TexC = 0.5f * (inVerts[0].TexC + inVerts[1].TexC);
@@ -159,9 +161,9 @@ void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
 
     //推入三角形(能用三角形带的我们就用三角形带)
     [unroll]
-    for (int i = 0; i < 5; ++i)
+    for (int j = 0; j < 5; ++j)
     {
-        triStream.Append(gout[i]);
+        triStream.Append(gout[j]);
     }
     triStream.RestartStrip();
 
