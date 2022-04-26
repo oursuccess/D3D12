@@ -44,6 +44,9 @@ enum class RenderLayer : int
 	AlphaTested,
 	//ch11,添加树木的层级
 	AlphaTestedTreeSprites,
+#pragma region Quiz1202
+	Sphere,
+#pragma endregion
 	Count
 };
 
@@ -83,6 +86,9 @@ private:
 	void BuildBoxGeometry();
 	//ch11,构建树木的几何
 	void BuildTreeSpritesGeometry();
+#pragma region Quiz1202
+	void BuildGeoSphereGeometry();
+#pragma endregion
     void BuildPSOs();
     void BuildFrameResources();
 	void BuildMaterials();
@@ -194,6 +200,9 @@ bool TreeBillboards::Initialize()
 	BuildBoxGeometry();
 	//ch11,构建树木的几何
 	BuildTreeSpritesGeometry();
+#pragma region Quiz1202
+	BuildGeoSphereGeometry();
+#pragma endregion
 	BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -281,6 +290,11 @@ void TreeBillboards::Draw(const GameTimer& gt)
 	//ch10,transparent图层
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
+
+#pragma region Quiz1202
+	mCommandList->SetPipelineState(mPSOs["sphere"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sphere]);
+#pragma endregion
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -865,6 +879,54 @@ void TreeBillboards::BuildTreeSpritesGeometry()
 	mGeometries["treeSpritesGeo"] = std::move(geo);
 }
 
+#pragma region Quiz1202
+void TreeBillboards::BuildGeoSphereGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(5, 0);
+
+	std::vector<Vertex> vertices(sphere.Vertices.size());
+	for (size_t i = 0; i < sphere.Vertices.size(); ++i)
+	{
+		auto& p = sphere.Vertices[i].Position;
+		vertices[i].Pos = p;
+		vertices[i].Normal = sphere.Vertices[i].Normal;
+		vertices[i].TexC = sphere.Vertices[i].TexC;
+	}
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+	std::vector<std::uint16_t> indices = sphere.GetIndices16();
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "boxGeo";
+	
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["sphere"] = submesh;
+	
+	mGeometries["sphereGeo"] = std::move(geo);
+}
+#pragma endregion
+
 void TreeBillboards::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
@@ -942,6 +1004,26 @@ void TreeBillboards::BuildPSOs()
 	treeSpritePsoDesc.InputLayout = { mTreeSpriteInputLayout.data(), (UINT)mTreeSpriteInputLayout.size() };
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc, IID_PPV_ARGS(&mPSOs["treeSprites"])));
+
+#pragma region Quiz1202
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC spherePsoDesc = opaquePsoDesc;
+	spherePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sphereVS"]->GetBufferPointer()),
+		mShaders["sphereVS"]->GetBufferSize(),
+	};
+	spherePsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sphereGS"]->GetBufferPointer()),
+		mShaders["sphereGS"]->GetBufferSize(),
+	};
+	spherePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["spherePS"]->GetBufferPointer()),
+		mShaders["spherePS"]->GetBufferSize(),
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&spherePsoDesc, IID_PPV_ARGS(&mPSOs["sphere"])));
+#pragma endregion
 }
 
 void TreeBillboards::BuildFrameResources()
@@ -1058,6 +1140,20 @@ void TreeBillboards::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(treeSpriteRitem.get());
 
 	mAllRitems.push_back(std::move(treeSpriteRitem));
+
+#pragma region Quiz1202
+	auto sphereRitem = std::make_unique<RenderItem>();
+	sphereRitem->World = MathHelper::Identity4x4();
+	sphereRitem->ObjCBIndex = 4;
+	sphereRitem->Mat = mMaterials["wirefence"].get();	//随便给一个就行，我们不用
+	sphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+	sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+	sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Sphere].push_back(sphereRitem.get());
+	mAllRitems.push_back(std::move(sphereRitem));
+#pragma endregion
 }
 
 void TreeBillboards::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
