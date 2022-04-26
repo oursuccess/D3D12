@@ -73,14 +73,18 @@ cbuffer cbPass : register(b1)
 
 struct VertexIn
 {
-    float3 PosW : POSITION;
-    float2 SizeW : SIZE;
+    float3 PosL : POSITION;
+    float3 NormalL : NORMAL;
+    //添加贴图采样的uv坐标
+    float2 TexC : TEXCOORD;
 };
 
 struct VertexOut
 {
-    float3 CenterW : POSITION;
-    float2 SizeW : SIZE;
+    float3 PosL : POSITION;
+    float3 NormalL : NORMAL;
+    //添加贴图采样的uv坐标
+    float2 TexC : TEXCOORD;
 };
 
 struct GeoOut
@@ -99,51 +103,16 @@ VertexOut VS(VertexIn vin)
     VertexOut vout = (VertexOut) 0.0f;
 
     //直接将坐标和尺寸传入gs即可
-    vout.CenterW = vin.PosW;
-    vout.SizeW = vin.SizeW;
+    vout.PosL = vin.PosL;
+    vout.NormalL = vin.NormalL;
+    vout.TexC = vin.TexC;
     
     return vout;
 }
 
-[maxvertexcount(4)]
-void GS(point VertexOut gin[1], uint primID : SV_PrimitiveID, inout TriangleStream<GeoOut> triStream)
+[maxvertexcount(27)] //我们最多区分细分两次，一次为3*3，二次为3*3*3
+void GS(triangle VertexOut gin[1], inout TriangleStream<GeoOut> triStream)
 {
-    float3 up = float3(0.0f, 1.0f, 0.0f);
-    float3 look = gEyePosW - gin[0].CenterW;
-    look.y = 0.0f;
-    look = normalize(look);
-    float3 right = cross(up, look); //dx为左手坐标系，使用左手定则; 在opengl中为右手坐标系
-
-    float halfWidth = 0.5f * gin[0].SizeW.x;
-    float halfHeight = 0.5f * gin[0].SizeW.y;
-
-    float4 v[4];
-    v[0] = float4(gin[0].CenterW + halfWidth * right - halfHeight * up, 1.0f);  //右下。这个右，在经过我们的叉乘后，实际上对应的是屏幕的左边。因为我们算出来的这个是正面朝向镜头的，因此，它的右边是镜头的左边。
-    v[1] = float4(gin[0].CenterW + halfWidth * right + halfHeight * up, 1.0f);  //右上
-    v[2] = float4(gin[0].CenterW - halfWidth * right - halfWidth * up, 1.0f);   //左下
-    v[3] = float4(gin[0].CenterW - halfWidth * right + halfHeight * up, 1.0f);  //左上
-
-    float2 texC[4] =
-    {
-        float2(0.0f, 1.0f), //左下    //为啥这里和上面的比，左右颠倒了？？
-        float2(0.0f, 0.0f), //左上
-        float2(1.0f, 1.0f), //右下
-        float2(1.0f, 0.0f), //右上
-    };
-
-    GeoOut gout;
-    [unroll]
-    for (int i = 0; i < 4; ++i)
-    {
-        gout.PosH = mul(v[i], gViewProj);
-        gout.PosW = v[i].xyz;
-        gout.NormalW = look;
-        gout.TexC = texC[i];
-        gout.PrimID = primID;
-
-        triStream.Append(gout);
-    }
-
 }
 
 float4 PS(GeoOut pin) : SV_Target
