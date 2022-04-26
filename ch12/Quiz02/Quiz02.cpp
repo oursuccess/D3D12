@@ -410,17 +410,8 @@ void TreeBillboards::UpdateObjectCBs(const GameTimer& gt)
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
 			ObjectConstants objConstants;
-#pragma region Quiz1202
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&objConstants.WorldInvTranspose, XMMatrixInverse(&XMMatrixDeterminant(world), world));
-
-			auto view = XMLoadFloat4x4(&mView);
-			auto proj = XMLoadFloat4x4(&mProj);
-			auto worldViewProj = XMMatrixMultiply(XMMatrixMultiply(world, view), proj);
-			XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
-
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-#pragma endregion
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -1171,7 +1162,7 @@ void TreeBillboards::BuildRenderItems()
 
 #pragma region Quiz1202
 	auto sphereRitem = std::make_unique<RenderItem>();
-	sphereRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&sphereRitem->World, XMMatrixTranslation(3.0f, 22.0f, -9.0f));
 	sphereRitem->ObjCBIndex = 4;
 	sphereRitem->Mat = mMaterials["wirefence"].get();	//随便给一个就行，我们不用
 	sphereRitem->Geo = mGeometries["sphereGeo"].get();

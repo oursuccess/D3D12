@@ -152,16 +152,18 @@ void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
     for (int i = 0; i < 6; ++i)
     {
         //坐标空间变换
+        float4 posW = mul(float4(v[i].PosL, 1.0f), gWorld);
+        gout[i].PosW = posW.xyz;
         gout[i].PosW = mul(float4(v[i].PosL, 1.0f), gWorld).xyz;
-        gout[i].NormalW = mul(v[i].NormalL, (float3x3) gWorldInvTranspose);
+        gout[i].NormalW = mul(v[i].NormalL, (float3x3) gWorld); //这个错了吧
 
-        gout[i].PosH = mul(float4(v[i].PosL, 1.0f), gWorldViewProj);
+        gout[i].PosH = mul(posW, gViewProj);
         gout[i].TexC = v[i].TexC;
     }
 
     //推入三角形(能用三角形带的我们就用三角形带)
     [unroll]
-    for (int j = 0; j < 5; ++j)
+    for (int j = 0; j < 6; ++j)
     {
         triStream.Append(gout[j]);
     }
@@ -172,7 +174,7 @@ void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
     triStream.Append(gout[3]);
 }
 
-[maxvertexcount(8)] //我们最多区分细分两次，一次为3*3，二次为3*3*3
+[maxvertexcount(6)] //我们最多区分细分两次，一次为3*3，二次为3*3*3
 void GS(triangle VertexOut gin[3], inout TriangleStream<GeoOut> triStream)
 {
     VertexOut v[6];
