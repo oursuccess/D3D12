@@ -29,10 +29,6 @@ SamplerState gsamAnisotropicClamp : register(s5);
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-    //添加一个世界到模型空间的逆矩阵的转置矩阵
-    float4x4 gWorldInvTranspose;
-    //添加一个从模型空间直接转换到空间的矩阵
-    float4x4 gWorldViewProj;
     //添加贴图矩阵
     float4x4 gTexTransform;
 };
