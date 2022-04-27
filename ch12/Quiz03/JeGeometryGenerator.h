@@ -4,5 +4,6 @@
 
 class JeGeometryGenerator
 {
+public:
 	static GeometryGenerator::MeshData CreateGeosphere20Face(float radius);
 };

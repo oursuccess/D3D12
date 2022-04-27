@@ -907,8 +907,7 @@ void TreeBillboards::BuildTreeSpritesGeometry()
 #pragma region Quiz1202
 void TreeBillboards::BuildGeoSphereGeometry()
 {
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(5, 0);
+	GeometryGenerator::MeshData sphere = JeGeometryGenerator::CreateGeosphere20Face(5);
 
 	std::vector<Vertex> vertices(sphere.Vertices.size());
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i)
@@ -925,7 +924,7 @@ void TreeBillboards::BuildGeoSphereGeometry()
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "boxGeo";
+	geo->Name = "sphereGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -1049,6 +1048,15 @@ void TreeBillboards::BuildPSOs()
 	};
 	spherePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	spherePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	spherePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	spherePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	spherePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	spherePsoDesc.SampleMask = UINT_MAX;	//0xffffffff,全部采样，没有遮罩
+	spherePsoDesc.NumRenderTargets = 1;
+	spherePsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;	//归一化的无符号整型
+	spherePsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	spherePsoDesc.SampleDesc.Count = 1;	//不使用4XMSAA
+	spherePsoDesc.SampleDesc.Quality = 0;	//不使用4XMSAA
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&spherePsoDesc, IID_PPV_ARGS(&mPSOs["sphere"])));
 #pragma endregion
 }
