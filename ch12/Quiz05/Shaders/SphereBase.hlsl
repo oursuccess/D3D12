@@ -81,16 +81,8 @@ struct VertexIn
 
 struct VertexOut
 {
-    float3 PosL : POSITION;
-    float3 NormalL : NORMAL;
-    //添加贴图采样的uv坐标
-    float2 TexC : TEXCOORD;
-};
-
-struct GeoOut
-{
-    float4 PosH : SV_POSITION;
     float3 PosW : POSITION;
+    float4 PosH : SV_POSITION;
     float3 NormalW : NORMAL;
     //添加贴图采样的uv坐标
     float2 TexC : TEXCOORD;
@@ -101,85 +93,16 @@ VertexOut VS(VertexIn vin)
     VertexOut vout = (VertexOut) 0.0f;
 
     //直接将坐标和尺寸传入gs即可
-    vout.PosL = vin.PosL;
-    vout.NormalL = vin.NormalL;
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    vout.PosW = posW.xyz;
+    vout.PosH = mul(posW, gViewProj);
+    vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
     vout.TexC = vin.TexC;
     
     return vout;
 }
 
-void SubDivide(VertexOut inVerts[3], out VertexOut outVerts[6])
-{
-    VertexOut m[3];
-
-    //计算中心
-    m[0].PosL = 0.5f * (inVerts[0].PosL + inVerts[1].PosL);
-    m[1].PosL = 0.5f * (inVerts[1].PosL + inVerts[2].PosL);
-    m[2].PosL = 0.5f * (inVerts[2].PosL + inVerts[0].PosL);
-    
-    //将顶点投影到单位球面上
-    m[0].PosL = normalize(m[0].PosL);
-    m[1].PosL = normalize(m[1].PosL);
-    m[2].PosL = normalize(m[2].PosL);
-
-    m[0].NormalL = m[0].PosL;
-    m[1].NormalL = m[1].PosL;
-    m[2].NormalL = m[2].PosL;
-
-    //纹理插值(这一步不要了)
-    m[0].TexC = 0.5f * (inVerts[0].TexC + inVerts[1].TexC);
-    m[1].TexC = 0.5f * (inVerts[1].TexC + inVerts[2].TexC);
-    m[2].TexC = 0.5f * (inVerts[2].TexC + inVerts[0].TexC);
-
-    //按照序号返回
-    outVerts[0] = inVerts[0];
-    outVerts[1] = m[0];
-    outVerts[2] = m[2];
-    outVerts[3] = m[1];
-    outVerts[4] = inVerts[2];
-    outVerts[5] = inVerts[1];
-}
-
-void OutputSubdivision(VertexOut v[6], inout TriangleStream<GeoOut> triStream)
-{
-    GeoOut gout[6];
-
-    [unroll]
-    for (int i = 0; i < 6; ++i)
-    {
-        //坐标空间变换
-        float4 posW = mul(float4(v[i].PosL, 1.0f), gWorld);
-        gout[i].PosW = posW.xyz;
-        gout[i].PosW = mul(float4(v[i].PosL, 1.0f), gWorld).xyz;
-        //gout[i].NormalW = mul(v[i].NormalL, (float3x3) gWorld); //这个错了吧
-        gout[i].NormalW = mul((float3x3) gWorld, v[i].NormalL);
-
-        gout[i].PosH = mul(posW, gViewProj);
-        gout[i].TexC = v[i].TexC;
-    }
-
-    //推入三角形(能用三角形带的我们就用三角形带)
-    [unroll]
-    for (int j = 0; j < 6; ++j)
-    {
-        triStream.Append(gout[j]);
-    }
-    triStream.RestartStrip();
-
-    triStream.Append(gout[1]);
-    triStream.Append(gout[5]);
-    triStream.Append(gout[3]);
-}
-
-[maxvertexcount(6)] //我们最多区分细分两次，一次为3*3，二次为3*3*3
-void GS(triangle VertexOut gin[3], inout TriangleStream<GeoOut> triStream)
-{
-    VertexOut v[6];
-    SubDivide(gin, v);
-    OutputSubdivision(v, triStream);
-}
-
-float4 PS(GeoOut pin) : SV_Target
+float4 PS(VertexOut pin) : SV_Target
 {
     float4 diffuseAlbedo = gDiffuseAlbedo;
 

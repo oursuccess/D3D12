@@ -46,8 +46,9 @@ enum class RenderLayer : int
 	AlphaTested,
 	//ch11,添加树木的层级
 	AlphaTestedTreeSprites,
-#pragma region Quiz1202
+#pragma region Quiz1205
 	Sphere,
+	SphereNormal,
 #pragma endregion
 	Count
 };
@@ -78,7 +79,7 @@ private:
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	void UpdateWaves(const GameTimer& gt);
-#pragma region Quiz1202
+#pragma region Quiz1205
 	void UpdateSphere(const GameTimer& gt);
 #pragma endregion
 
@@ -91,7 +92,7 @@ private:
 	void BuildBoxGeometry();
 	//ch11,构建树木的几何
 	void BuildTreeSpritesGeometry();
-#pragma region Quiz1202
+#pragma region Quiz1205
 	void BuildGeoSphereGeometry();
 #pragma endregion
     void BuildPSOs();
@@ -128,7 +129,7 @@ private:
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
 
 	RenderItem* mWavesRitem = nullptr;
-#pragma region Quiz1202
+#pragma region Quiz1205
 	RenderItem* mSphereRitem = nullptr;
 #pragma endregion
 
@@ -208,7 +209,7 @@ bool TreeBillboards::Initialize()
 	BuildBoxGeometry();
 	//ch11,构建树木的几何
 	BuildTreeSpritesGeometry();
-#pragma region Quiz1202
+#pragma region Quiz1205
 	BuildGeoSphereGeometry();
 #pragma endregion
 	BuildMaterials();
@@ -299,9 +300,12 @@ void TreeBillboards::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
-#pragma region Quiz1202
+#pragma region Quiz1205
 	mCommandList->SetPipelineState(mPSOs["sphere"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sphere]);
+
+	mCommandList->SetPipelineState(mPSOs["sphereNormal"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::SphereNormal]);
 #pragma endregion
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -518,7 +522,7 @@ void TreeBillboards::UpdateWaves(const GameTimer& gt)
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
-#pragma region Quiz1202
+#pragma region Quiz1205
 void TreeBillboards::UpdateSphere(const GameTimer& gt)
 {
 	mSphereRitem->NumFramesDirty = gNumFrameResources;
@@ -670,10 +674,13 @@ void TreeBillboards::BuildShadersAndInputLayout()
 	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "GS", "gs_5_0");
 	mShaders["treeSpritePS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
-#pragma region Quiz1202
-	mShaders["sphereVS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["spherePS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "PS", "ps_5_0");
-	mShaders["sphereGS"] = d3dUtil::CompileShader(L"Shaders\\Sphere.hlsl", nullptr, "GS", "gs_5_0");
+#pragma region Quiz1205
+	mShaders["sphereVS"] = d3dUtil::CompileShader(L"Shaders\\SphereBase.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["spherePS"] = d3dUtil::CompileShader(L"Shaders\\SphereBase.hlsl", nullptr, "PS", "ps_5_0");
+
+	mShaders["sphereNormalVS"] = d3dUtil::CompileShader(L"Shaders\\SphereNormal.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["sphereNormalPS"] = d3dUtil::CompileShader(L"Shaders\\SphereNormal.hlsl", nullptr, "PS", "ps_5_0");
+	mShaders["sphereNormalGS"] = d3dUtil::CompileShader(L"Shaders\\SphereNormal.hlsl", nullptr, "GS", "gs_5_0");
 #pragma endregion
 
 	mInputLayout =
@@ -900,7 +907,7 @@ void TreeBillboards::BuildTreeSpritesGeometry()
 	mGeometries["treeSpritesGeo"] = std::move(geo);
 }
 
-#pragma region Quiz1202
+#pragma region Quiz1205
 void TreeBillboards::BuildGeoSphereGeometry()
 {
 	GeometryGenerator geoGen;
@@ -1026,17 +1033,12 @@ void TreeBillboards::BuildPSOs()
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc, IID_PPV_ARGS(&mPSOs["treeSprites"])));
 
-#pragma region Quiz1202
+#pragma region Quiz1205
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC spherePsoDesc = opaquePsoDesc;
 	spherePsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["sphereVS"]->GetBufferPointer()),
 		mShaders["sphereVS"]->GetBufferSize(),
-	};
-	spherePsoDesc.GS =
-	{
-		reinterpret_cast<BYTE*>(mShaders["sphereGS"]->GetBufferPointer()),
-		mShaders["sphereGS"]->GetBufferSize(),
 	};
 	spherePsoDesc.PS =
 	{
@@ -1055,6 +1057,24 @@ void TreeBillboards::BuildPSOs()
 	spherePsoDesc.SampleDesc.Count = 1;	//不使用4XMSAA
 	spherePsoDesc.SampleDesc.Quality = 0;	//不使用4XMSAA
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&spherePsoDesc, IID_PPV_ARGS(&mPSOs["sphere"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC sphereNormalPsoDesc = spherePsoDesc;
+	sphereNormalPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sphereNormalVS"]->GetBufferPointer()),
+		mShaders["sphereNormalVS"]->GetBufferSize(),
+	};
+	sphereNormalPsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sphereNormalGS"]->GetBufferPointer()),
+		mShaders["sphereNormalGS"]->GetBufferSize(),
+	};
+	sphereNormalPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sphereNormalPS"]->GetBufferPointer()),
+		mShaders["sphereNormalPS"]->GetBufferSize(),
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&sphereNormalPsoDesc, IID_PPV_ARGS(&mPSOs["sphereNormal"])));
 #pragma endregion
 }
 
@@ -1173,7 +1193,7 @@ void TreeBillboards::BuildRenderItems()
 
 	mAllRitems.push_back(std::move(treeSpriteRitem));
 
-#pragma region Quiz1202
+#pragma region Quiz1205
 	auto sphereRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&sphereRitem->World, XMMatrixTranslation(3.0f, 22.0f, -9.0f));
 	sphereRitem->ObjCBIndex = 4;
@@ -1186,6 +1206,7 @@ void TreeBillboards::BuildRenderItems()
 
 	mSphereRitem = sphereRitem.get();
 	mRitemLayer[(int)RenderLayer::Sphere].push_back(sphereRitem.get());
+	mRitemLayer[(int)RenderLayer::SphereNormal].push_back(sphereRitem.get());
 	mAllRitems.push_back(std::move(sphereRitem));
 #pragma endregion
 }
