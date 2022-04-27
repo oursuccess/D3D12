@@ -45,7 +45,7 @@ enum class RenderLayer : int
 	AlphaTested,
 	//ch11,添加树木的层级
 	AlphaTestedTreeSprites,
-#pragma region Quiz1201
+#pragma region Quiz1204
 	Circle,
 #pragma endregion
 	Count
@@ -87,7 +87,7 @@ private:
 	void BuildBoxGeometry();
 	//ch11,构建树木的几何
 	void BuildTreeSpritesGeometry();
-#pragma region Quiz1201
+#pragma region Quiz1204
 	//构建一个圆环
 	void BuildCircleGeometry();
 #pragma endregion
@@ -123,7 +123,7 @@ private:
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 	//ch11,添加一个树木的输入布局描述
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
-#pragma region Quiz1201
+#pragma region Quiz1204
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mCircleInputLayout;
 #pragma endregion
 
@@ -205,7 +205,7 @@ bool TreeBillboards::Initialize()
 	BuildBoxGeometry();
 	//ch11,构建树木的几何
 	BuildTreeSpritesGeometry();
-#pragma region Quiz1201
+#pragma region Quiz1204
 	BuildCircleGeometry();
 #pragma endregion
 	BuildMaterials();
@@ -296,7 +296,7 @@ void TreeBillboards::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
-#pragma region Quiz1201
+#pragma region Quiz1204
 	mCommandList->SetPipelineState(mPSOs["circle"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Circle]);
 #pragma endregion
@@ -660,14 +660,15 @@ void TreeBillboards::BuildShadersAndInputLayout()
 	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "GS", "gs_5_0");
 	mShaders["treeSpritePS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
-#pragma region Quiz1201
+#pragma region Quiz1204
 	mShaders["circleVS"] = d3dUtil::CompileShader(L"Shaders\\Circle.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["circleGS"] = d3dUtil::CompileShader(L"Shaders\\Circle.hlsl", nullptr, "GS", "gs_5_0");
 	mShaders["circlePS"] = d3dUtil::CompileShader(L"Shaders\\Circle.hlsl", nullptr, "PS", "ps_5_0");
 
 	mCircleInputLayout =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 #pragma endregion
 
@@ -895,24 +896,31 @@ void TreeBillboards::BuildTreeSpritesGeometry()
 	mGeometries["treeSpritesGeo"] = std::move(geo);
 }
 
-#pragma region Quiz1201
+#pragma region Quiz1204
 void TreeBillboards::BuildCircleGeometry()
 {
 	const float radius = 3.0f;
 	const UINT pointNum = 10;
 	const float  PI_F = 3.14159265358979f;
 	const float radStep = 2 * PI_F / pointNum;
-	std::array<XMFLOAT3, pointNum> vertices;
+
+	struct CircleVertex {
+		XMFLOAT3 Position;
+		XMFLOAT3 Normal;
+	};
+
+	std::array<CircleVertex, pointNum> vertices;
 	std::array<std::uint16_t, pointNum> indices;
 	for (UINT i = 0; i < pointNum; ++i)
 	{
 		float x = radius * cos(radStep * i), y = 0, z = radius * sin(radStep * i);
-		vertices[i] = XMFLOAT3(x, y, z);
+		vertices[i].Position = XMFLOAT3(x, y, z);
+		vertices[i].Normal = XMFLOAT3(0, 1, 0);
 
 		indices[i] = i;
 	}
 
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(XMFLOAT3);
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(CircleVertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
@@ -927,7 +935,7 @@ void TreeBillboards::BuildCircleGeometry()
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-	geo->VertexByteStride = sizeof(XMFLOAT3);
+	geo->VertexByteStride = sizeof(CircleVertex);
 	geo->VertexBufferByteSize = vbByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
@@ -1019,7 +1027,7 @@ void TreeBillboards::BuildPSOs()
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc, IID_PPV_ARGS(&mPSOs["treeSprites"])));
 
-#pragma region Quiz1201
+#pragma region Quiz1204
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC circlePsoDesc = opaquePsoDesc;
 	circlePsoDesc.VS =
 	{
@@ -1157,7 +1165,7 @@ void TreeBillboards::BuildRenderItems()
 
 	mAllRitems.push_back(std::move(treeSpriteRitem));
 
-#pragma region Quiz1201
+#pragma region Quiz1204
 	//随便给圆环赋值一个mat，因为我们根本就不用
 	auto circleRitem = std::make_unique<RenderItem>();
 	circleRitem->World = MathHelper::Identity4x4();

@@ -73,25 +73,19 @@ cbuffer cbPass : register(b1)
 
 struct VertexIn
 {
-    float3 PosW : POSITION;
+    float3 PosL : POSITION;
+    float3 NormalL : NORMAL;
 };
 
 struct VertexOut
 {
-    float3 PosW : POSITION;
+    float3 PosL : POSITION;
+    float3 NormalL : NORMAL;
 };
 
 struct GeoOut
 {
     float4 PosH : SV_POSITION;
-    /*
-    float3 PosW : POSITION;
-    float3 NormalW : NORMAL;
-    //添加贴图采样的uv坐标
-    float2 TexC : TEXCOORD;
-    //id
-    uint PrimID : SV_PrimitiveID;
-    */
 };
 
 VertexOut VS(VertexIn vin)
@@ -99,7 +93,8 @@ VertexOut VS(VertexIn vin)
     VertexOut vout = (VertexOut) 0.0f;
 
     //直接将坐标传入gs即可
-    vout.PosW = vin.PosW;
+    vout.PosL = vin.PosL;
+    vout.NormalL = vin.NormalL;
     
     return vout;
 }
@@ -111,15 +106,15 @@ void GS(line VertexOut gin[2], inout LineStream<GeoOut> lineStream)
     [unroll]
     for (int i = 0; i < 5; ++i)
     {
-        float4 a = float4(gin[0].PosW, 1);
+        float4 a = float4(gin[0].PosL, 1);
         a.y += i; //y
+        a = mul(a, gWorld);
         gout[i * 2].PosH = mul(a, gViewProj);
-        //gout[i * 2].PosW = a.xyz;
 
-        float4 b = float4(gin[1].PosW, 1);
+        float4 b = float4(gin[1].PosL, 1);
         b.y += i; //y
+        b = mul(b, gWorld);
         gout[i * 2 + 1].PosH = mul(b, gViewProj);
-        //gout[i * 2 + 1].PosW = b.xyz;
 
         lineStream.Append(gout[i * 2]);
         lineStream.Append(gout[i * 2 + 1]);
