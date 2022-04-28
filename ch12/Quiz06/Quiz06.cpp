@@ -1086,7 +1086,38 @@ void TreeBillboards::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const s
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
 		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
 
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+#pragma region Quiz1206
+		//原本的
+		//cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		//第二次修改
+		/* 
+		//在本次修改后，我们的顶点ID范围变为了0~3，因此公告大小变为了2~5
+		if (ritems[i]->Geo->Name == "treeSpritesGeo") 
+		{
+			cmdList->DrawInstanced(4, 1, 0, 0);
+			cmdList->DrawInstanced(4, 1, 4, 0);
+			cmdList->DrawInstanced(4, 1, 8, 0);
+			cmdList->DrawInstanced(4, 1, 12, 0);
+		}
+		else
+		{
+			cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		}
+		*/
+		//第三次修改
+		//在本次修改后，我们的顶点ID范围变成了0~15，因为DrawIndexInstanced方法一顶点索引对应顶点ID
+		if (ritems[i]->Geo->Name == "treeSpritesGeo")
+		{
+			cmdList->DrawIndexedInstanced(4, 1, ri->StartIndexLocation + 0, ri->BaseVertexLocation, 0);
+			cmdList->DrawIndexedInstanced(4, 1, ri->StartIndexLocation + 4, ri->BaseVertexLocation, 0);
+			cmdList->DrawIndexedInstanced(4, 1, ri->StartIndexLocation + 8, ri->BaseVertexLocation, 0);
+			cmdList->DrawIndexedInstanced(4, 1, ri->StartIndexLocation + 12, ri->BaseVertexLocation, 0);
+		}
+		else
+		{
+			cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		}
+#pragma endregion
 	}
 }
 
