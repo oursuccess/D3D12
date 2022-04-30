@@ -905,7 +905,7 @@ void Blend::BuildPSOs()
 		mShaders["vertBlurCS"]->GetBufferSize()
 	};
 	vertBlurPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&vertBlurPSO, IID_PPV_ARGS(mPSOs["vertBlur"])));
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&vertBlurPSO, IID_PPV_ARGS(&mPSOs["vertBlur"])));
 
 }
 
