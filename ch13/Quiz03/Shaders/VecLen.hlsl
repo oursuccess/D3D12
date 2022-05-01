@@ -19,7 +19,8 @@ RWStructuredBuffer<OutputData> gOutput : register(u0);
 */
 StructuredBuffer<InputData> gInput : register(t0);
 //ConsumeStructuredBuffer<InputData> gInput : register(u0);
-AppendStructuredBuffer<OutputData> gOutput : register(u0);
+//AppendStructuredBuffer<OutputData> gOutput : register(u0);
+RWStructuredBuffer<OutputData> gOutput : register(u0);
 
 [numthreads(64, 1, 1)]
 void CS(int3 dtid : SV_DispatchThreadID)
@@ -32,7 +33,8 @@ void CS(int3 dtid : SV_DispatchThreadID)
     output.pos = pos;
     output.len = pos.x * pos.x + pos.y * pos.y + pos.z * pos.z;
     output.inRange = output.len <= 10;
-    gOutput.Append(output);
+    //gOutput.Append(output);
+    gOutput[idx] = output;
 
     /*
     float3 pos = gInput[idx].pos;

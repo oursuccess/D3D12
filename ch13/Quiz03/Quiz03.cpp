@@ -116,7 +116,7 @@ private:
 
 	//只需要一个输入了
 	ComPtr<ID3D12Resource> mInputBuffer = nullptr;
-	//ComPtr<ID3D12Resource> mInputUploadBuffer = nullptr;
+	ComPtr<ID3D12Resource> mInputUploadBuffer = nullptr;
 	ComPtr<ID3D12Resource> mOutputBuffer = nullptr;
 	ComPtr<ID3D12Resource> mReadBackBuffer = nullptr;
 #pragma endregion
@@ -303,8 +303,8 @@ void VecLenCS::DoComputeWork()
 	mCommandList->SetComputeRootSignature(mRootSignature.Get());
 
 	//现在只有一个输入了
-	mCommandList->SetComputeRootUnorderedAccessView(0, mInputBuffer->GetGPUVirtualAddress());
-	//mCommandList->SetComputeRootShaderResourceView(0, mInputBuffer->GetGPUVirtualAddress());
+	//mCommandList->SetComputeRootUnorderedAccessView(0, mInputBuffer->GetGPUVirtualAddress());
+	mCommandList->SetComputeRootShaderResourceView(0, mInputBuffer->GetGPUVirtualAddress());
 	mCommandList->SetComputeRootUnorderedAccessView(1, mOutputBuffer->GetGPUVirtualAddress());
 #pragma endregion
 
@@ -360,8 +360,9 @@ void VecLenCS::BuildBuffers()
 	UINT64 byteSize = data.size() * sizeof(InputData);
 
 	//mInputBuffer现在也要是随机访问的
-	/*mInputBuffer = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), data.data(),
-		byteSize, mInputUploadBuffer);*/
+	mInputBuffer = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), data.data(),
+		byteSize, mInputUploadBuffer);
+	/*
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE, 
@@ -369,6 +370,7 @@ void VecLenCS::BuildBuffers()
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		nullptr,
 		IID_PPV_ARGS(&mInputBuffer)));
+		*/
 
 	//outputdata现在大小和inputdata的大小是不一样的
 	UINT64 outputDataByteSize = data.size() * sizeof(OutputData);
@@ -396,10 +398,10 @@ void VecLenCS::BuildRootSignature()
 	//现在没必要传入3个，2个就够了。 因为我们少了一个输入
 	CD3DX12_ROOT_PARAMETER slotRootParameters[2];
 
-	//slotRootParameters[0].InitAsShaderResourceView(0);
+	slotRootParameters[0].InitAsShaderResourceView(0);
 	//slotRootParameters[1].InitAsShaderResourceView(1);
-	slotRootParameters[0].InitAsUnorderedAccessView(0);
-	slotRootParameters[1].InitAsUnorderedAccessView(1);
+	//slotRootParameters[0].InitAsUnorderedAccessView(0);
+	slotRootParameters[1].InitAsUnorderedAccessView(0);
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameters, 0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_NONE);
