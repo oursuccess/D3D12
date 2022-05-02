@@ -80,6 +80,9 @@ private:
 
 	void LoadTextures();
 	void BuildRootSignature();
+#pragma region Quiz1305
+	void BuildWavesRootSignature();
+#pragma endregion
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildLandGeometry();
@@ -193,10 +196,13 @@ bool WavesCS::Initialize()
 
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+	mWaves = std::make_unique<GpuWaves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
 	LoadTextures();
 	BuildRootSignature();
+#pragma region Quiz1305
+	BuildWavesRootSignature();
+#pragma endregion
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildLandGeometry();
@@ -547,7 +553,9 @@ void WavesCS::BuildRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+#pragma region Quiz1305
+	//要加一个波浪用的纹理，因此从4改为5
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
 	//将0初始化为描述符表(因为我们应该按照变更频率从高到低的顺序来排列常量!),因此后面的依次上升(0->1, 1->2, 2->3)
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
@@ -555,11 +563,15 @@ void WavesCS::BuildRootSignature()
 	slotRootParameter[1].InitAsConstantBufferView(0);
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
+	CD3DX12_DESCRIPTOR_RANGE displacementMapTable;
+	slotRootParameter[4].InitAsDescriptorTable(1, &displacementMapTable, D3D12_SHADER_VISIBILITY_ALL);
 
 	//现在根签名描述中的数量也要是4个了。同时，我们要把采样器传进去
 	//CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	auto staticSamplers = GetStaticSamplers();
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	//现在要是5个了
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+#pragma endregion
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -578,6 +590,42 @@ void WavesCS::BuildRootSignature()
 		serializedRootSig->GetBufferSize(),
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
+
+#pragma region Quiz1305
+void WavesCS::BuildWavesRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE uavTable0;
+	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE uavTable1;
+	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1);
+	CD3DX12_DESCRIPTOR_RANGE uavTable2;
+	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+
+	slotRootParameter[0].InitAsConstants(6, 0);
+	slotRootParameter[1].InitAsDescriptorTable(1, &uavTable0);
+	slotRootParameter[2].InitAsDescriptorTable(1, &uavTable1);
+	slotRootParameter[3].InitAsDescriptorTable(1, &uavTable2);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, 0, nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_NONE);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mWavesRootSignature.GetAddressOf())));
+}
+#pragma endregion
 
 void WavesCS::BuildDescriptorHeaps()
 {
@@ -613,6 +661,13 @@ void WavesCS::BuildDescriptorHeaps()
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
 	srvDesc.Format = fenceTex->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, hDescriptor);
+
+#pragma region Quiz1305
+	mWaves->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart()),
+		mCbvSrvDescriptorSize);
+#pragma endregion
 }
 
 void WavesCS::BuildShadersAndInputLayout()
@@ -634,6 +689,16 @@ void WavesCS::BuildShadersAndInputLayout()
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
 	//ch10,添加alpha测试的shader
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
+#pragma region Quiz1305
+	const D3D_SHADER_MACRO waveDefines[] =
+	{
+		"DISPLACEMENT_MAP", "1",
+		NULL, NULL,
+	};
+	mShaders["wavesVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", waveDefines, "VS", "vs_5_0");
+	mShaders["wavesUpdateCS"] = d3dUtil::CompileShader(L"Shaders\\WaveSim.hlsl", nullptr, "UpdateWavesCS", "cs_5_0");
+	mShaders["wavesDisturbCS"] = d3dUtil::CompileShader(L"Shaders\\WaveSim.hlsl", nullptr, "DisturbWavesCS", "cs_5_0");
+#pragma endregion
 
 	mInputLayout =
 	{
@@ -849,6 +914,28 @@ void WavesCS::BuildPSOs()
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+
+#pragma region Quiz1305
+	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesDisturbPSO = {};
+	wavesDisturbPSO.pRootSignature = mWavesRootSignature.Get();
+	wavesDisturbPSO.CS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["wavesDisturbCS"]->GetBufferPointer()),
+		mShaders["wavesDisturbCS"]->GetBufferSize()
+	};
+	wavesDisturbPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&wavesDisturbPSO, IID_PPV_ARGS(&mPSOs["wavesDisturb"])));
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesUpdatePSO = {};
+	wavesUpdatePSO.pRootSignature = mWavesRootSignature.Get();
+	wavesUpdatePSO.CS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["wavesUpdateCS"]->GetBufferPointer()),
+		mShaders["wavesUpdateCS"]->GetBufferSize()
+	};
+	wavesUpdatePSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&wavesUpdatePSO, IID_PPV_ARGS(&mPSOs["wavesUpdateCS"])));
+#pragma endregion
 }
 
 void WavesCS::BuildFrameResources()
