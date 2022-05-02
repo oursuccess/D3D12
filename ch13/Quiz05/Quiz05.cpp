@@ -196,7 +196,11 @@ bool WavesCS::Initialize()
 
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mWaves = std::make_unique<GpuWaves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+#pragma region Quiz1305
+	//mWaves = std::make_unique<GpuWaves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+	mWaves = std::make_unique<GpuWaves>(md3dDevice.Get(), mCommandList.Get(),
+		256, 256, 0.25f, 0.03f, 2.0f, 0.2f);
+#pragma endregion
 
 	LoadTextures();
 	BuildRootSignature();
@@ -284,9 +288,6 @@ void WavesCS::Draw(const GameTimer& gt)
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
@@ -564,6 +565,7 @@ void WavesCS::BuildRootSignature()
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 	CD3DX12_DESCRIPTOR_RANGE displacementMapTable;
+	displacementMapTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
 	slotRootParameter[4].InitAsDescriptorTable(1, &displacementMapTable, D3D12_SHADER_VISIBILITY_ALL);
 
 	//现在根签名描述中的数量也要是4个了。同时，我们要把采样器传进去
@@ -597,9 +599,9 @@ void WavesCS::BuildWavesRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE uavTable0;
 	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
 	CD3DX12_DESCRIPTOR_RANGE uavTable1;
-	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1);
+	uavTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1);
 	CD3DX12_DESCRIPTOR_RANGE uavTable2;
-	uavTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+	uavTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
 
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
@@ -629,9 +631,12 @@ void WavesCS::BuildWavesRootSignature()
 
 void WavesCS::BuildDescriptorHeaps()
 {
+#pragma region Quiz1305
+	UINT srvCount = 3;
 	//创建SRV堆
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 3;
+	srvHeapDesc.NumDescriptors = srvCount + mWaves->DescriptorCount();
+#pragma endregion
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -664,8 +669,8 @@ void WavesCS::BuildDescriptorHeaps()
 
 #pragma region Quiz1305
 	mWaves->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart()),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), srvCount, mCbvSrvDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(), srvCount, mCbvSrvDescriptorSize),
 		mCbvSrvDescriptorSize);
 #pragma endregion
 }
@@ -758,48 +763,43 @@ void WavesCS::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
+#pragma region Quiz1305
 void WavesCS::BuildWavesGeometry()
 {
-	std::vector<std::uint16_t> indices(3 * mWaves->TriangleCount()); // 3 indices per face
-	assert(mWaves->VertexCount() < 0x0000ffff);
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, mWaves->RowCount(), mWaves->ColumnCount());
 
-	int m = mWaves->RowCount();
-	int n = mWaves->ColumnCount();
-	int k = 0;
-	for (int i = 0; i < m - 1; ++i)
+	std::vector<Vertex> vertices(grid.Vertices.size());
+	for (size_t i = 0; i < grid.Vertices.size(); ++i)
 	{
-		for (int j = 0; j < n - 1; ++j)
-		{
-			indices[k] = i * n + j;
-			indices[k + 1] = i * n + j + 1;
-			indices[k + 2] = (i + 1) * n + j;
-
-			indices[k + 3] = (i + 1) * n + j;
-			indices[k + 4] = i * n + j + 1;
-			indices[k + 5] = (i + 1) * n + j + 1;
-
-			k += 6; // next quad
-		}
+		vertices[i].Pos = grid.Vertices[i].Position;
+		vertices[i].Normal = grid.Vertices[i].Normal;
+		vertices[i].TexC = grid.Vertices[i].TexC;
 	}
 
+	std::vector<std::uint32_t> indices = grid.Indices32;
+
 	UINT vbByteSize = mWaves->VertexCount() * sizeof(Vertex);
-	UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+	UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "waterGeo";
 
-	geo->VertexBufferCPU = nullptr;
-	geo->VertexBufferGPU = nullptr;
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
 	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
@@ -811,6 +811,7 @@ void WavesCS::BuildWavesGeometry()
 
 	mGeometries["waterGeo"] = std::move(geo);
 }
+#pragma endregion
 
 //ch09, 添加一个Box
 void WavesCS::BuildBoxGeometry()
