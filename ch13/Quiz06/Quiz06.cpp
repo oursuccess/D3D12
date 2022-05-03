@@ -5,6 +5,8 @@
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
 #include "GpuWaves.h"
+#include "SobelFilter.h"
+#include "RenderTarget.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -61,6 +63,9 @@ public:
 	virtual bool Initialize()override;
 
 private:
+#pragma region Quiz1306
+	virtual void CreateRtvAndDsvDescriptorHeaps() override;
+#pragma endregion
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -85,6 +90,9 @@ private:
 #pragma region Quiz1305
 	void BuildWavesRootSignature();
 #pragma endregion
+#pragma region Quiz1306
+	void BuildPostProcessRootSignature();
+#pragma endregion
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildLandGeometry();
@@ -95,6 +103,9 @@ private:
 	void BuildMaterials();
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+#pragma region Quiz1306
+	void DrawFullscreenQuad(ID3D12GraphicsCommandList* cmdList);
+#pragma endregion
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
@@ -113,6 +124,9 @@ private:
 #pragma region Quiz1305
 	//添加Waves所需要的用于CS的根签名
 	ComPtr<ID3D12RootSignature> mWavesRootSignature = nullptr;
+#pragma endregion
+#pragma region Quiz1306
+	ComPtr<ID3D12RootSignature> mPostProcessRootSignature = nullptr;
 #pragma endregion
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
@@ -138,6 +152,10 @@ private:
 
 #pragma region Quiz1305
 	std::unique_ptr<GpuWaves> mWaves;
+#pragma endregion
+#pragma region Quiz1306
+	std::unique_ptr<RenderTarget> mOffscreenRT = nullptr;
+	std::unique_ptr<SobelFilter> mSobelFilter = nullptr;
 #pragma endregion
 
 	PassConstants mMainPassCB;
@@ -203,11 +221,20 @@ bool WavesCS::Initialize()
 	mWaves = std::make_unique<GpuWaves>(md3dDevice.Get(), mCommandList.Get(),
 		256, 256, 0.25f, 0.03f, 2.0f, 0.2f);
 #pragma endregion
+#pragma region Quiz1306
+	mSobelFilter = std::make_unique<SobelFilter>(md3dDevice.Get(), mClientWidth, mClientHeight,
+		mBackBufferFormat);
+	mOffscreenRT = std::make_unique<RenderTarget>(md3dDevice.Get(), mClientWidth, mClientHeight,
+		mBackBufferFormat);
+#pragma endregion
 
 	LoadTextures();
 	BuildRootSignature();
 #pragma region Quiz1305
 	BuildWavesRootSignature();
+#pragma endregion
+#pragma region Quiz1306
+	BuildPostProcessRootSignature();
 #pragma endregion
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
@@ -228,12 +255,33 @@ bool WavesCS::Initialize()
 	return true;
 }
 
+void WavesCS::CreateRtvAndDsvDescriptorHeaps()
+{
+	//添加一个离屏渲染目标
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 1;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+}
+
 void WavesCS::OnResize()
 {
 	D3DApp::OnResize();
 
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
+
+	if (mSobelFilter) mSobelFilter->OnResize(mClientWidth, mClientHeight);
+	if (mOffscreenRT) mOffscreenRT->OnResize(mClientWidth, mClientHeight);
 }
 
 void WavesCS::Update(const GameTimer& gt)
@@ -282,14 +330,19 @@ void WavesCS::Draw(const GameTimer& gt)
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+#pragma region Quiz1306
+	//先渲染到离屏缓冲区中，因此我们原来所有对后台缓冲区的操作现在都要改为对离屏渲染缓冲区的操作
+	//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		//D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOffscreenRT->Resource(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	//ch10，我们现在使用雾气颜色来清除，而非原本的蓝色
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+	mCommandList->ClearRenderTargetView(mOffscreenRT->Rtv(), (float*)&mMainPassCB.FogColor, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+	mCommandList->OMSetRenderTargets(1, &mOffscreenRT->Rtv(), true, &DepthStencilView());
+#pragma endregion
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
@@ -305,6 +358,31 @@ void WavesCS::Draw(const GameTimer& gt)
 	//ch10,transparent图层
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
+
+#pragma region Quiz1306
+	mCommandList->SetPipelineState(mPSOs["wavesRender"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::GpuWaves]);
+
+	//将离屏渲染纹理作为输出，准备复制到后台缓冲区中
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOffscreenRT->Resource(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
+
+	mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["sobel"].Get(), mOffscreenRT->Srv());
+
+	//将后台缓冲区改为渲染目标
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	
+	//设置渲染目标
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+	mCommandList->SetGraphicsRootSignature(mPostProcessRootSignature.Get());
+	mCommandList->SetPipelineState(mPSOs["composite"].Get());
+	mCommandList->SetGraphicsRootDescriptorTable(0, mOffscreenRT->Srv());
+	mCommandList->SetGraphicsRootDescriptorTable(1, mSobelFilter->OutputSrv());
+	DrawFullscreenQuad(mCommandList.Get());
+#pragma endregion
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -631,6 +709,48 @@ void WavesCS::BuildWavesRootSignature()
 }
 #pragma endregion
 
+#pragma region Quiz1306
+void WavesCS::BuildPostProcessRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE srvTable0;
+	srvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE srvTable1;
+	srvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+	CD3DX12_DESCRIPTOR_RANGE uavTable0;
+	srvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+
+	slotRootParameter[0].InitAsDescriptorTable(1, &srvTable0);
+	slotRootParameter[1].InitAsDescriptorTable(1, &srvTable1);
+	slotRootParameter[2].InitAsDescriptorTable(1, &uavTable0);
+
+	auto staticSamplers = GetStaticSamplers();
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+		(UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if(errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+
+}
+#pragma endregion
+
 void WavesCS::BuildDescriptorHeaps()
 {
 #pragma region Quiz1305
@@ -674,6 +794,9 @@ void WavesCS::BuildDescriptorHeaps()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), srvCount, mCbvSrvDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(), srvCount, mCbvSrvDescriptorSize),
 		mCbvSrvDescriptorSize);
+#pragma endregion
+
+#pragma region Quiz1306
 #pragma endregion
 }
 
@@ -1059,6 +1182,10 @@ void WavesCS::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vec
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
+}
+
+void WavesCS::DrawFullscreenQuad(ID3D12GraphicsCommandList* cmdList)
+{
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> WavesCS::GetStaticSamplers()
