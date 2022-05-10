@@ -75,11 +75,20 @@ PatchTess ConstantHS(InputPatch<VertexOut, 3> patch, uint patchID : SV_Primitive
 {
     PatchTess pt;
 
-    pt.EdgeTess[0] = 1;
-    pt.EdgeTess[1] = 1;
-    pt.EdgeTess[2] = 1;
+    float3 centerL = 0.33f * (patch[0].PosL + patch[1].PosL + patch[2].PosL);
+    float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
 
-    pt.InsideTess[0] = 1;
+    float d = distance(centerW, gEyePosW);
+    
+    const float d0 = 20.0f, d1 = 100.0f;
+    
+    float tess = 64.0f * saturate((d1 - d) / (d1 - d0));
+
+    pt.EdgeTess[0] = tess;
+    pt.EdgeTess[1] = tess;
+    pt.EdgeTess[2] = tess;
+
+    pt.InsideTess[0] = tess;
     return pt;
 }
 
