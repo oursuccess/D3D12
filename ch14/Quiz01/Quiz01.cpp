@@ -73,7 +73,11 @@ private:
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
 	void BuildShaderAndInputLayout();
-	void BuildQuadPatchGeometry();
+#pragma region Quiz1401
+	//我们将四边形改为三角形
+	//void BuildQuadPatchGeometry();
+	void BuildTrianglePatchGeometry();
+#pragma endregion
 	void BuildPSOs();
 	void BuildFrameResources();
 	void BuildMaterials();
@@ -163,7 +167,7 @@ bool BezierTessellation::Initialize()
 	BuildRootSignature();
 	BuildDescriptorHeaps();
 	BuildShaderAndInputLayout();
-	BuildQuadPatchGeometry();
+	BuildTrianglePatchGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -534,17 +538,22 @@ void BezierTessellation::BuildShaderAndInputLayout()
     };
 }
 
-void BezierTessellation::BuildQuadPatchGeometry()
+void BezierTessellation::BuildTrianglePatchGeometry()
 {
 	 std::array<XMFLOAT3,4> vertices =
 	{
 		XMFLOAT3(-10.0f, 0.0f, +10.0f),
 		XMFLOAT3(+10.0f, 0.0f, +10.0f),
 		XMFLOAT3(-10.0f, 0.0f, -10.0f),
-		XMFLOAT3(+10.0f, 0.0f, -10.0f)
+#pragma region Quiz1401
+		//既然是三角形，那么我们可以直接删掉一个
+		//XMFLOAT3(+10.0f, 0.0f, -10.0f)
 	};
 
-	std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+	 //顶点数量从4改为3
+	//std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+	std::array<std::int16_t, 3> indices = { 0, 1, 2 };
+#pragma endregion
 
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -570,7 +579,8 @@ void BezierTessellation::BuildQuadPatchGeometry()
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry quadSubmesh;
-	quadSubmesh.IndexCount = 4;
+	//现在顶点数量是3
+	quadSubmesh.IndexCount = 3;
 	quadSubmesh.StartIndexLocation = 0;
 	quadSubmesh.BaseVertexLocation = 0;
 
@@ -650,7 +660,11 @@ void BezierTessellation::BuildRenderItems()
 	quadPatchRitem->ObjCBIndex = 0;
 	quadPatchRitem->Mat = mMaterials["whiteMat"].get();
 	quadPatchRitem->Geo = mGeometries["quadpatchGeo"].get();
-	quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+#pragma region Quiz1401
+	//将控制点数量从4改为3
+	//quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+#pragma endregion
 	quadPatchRitem->IndexCount = quadPatchRitem->Geo->DrawArgs["quadpatch"].IndexCount;
 	quadPatchRitem->StartIndexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].StartIndexLocation;
 	quadPatchRitem->BaseVertexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].BaseVertexLocation;
