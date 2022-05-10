@@ -102,8 +102,7 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	
 	const float d0 = 20.0f;
 	const float d1 = 100.0f;
-	//float tess = 64.0f*saturate( (d1-d)/(d1-d0) );
-    float tess = 8;
+	float tess = 64.0f*saturate( (d1-d)/(d1-d0) );
 
 	// Uniformly tessellate the patch.
 
@@ -124,7 +123,9 @@ struct HullOut
 };
 
 [domain("quad")]
-[partitioning("integer")]
+//[partitioning("integer")]
+[partitioning("fractional_even")]
+//[partitioning("fractional_odd")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("ConstantHS")]
