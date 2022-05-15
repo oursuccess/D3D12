@@ -470,12 +470,51 @@ void CameraAndDynamicIndexingApp::LoadTextures()
 	mTextures[stoneTex->Name] = std::move(stoneTex);
 	mTextures[tileTex->Name] = std::move(tileTex);
 	mTextures[crateTex->Name] = std::move(crateTex);
+
+#pragma region Quiz1503
+	auto bricks2Tex = std::make_unique<Texture>();
+	bricks2Tex->Name = "bricks2";
+	bricks2Tex->Filename = L"Textures/bricks2.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), bricks2Tex->Filename.c_str(),
+		bricks2Tex->Resource, bricks2Tex->UploadHeap));
+
+	auto bricks3Tex = std::make_unique<Texture>();
+	bricks3Tex->Name = "bricks3";
+	bricks3Tex->Filename = L"Textures/bricks3.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), bricks3Tex->Filename.c_str(),
+		bricks3Tex->Resource, bricks3Tex->UploadHeap));
+
+	auto checkboardTex = std::make_unique<Texture>();
+	checkboardTex->Name = "checkboard";
+	checkboardTex->Filename = L"Textures/checkboard.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), checkboardTex->Filename.c_str(),
+		checkboardTex->Resource, checkboardTex->UploadHeap));
+
+	auto crateTex2 = std::make_unique<Texture>();
+	crateTex2->Name = "crateTex2";
+	crateTex2->Filename = L"Textures/WoodCrate02.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), crateTex2->Filename.c_str(),
+		crateTex2->Resource, crateTex2->UploadHeap));
+
+	mTextures[bricks2Tex->Name] = std::move(bricks2Tex);
+	mTextures[bricks3Tex->Name] = std::move(bricks3Tex);
+	mTextures[checkboardTex->Name] = std::move(checkboardTex);
+	mTextures[crateTex2->Name] = std::move(crateTex2);
+#pragma endregion
 }
 
 void CameraAndDynamicIndexingApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);
+#pragma region Quiz1503
+	//我们再加上4个Tex
+	//texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8, 0, 0);
+#pragma endregion
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[4];
@@ -563,6 +602,16 @@ void CameraAndDynamicIndexingApp::BuildDescriptorHeaps()
 	srvDesc.Format = crateTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = crateTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(crateTex.Get(), &srvDesc, hDescriptor);
+
+#pragma region Quiz1503
+	//添加后面4个Tex
+	auto bricks2Tex = mTextures["bricks2Tex"]->Resource;
+	auto bricks3Tex = mTextures["bircks3Tex"]->Resource;
+	auto checkboardTex = mTextures["checkboardTex"]->Resource;
+	auto crateTex2Tex = mTextures["crateTex2"]->Resource;
+
+	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+#pragma endregion
 }
 
 void CameraAndDynamicIndexingApp::BuildShadersAndInputLayout()
