@@ -114,6 +114,7 @@ private:
 
     PassConstants mMainPassCB;
 
+	//ch15, 添加一个相机类
 	Camera mCamera;
 
     POINT mLastMousePos;
@@ -165,6 +166,7 @@ bool CameraAndDynamicIndexingApp::Initialize()
 	// so we have to query this information.
     mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	//设置相机的位置
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
  
 	LoadTextures();
@@ -197,6 +199,7 @@ void CameraAndDynamicIndexingApp::OnResize()
 
 void CameraAndDynamicIndexingApp::Update(const GameTimer& gt)
 {
+	//相机在这里更新
     OnKeyboardInput(gt);
 
     // Cycle through the circular frame resource array.
@@ -310,6 +313,7 @@ void CameraAndDynamicIndexingApp::OnMouseMove(WPARAM btnState, int x, int y)
 		float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
+		//ch15, 只有在相机移动或旋转的时候，我们才需要更新相机
 		mCamera.Pitch(dy);
 		mCamera.RotateY(dx);
     }
@@ -334,6 +338,7 @@ void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 	if(GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f*dt);
 
+	//这里有一个相机的更新方法
 	mCamera.UpdateViewMatrix();
 }
  
@@ -396,6 +401,7 @@ void CameraAndDynamicIndexingApp::UpdateMaterialBuffer(const GameTimer& gt)
 
 void CameraAndDynamicIndexingApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	//ch15, 现在view和proj都可以直接从Camera来
 	XMMATRIX view = mCamera.GetView();
 	XMMATRIX proj = mCamera.GetProj();
 
