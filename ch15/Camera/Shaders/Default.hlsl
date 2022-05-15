@@ -33,6 +33,7 @@ struct MaterialData
 
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
 // in this array can be different sizes and formats, making it more flexible than texture arrays.
+//我们使用纹理数组，而非单个纹理
 Texture2D gDiffuseMap[4] : register(t0);
 
 // Put in space1, so the texture array does not overlap with these resources.  
