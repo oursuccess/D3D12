@@ -78,6 +78,10 @@ private:
 	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildShapeGeometry();
+#pragma region Quiz1503
+	//创建立方体们
+	void BuildBoxesGeometry();
+#pragma endregion
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
@@ -174,6 +178,9 @@ bool CameraAndDynamicIndexingApp::Initialize()
 	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildShapeGeometry();
+#pragma region Quiz1503
+	BuildBoxesGeometry();
+#pragma endregion
 	BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -558,7 +565,10 @@ void CameraAndDynamicIndexingApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 4;
+#pragma region Quiz1503
+	//从4变为8
+	srvHeapDesc.NumDescriptors = 8;
+#pragma endregion
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -608,9 +618,30 @@ void CameraAndDynamicIndexingApp::BuildDescriptorHeaps()
 	auto bricks2Tex = mTextures["bricks2Tex"]->Resource;
 	auto bricks3Tex = mTextures["bircks3Tex"]->Resource;
 	auto checkboardTex = mTextures["checkboardTex"]->Resource;
-	auto crateTex2Tex = mTextures["crateTex2"]->Resource;
+	auto crateTex2 = mTextures["crateTex2"]->Resource;
 
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	srvDesc.Format = bricks2Tex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = bricks2Tex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(bricks2Tex.Get(), &srvDesc, hDescriptor);
+
+
+	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	srvDesc.Format = bricks3Tex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = bricks3Tex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(bricks3Tex.Get(), &srvDesc, hDescriptor);
+
+
+	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	srvDesc.Format = checkboardTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = checkboardTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(checkboardTex.Get(), &srvDesc, hDescriptor);
+
+
+	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	srvDesc.Format = crateTex2->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = crateTex2->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(crateTex2.Get(), &srvDesc, hDescriptor);
 #pragma endregion
 }
 
@@ -632,6 +663,63 @@ void CameraAndDynamicIndexingApp::BuildShadersAndInputLayout()
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 }
+
+#pragma region Quiz1503
+void CameraAndDynamicIndexingApp::BuildBoxesGeometry()
+{
+	GeometryGenerator geoGen;
+	auto box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+	//共有5个立方体，因此顶点数量为其乘以5
+	const int vbSize = box.Vertices.size(), ibSize = box.Indices32.size();
+	const int boxNum = 5;
+	const auto& boxIndices = box.GetIndices16();
+	std::vector<Vertex> vertices(boxNum * vbSize);
+	std::vector<uint16_t> indices(boxNum * ibSize);
+
+	for (int i = 0; i < 5; ++i) {
+		auto startOffset = vbSize * i;
+		for (int j = 0; j < vbSize; ++j) {
+			auto boxPos = box.Vertices[j].Position;
+			vertices[startOffset + j].Pos = XMFLOAT3(boxPos.x, boxPos.y + i * 5, boxPos.z);
+			vertices[startOffset + j].Normal = box.Vertices[j].Normal;
+			vertices[startOffset + j].TexC = box.Vertices[j].TexC;
+		}
+		for (int j = 0; j < ibSize; ++j) {
+			indices.push_back(indices[j] + startOffset);
+		}
+	}
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "boxesGeo";
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry boxesSubmesh;
+	boxesSubmesh.IndexCount = indices.size();
+	boxesSubmesh.BaseVertexLocation = 0;
+	boxesSubmesh.StartIndexLocation = 0;
+	geo->DrawArgs["boxes"] = boxesSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
+}
+#pragma endregion
 
 void CameraAndDynamicIndexingApp::BuildShapeGeometry()
 {
@@ -838,6 +926,45 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 	mMaterials["stone0"] = std::move(stone0);
 	mMaterials["tile0"] = std::move(tile0);
 	mMaterials["crate0"] = std::move(crate0);
+
+#pragma region Quiz1503
+	//添加我们添加的材质
+	auto bricks2 = std::make_unique<Material>();
+	bricks2->Name = "bricks2";
+	bricks2->MatCBIndex = 4;
+	bricks2->DiffuseSrvHeapIndex = 4;
+	bricks2->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	bricks2->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	bricks2->Roughness = 0.3f;
+	mMaterials["bricks2"] = std::move(bricks2);
+
+	auto bricks3 = std::make_unique<Material>();
+	bricks3->Name = "bricks3";
+	bricks3->MatCBIndex = 4;
+	bricks3->DiffuseSrvHeapIndex = 4;
+	bricks3->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	bricks3->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	bricks3->Roughness = 0.3f;
+	mMaterials["bricks3"] = std::move(bricks3);
+
+	auto checkboard = std::make_unique<Material>();
+	checkboard->Name = "checkboard";
+	checkboard->MatCBIndex = 4;
+	checkboard->DiffuseSrvHeapIndex = 4;
+	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	checkboard->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	checkboard->Roughness = 0.3f;
+	mMaterials["checkboard"] = std::move(checkboard);
+
+	auto crate2 = std::make_unique<Material>();
+	crate2->Name = "bricks1";
+	crate2->MatCBIndex = 4;
+	crate2->DiffuseSrvHeapIndex = 4;
+	crate2->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	crate2->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	crate2->Roughness = 0.3f;
+	mMaterials["crate2"] = std::move(crate2);
+#pragma endregion
 }
 
 void CameraAndDynamicIndexingApp::BuildRenderItems()
@@ -930,6 +1057,9 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 	// All the render items are opaque.
 	for(auto& e : mAllRitems)
 		mOpaqueRitems.push_back(e.get());
+
+#pragma region Quiz1503
+#pragma endregion
 }
 
 void CameraAndDynamicIndexingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
