@@ -90,6 +90,8 @@ struct VertexIn
 	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
+    //添加逐顶点的MaterialIndex
+    uint MaterialIndex : MATERIALINDEX;
 };
 
 struct VertexOut
@@ -98,14 +100,22 @@ struct VertexOut
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
+    //同样添加逐顶点的MaterialIndex
+    uint MaterialIndex : MATERIALINDEX;
 };
 
 VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
 
+    MaterialData matData;
+#ifdef BATCH
+    matData = gMaterialData[vin.MaterialIndex];
+    vout.MaterialIndex = vin.gMaterialIndex;
+#else
 	// Fetch the material data.
-	MaterialData matData = gMaterialData[gMaterialIndex];
+	matData = gMaterialData[gMaterialIndex];
+#endif
 	
     // Transform to world space.
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
@@ -126,8 +136,13 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    MaterialData matData;
+#ifdef BATCH
+    matData = gMaterialData[pin.MaterialIndex];
+#else
 	// Fetch the material data.
-	MaterialData matData = gMaterialData[gMaterialIndex];
+	matData = gMaterialData[gMaterialIndex];
+#endif
 	float4 diffuseAlbedo = matData.DiffuseAlbedo;
 	float3 fresnelR0 = matData.FresnelR0;
 	float  roughness = matData.Roughness;

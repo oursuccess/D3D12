@@ -58,6 +58,10 @@ struct Vertex
     DirectX::XMFLOAT3 Pos;
     DirectX::XMFLOAT3 Normal;
 	DirectX::XMFLOAT2 TexC;
+#pragma region Quiz1503
+    //添加MaterialIndex，用来实现合并渲染的方块指定不同贴图的功能
+    UINT MaterialIndex;
+#pragma endregion
 };
 
 // Stores the resources needed for the CPU to build the command lists

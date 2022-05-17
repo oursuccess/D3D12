@@ -115,6 +115,10 @@ private:
 
 	// Render items divided by PSO.
 	std::vector<RenderItem*> mOpaqueRitems;
+#pragma region Quiz1503
+	//添加Batch对象
+	std::vector<RenderItem*> mBatchRitems;
+#pragma endregion
 
     PassConstants mMainPassCB;
 
@@ -275,6 +279,11 @@ void CameraAndDynamicIndexingApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+#pragma region Quiz1503
+	//变换PSO并绘制批处理的box们
+	mCommandList->SetPipelineState(mPSOs["batch"].Get());
+	DrawRenderItems(mCommandList.Get(), mBatchRitems);
+#pragma endregion
 
     // Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -653,14 +662,27 @@ void CameraAndDynamicIndexingApp::BuildShadersAndInputLayout()
 		NULL, NULL
 	};
 
+	const D3D_SHADER_MACRO batchDefines[] =
+	{
+		"BATCH", "1",
+		NULL, NULL,
+	};
+
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["batchVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", batchDefines, "VS", "vs_5_1");
+	mShaders["batchPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", batchDefines, "PS", "ps_5_1");
 	
     mInputLayout =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+#pragma region Quiz1503
+		//我们添加材质的索引
+		{ "MATERIALINDEX", 0, DXGI_FORMAT_R8_UINT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+#pragma endregion
     };
 }
 
@@ -683,6 +705,7 @@ void CameraAndDynamicIndexingApp::BuildBoxesGeometry()
 			vertices[startOffset + j].Pos = XMFLOAT3(boxPos.x, boxPos.y + i * 5, boxPos.z);
 			vertices[startOffset + j].Normal = box.Vertices[j].Normal;
 			vertices[startOffset + j].TexC = box.Vertices[j].TexC;
+			vertices[startOffset + j].MaterialIndex = i + 1;
 		}
 		for (int j = 0; j < ibSize; ++j) {
 			indices.push_back(indices[j] + startOffset);
@@ -876,6 +899,22 @@ void CameraAndDynamicIndexingApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+#pragma region Quiz1503
+	//添加batch用的PSODesc
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC batchPsoDesc = opaquePsoDesc;
+	batchPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["batchVS"]->GetBufferPointer()),
+		mShaders["batchVS"]->GetBufferSize()
+	};
+	batchPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["batchPS"]->GetBufferPointer()),
+		mShaders["batchPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["batch"])));
+#pragma endregion
 }
 
 void CameraAndDynamicIndexingApp::BuildFrameResources()
@@ -1059,6 +1098,19 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 		mOpaqueRitems.push_back(e.get());
 
 #pragma region Quiz1503
+	//添加Cube们
+	auto boxesRitem = std::make_unique<RenderItem>();
+	boxesRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&boxesRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	boxesRitem->ObjCBIndex = objCBIndex++;
+	boxesRitem->Geo = mGeometries["boxes"].get();
+	boxesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	boxesRitem->IndexCount = boxesRitem->Geo->DrawArgs["boxes"].IndexCount;
+	boxesRitem->StartIndexLocation = boxesRitem->Geo->DrawArgs["boxes"].StartIndexLocation;
+	boxesRitem->BaseVertexLocation = boxesRitem->Geo->DrawArgs["boxes"].BaseVertexLocation;
+	mBatchRitems.push_back(boxesRitem.get());
+
+	mAllRitems.push_back(std::move(boxesRitem));
 #pragma endregion
 }
 
