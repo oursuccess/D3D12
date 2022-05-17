@@ -915,7 +915,7 @@ void CameraAndDynamicIndexingApp::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["batchPS"]->GetBufferPointer()),
 		mShaders["batchPS"]->GetBufferSize()
 	};
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["batch"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&batchPsoDesc, IID_PPV_ARGS(&mPSOs["batch"])));
 #pragma endregion
 }
 
