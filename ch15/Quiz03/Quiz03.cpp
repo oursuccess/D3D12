@@ -527,7 +527,7 @@ void CameraAndDynamicIndexingApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 #pragma region Quiz1503
-	//我们再加上4个Tex
+	//我们再加上4个Tex，因此变成了8
 	//texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8, 0, 0);
 #pragma endregion
@@ -662,17 +662,20 @@ void CameraAndDynamicIndexingApp::BuildShadersAndInputLayout()
 		NULL, NULL
 	};
 
+
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+
+#pragma region Quiz1503
+	//添加新的batch
 	const D3D_SHADER_MACRO batchDefines[] =
 	{
 		"BATCH", "1",
 		NULL, NULL,
 	};
-
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
-
 	mShaders["batchVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", batchDefines, "VS", "vs_5_1");
 	mShaders["batchPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", batchDefines, "PS", "ps_5_1");
+#pragma endregion
 	
     mInputLayout =
     {
@@ -979,7 +982,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 	auto bricks3 = std::make_unique<Material>();
 	bricks3->Name = "bricks3";
 	bricks3->MatCBIndex = 5;
-	bricks3->DiffuseSrvHeapIndex = 4;
+	bricks3->DiffuseSrvHeapIndex = 5;
 	bricks3->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	bricks3->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	bricks3->Roughness = 0.3f;
@@ -988,7 +991,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 	auto checkboard = std::make_unique<Material>();
 	checkboard->Name = "checkboard";
 	checkboard->MatCBIndex = 6;
-	checkboard->DiffuseSrvHeapIndex = 4;
+	checkboard->DiffuseSrvHeapIndex = 6;
 	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	checkboard->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	checkboard->Roughness = 0.3f;
@@ -997,7 +1000,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 	auto crate2 = std::make_unique<Material>();
 	crate2->Name = "bricks1";
 	crate2->MatCBIndex = 7;
-	crate2->DiffuseSrvHeapIndex = 4;
+	crate2->DiffuseSrvHeapIndex = 7;
 	crate2->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	crate2->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	crate2->Roughness = 0.3f;
@@ -1103,7 +1106,7 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 	XMStoreFloat4x4(&boxesRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxesRitem->ObjCBIndex = objCBIndex++;
 	//这一行是没用的,但是删了会报错,纯粹是为了省事
-	boxesRitem->Mat = mMaterials["bricks2"].get();
+	boxesRitem->Mat = mMaterials["stone0"].get();
 	boxesRitem->Geo = mGeometries["boxesGeo"].get();
 	boxesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxesRitem->IndexCount = boxesRitem->Geo->DrawArgs["boxes"].IndexCount;
