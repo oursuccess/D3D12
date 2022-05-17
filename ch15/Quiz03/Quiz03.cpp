@@ -1106,7 +1106,7 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 	XMStoreFloat4x4(&boxesRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxesRitem->ObjCBIndex = objCBIndex++;
 	//这一行是没用的,但是删了会报错,纯粹是为了省事
-	boxesRitem->Mat = mMaterials["stone0"].get();
+	boxesRitem->Mat = mMaterials["checkboard"].get();
 	boxesRitem->Geo = mGeometries["boxesGeo"].get();
 	boxesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxesRitem->IndexCount = boxesRitem->Geo->DrawArgs["boxes"].IndexCount;
