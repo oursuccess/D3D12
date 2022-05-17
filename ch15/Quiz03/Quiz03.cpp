@@ -575,7 +575,7 @@ void CameraAndDynamicIndexingApp::BuildDescriptorHeaps()
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 #pragma region Quiz1503
-	//从4变为8
+	//从4变为8,因为我们添加了4个纹理
 	srvHeapDesc.NumDescriptors = 8;
 #pragma endregion
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -624,9 +624,9 @@ void CameraAndDynamicIndexingApp::BuildDescriptorHeaps()
 
 #pragma region Quiz1503
 	//添加后面4个Tex
-	auto bricks2Tex = mTextures["bricks2Tex"]->Resource;
-	auto bricks3Tex = mTextures["bircks3Tex"]->Resource;
-	auto checkboardTex = mTextures["checkboardTex"]->Resource;
+	auto bricks2Tex = mTextures["bricks2"]->Resource;
+	auto bricks3Tex = mTextures["bricks3"]->Resource;
+	auto checkboardTex = mTextures["checkboard"]->Resource;
 	auto crateTex2 = mTextures["crateTex2"]->Resource;
 
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
@@ -702,13 +702,12 @@ void CameraAndDynamicIndexingApp::BuildBoxesGeometry()
 		auto startOffset = vbSize * i;
 		for (int j = 0; j < vbSize; ++j) {
 			auto boxPos = box.Vertices[j].Position;
-			vertices[startOffset + j].Pos = XMFLOAT3(boxPos.x, boxPos.y + i * 5, boxPos.z);
+			vertices[startOffset + j].Pos = XMFLOAT3(boxPos.x + (i - 2) * 5, boxPos.y + 5, boxPos.z);
 			vertices[startOffset + j].Normal = box.Vertices[j].Normal;
 			vertices[startOffset + j].TexC = box.Vertices[j].TexC;
 			vertices[startOffset + j].MaterialIndex = i + 1;
-		}
-		for (int j = 0; j < ibSize; ++j) {
-			indices.push_back(indices[j] + startOffset);
+
+			indices[startOffset + j] = (box.Indices32[j] + startOffset);
 		}
 	}
 
@@ -979,7 +978,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 
 	auto bricks3 = std::make_unique<Material>();
 	bricks3->Name = "bricks3";
-	bricks3->MatCBIndex = 4;
+	bricks3->MatCBIndex = 5;
 	bricks3->DiffuseSrvHeapIndex = 4;
 	bricks3->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	bricks3->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
@@ -988,7 +987,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 
 	auto checkboard = std::make_unique<Material>();
 	checkboard->Name = "checkboard";
-	checkboard->MatCBIndex = 4;
+	checkboard->MatCBIndex = 6;
 	checkboard->DiffuseSrvHeapIndex = 4;
 	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	checkboard->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
@@ -997,7 +996,7 @@ void CameraAndDynamicIndexingApp::BuildMaterials()
 
 	auto crate2 = std::make_unique<Material>();
 	crate2->Name = "bricks1";
-	crate2->MatCBIndex = 4;
+	crate2->MatCBIndex = 7;
 	crate2->DiffuseSrvHeapIndex = 4;
 	crate2->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	crate2->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
@@ -1103,7 +1102,9 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 	boxesRitem->World = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&boxesRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxesRitem->ObjCBIndex = objCBIndex++;
-	boxesRitem->Geo = mGeometries["boxes"].get();
+	//这一行是没用的,但是删了会报错,纯粹是为了省事
+	boxesRitem->Mat = mMaterials["bricks2"].get();
+	boxesRitem->Geo = mGeometries["boxesGeo"].get();
 	boxesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxesRitem->IndexCount = boxesRitem->Geo->DrawArgs["boxes"].IndexCount;
 	boxesRitem->StartIndexLocation = boxesRitem->Geo->DrawArgs["boxes"].StartIndexLocation;

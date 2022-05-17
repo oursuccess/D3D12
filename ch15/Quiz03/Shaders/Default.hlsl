@@ -111,7 +111,7 @@ VertexOut VS(VertexIn vin)
     MaterialData matData;
 #ifdef BATCH
     matData = gMaterialData[vin.MaterialIndex];
-    vout.MaterialIndex = vin.gMaterialIndex;
+    vout.MaterialIndex = vin.MaterialIndex;
 #else
 	// Fetch the material data.
 	matData = gMaterialData[gMaterialIndex];
