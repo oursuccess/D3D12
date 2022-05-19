@@ -46,7 +46,7 @@ struct RenderItem
 
 	//ch16. add InstanceData and BoundingBox
 	BoundingBox Bounds;	//AABB
-	std::vector<InstanceData> Instance;
+	std::vector<InstanceData> Instances;
 
     // DrawIndexedInstanced parameters.
     UINT IndexCount = 0;
@@ -56,13 +56,13 @@ struct RenderItem
     int BaseVertexLocation = 0;
 };
 
-class InstacingAndCulling : public D3DApp
+class InstancingAndCulling : public D3DApp
 {
 public:
-    InstacingAndCulling(HINSTANCE hInstance);
-    InstacingAndCulling(const InstacingAndCulling& rhs) = delete;
-    InstacingAndCulling& operator=(const InstacingAndCulling& rhs) = delete;
-    ~InstacingAndCulling();
+    InstancingAndCulling(HINSTANCE hInstance);
+    InstancingAndCulling(const InstancingAndCulling& rhs) = delete;
+    InstancingAndCulling& operator=(const InstancingAndCulling& rhs) = delete;
+    ~InstancingAndCulling();
 
     virtual bool Initialize()override;
 
@@ -148,7 +148,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
-        InstacingAndCulling theApp(hInstance);
+        InstancingAndCulling theApp(hInstance);
         if(!theApp.Initialize())
             return 0;
 
@@ -161,18 +161,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     }
 }
 
-InstacingAndCulling::InstacingAndCulling(HINSTANCE hInstance)
+InstancingAndCulling::InstancingAndCulling(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
 }
 
-InstacingAndCulling::~InstacingAndCulling()
+InstancingAndCulling::~InstancingAndCulling()
 {
     if(md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
-bool InstacingAndCulling::Initialize()
+bool InstancingAndCulling::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
@@ -209,7 +209,7 @@ bool InstacingAndCulling::Initialize()
     return true;
 }
  
-void InstacingAndCulling::OnResize()
+void InstancingAndCulling::OnResize()
 {
     D3DApp::OnResize();
 
@@ -218,7 +218,7 @@ void InstacingAndCulling::OnResize()
 	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 }
 
-void InstacingAndCulling::Update(const GameTimer& gt)
+void InstancingAndCulling::Update(const GameTimer& gt)
 {
 	//相机在这里更新
     OnKeyboardInput(gt);
@@ -244,7 +244,7 @@ void InstacingAndCulling::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
-void InstacingAndCulling::Draw(const GameTimer& gt)
+void InstancingAndCulling::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -316,7 +316,7 @@ void InstacingAndCulling::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void InstacingAndCulling::OnMouseDown(WPARAM btnState, int x, int y)
+void InstancingAndCulling::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -324,12 +324,12 @@ void InstacingAndCulling::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void InstacingAndCulling::OnMouseUp(WPARAM btnState, int x, int y)
+void InstancingAndCulling::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void InstacingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
+void InstancingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
@@ -346,7 +346,7 @@ void InstacingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void InstacingAndCulling::OnKeyboardInput(const GameTimer& gt)
+void InstancingAndCulling::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 
@@ -372,12 +372,12 @@ void InstacingAndCulling::OnKeyboardInput(const GameTimer& gt)
 	mCamera.UpdateViewMatrix();
 }
 
-void InstacingAndCulling::AnimateMaterials(const GameTimer& gt)
+void InstancingAndCulling::AnimateMaterials(const GameTimer& gt)
 {
 
 }
 
-void InstacingAndCulling::UpdateInstanceData(const GameTimer& gt)
+void InstancingAndCulling::UpdateInstanceData(const GameTimer& gt)
 {
 	//ch16. we only update objects that occurs in bounds
 	XMMATRIX view = mCamera.GetView();
@@ -388,7 +388,7 @@ void InstacingAndCulling::UpdateInstanceData(const GameTimer& gt)
 	auto currInstanceBuffer = mCurrFrameResource->InstanceBuffer.get();
 	for (auto& e : mAllRitems)
 	{
-		const auto& instanceData = e->Instance;
+		const auto& instanceData = e->Instances;
 		int visibleInstanceCount = 0;
 		for (UINT i = 0; i < (UINT)instanceData.size(); ++i)
 		{
@@ -417,7 +417,7 @@ void InstacingAndCulling::UpdateInstanceData(const GameTimer& gt)
 		std::wostringstream outs;
 		outs.precision(6);
 		outs << L"Instanceing and Culling Demo" << L"    " << e->InstanceCount <<
-			L" objects visible out of " << e->Instance.size();
+			L" objects visible out of " << e->Instances.size();
 		mMainWndCaption = outs.str();
 
 		/*
@@ -440,7 +440,7 @@ void InstacingAndCulling::UpdateInstanceData(const GameTimer& gt)
 	}
 }
 
-void InstacingAndCulling::UpdateMaterialBuffer(const GameTimer& gt)
+void InstancingAndCulling::UpdateMaterialBuffer(const GameTimer& gt)
 {
 	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
 	for(auto& e : mMaterials)
@@ -467,7 +467,7 @@ void InstacingAndCulling::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
-void InstacingAndCulling::UpdateMainPassCB(const GameTimer& gt)
+void InstancingAndCulling::UpdateMainPassCB(const GameTimer& gt)
 {
 	//ch15, 现在view和proj都可以直接从Camera来
 	XMMATRIX view = mCamera.GetView();
@@ -503,7 +503,7 @@ void InstacingAndCulling::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void InstacingAndCulling::LoadTextures()
+void InstancingAndCulling::LoadTextures()
 {
 	auto bricksTex = std::make_unique<Texture>();
 	bricksTex->Name = "bricksTex";
@@ -565,7 +565,7 @@ void InstacingAndCulling::LoadTextures()
 	mTextures[defaultTex->Name] = std::move(defaultTex);
 }
 
-void InstacingAndCulling::BuildRootSignature()
+void InstancingAndCulling::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	//ch16. change texture counts from 4 to 7
@@ -614,7 +614,7 @@ void InstacingAndCulling::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void InstacingAndCulling::BuildDescriptorHeaps()
+void InstancingAndCulling::BuildDescriptorHeaps()
 {
 	//
 	// Create the SRV heap.
@@ -693,7 +693,7 @@ void InstacingAndCulling::BuildDescriptorHeaps()
 
 }
 
-void InstacingAndCulling::BuildShadersAndInputLayout()
+void InstancingAndCulling::BuildShadersAndInputLayout()
 {
 	const D3D_SHADER_MACRO alphaTestDefines[] =
 	{
@@ -713,7 +713,7 @@ void InstacingAndCulling::BuildShadersAndInputLayout()
 }
 
 //我们在这里创建了Skull的几何，并更新了Skull的AABB
-void InstacingAndCulling::BuildSkullGeometry()
+void InstancingAndCulling::BuildSkullGeometry()
 {
 	std::ifstream fin("Models/skull.txt");
 
@@ -822,7 +822,7 @@ void InstacingAndCulling::BuildSkullGeometry()
 
 }
 
-void InstacingAndCulling::BuildPSOs()
+void InstancingAndCulling::BuildPSOs()
 {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -855,7 +855,7 @@ void InstacingAndCulling::BuildPSOs()
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 }
 
-void InstacingAndCulling::BuildFrameResources()
+void InstancingAndCulling::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
@@ -864,7 +864,7 @@ void InstacingAndCulling::BuildFrameResources()
     }
 }
 
-void InstacingAndCulling::BuildMaterials()
+void InstancingAndCulling::BuildMaterials()
 {
 	auto bricks0 = std::make_unique<Material>();
 	bricks0->Name = "bricks0";
@@ -934,7 +934,7 @@ void InstacingAndCulling::BuildMaterials()
 }
 
 //ch16. 现在只有骷髅了
-void InstacingAndCulling::BuildRenderItems()
+void InstancingAndCulling::BuildRenderItems()
 {
 	auto skullRitem = std::make_unique<RenderItem>();
 	skullRitem->World = MathHelper::Identity4x4();
@@ -952,7 +952,7 @@ void InstacingAndCulling::BuildRenderItems()
 	//Generate instance data
 	const int n = 5;
 	mInstanceCount = n * n * n;
-	skullRitem->Instance.resize(mInstanceCount);
+	skullRitem->Instances.resize(mInstanceCount);
 
 	float width = 200.0f;
 	float height = 200.0f;
@@ -967,14 +967,14 @@ void InstacingAndCulling::BuildRenderItems()
 			for (int j = 0; j < n; ++j)
 			{
 				int index = k * n * n + i * n + j;
-				skullRitem->Instance[index].World = XMFLOAT4X4(
+				skullRitem->Instances[index].World = XMFLOAT4X4(
 					1.0f, 0.0f, 0.0f, 0.0f,
 					0.0f, 1.0f, 0.0f, 0.0f,
 					0.0f, 0.0f, 1.0f, 0.0f,
 					x + j * dx, y + i * dy, z + k * dz, 1.0f);
 
-				XMStoreFloat4x4(&skullRitem->Instance[index].TexTransform, XMMatrixScaling(2.0f, 2.0f, 1.0f));
-				skullRitem->Instance[index].MaterialIndex = index % mMaterials.size();
+				XMStoreFloat4x4(&skullRitem->Instances[index].TexTransform, XMMatrixScaling(2.0f, 2.0f, 1.0f));
+				skullRitem->Instances[index].MaterialIndex = index % mMaterials.size();
 			}
 		}
 	}
@@ -986,7 +986,7 @@ void InstacingAndCulling::BuildRenderItems()
 		mOpaqueRitems.push_back(e.get());
 }
 
-void InstacingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void InstancingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	//现在没有objectCB了 只有InstanceData
 	/*
@@ -1012,7 +1012,7 @@ void InstacingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, co
     }
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> InstacingAndCulling::GetStaticSamplers()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> InstancingAndCulling::GetStaticSamplers()
 {
 	// Applications usually only need a handful of samplers.  So just define them all up front
 	// and keep them available as part of the root signature.  
