@@ -214,6 +214,8 @@ void InstacingAndCulling::OnResize()
     D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+
+	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 }
 
 void InstacingAndCulling::Update(const GameTimer& gt)
