@@ -1003,7 +1003,7 @@ void InstacingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, co
 
         //D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();
-		cmdList->SetGraphicsRootConstantBufferView(0, instanceBuffer->GetGPUVirtualAddress());
+		cmdList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());
 
 		//现在InstanceCount不再是1了
         cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
