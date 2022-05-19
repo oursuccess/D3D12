@@ -129,6 +129,8 @@ VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
     float4x4 texTransform = instData.TexTransform;
     uint matIndex = instData.MaterialIndex;
 
+    vout.MatIndex = matIndex;
+
 	// Fetch the material data.
 	MaterialData matData = gMaterialData[matIndex];
 	
