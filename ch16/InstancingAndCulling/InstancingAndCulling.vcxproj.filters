@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FrameResouce.h">
+    <ClInclude Include="FrameResource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\d3d12book-master\Common\Camera.h">
@@ -47,7 +47,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FrameResouce.cpp">
+    <ClCompile Include="FrameResource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\d3d12book-master\Common\Camera.cpp">

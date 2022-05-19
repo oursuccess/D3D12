@@ -90,3 +90,4 @@ public:
     // check if these frame resources are still in use by the GPU.
     UINT64 Fence = 0;
 };
+

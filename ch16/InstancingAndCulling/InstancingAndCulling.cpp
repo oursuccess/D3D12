@@ -4,7 +4,7 @@
 //要实现视锥体剔除，我们需要在绘制时检测物体的碰撞盒是否与视锥体碰撞/出现在视锥体范围内
 
 #include "../../QuizCommonHeader.h"
-#include "FrameResouce.h"
+#include "FrameResource.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
