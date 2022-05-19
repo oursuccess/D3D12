@@ -4,6 +4,7 @@
 #include "d3d12book-master/Common/MathHelper.h"
 #include "d3d12book-master/Common/UploadBuffer.h"
 #include "d3d12book-master/Common/GeometryGenerator.h"
+#include "d3d12book-master/Common/Camera.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
