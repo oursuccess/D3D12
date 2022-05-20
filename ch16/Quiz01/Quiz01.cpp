@@ -1,11 +1,7 @@
 //solution for quiz1601, by Je
 
-#include "../../d3d12book-master/Common/Camera.h"
-#include "../../d3d12book-master/Common/d3dApp.h"
-#include "../../d3d12book-master/Common/d3dx12.h"
-#include "../../d3d12book-master/Common/DDSTextureLoader.h"
-#include "../../d3d12book-master/Common/MathHelper.h"
-#include "d3dUtil.h"
+#include "../../QuizCommonHeader.h"
+#include "Jed3dUtil.h"
 #include "FrameResource.h"
 
 using Microsoft::WRL::ComPtr;
@@ -41,7 +37,9 @@ struct RenderItem
 	UINT ObjCBIndex = -1;
 
 	Material* Mat = nullptr;
-	MeshGeometry* Geo = nullptr;
+#pragma region Quiz1601
+	BoundingSphereMeshGeometry* Geo = nullptr;
+#pragma endregion
 
     // Primitive topology.
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -115,7 +113,7 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+	std::unordered_map<std::string, std::unique_ptr<BoundingSphereMeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
@@ -774,9 +772,16 @@ void InstancingAndCulling::BuildSkullGeometry()
 #pragma region Quiz1601
 	//BoundingBox bounds;
 	BoundingSphere bounds;
-	XMStoreFloat3(&bounds.Center, 0.5f * (vMin + vMax));
+	auto center = 0.5f * (vMin + vMax);
+	XMStoreFloat3(&bounds.Center, center);
 	//XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
-	XMStoreFloat3(&bounds.Radius, 0.5f * (vMax - vMin));
+	auto r = 0.0f;
+	for (auto& vertice : vertices)
+	{
+		auto dx = vertice.Pos.x - bounds.Center.x, dy = vertice.Pos.y - bounds.Center.y, dz = vertice.Pos.z - bounds.Center.z;
+		r = max(r, sqrtf(dx*dx + dy*dy + dz*dz));
+	}
+	bounds.Radius = r;
 #pragma endregion
 
 	fin >> ignore;
@@ -799,7 +804,7 @@ void InstancingAndCulling::BuildSkullGeometry()
 
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
-	auto geo = std::make_unique<MeshGeometry>();
+	auto geo = std::make_unique<BoundingSphereMeshGeometry>();
 	geo->Name = "skullGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
@@ -819,7 +824,7 @@ void InstancingAndCulling::BuildSkullGeometry()
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	SubmeshGeometry submesh;
+	BoundingSphereSubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
