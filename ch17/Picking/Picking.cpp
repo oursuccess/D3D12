@@ -725,7 +725,7 @@ void Picking::BuildPSOs()
 	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
 	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
-	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
 	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
@@ -749,9 +749,9 @@ void Picking::BuildMaterials()
 	gray0->Name = "gray0";
 	gray0->MatCBIndex = 0;
 	gray0->DiffuseSrvHeapIndex = 0;
-	gray0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    gray0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    gray0->Roughness = 0.1f;
+	gray0->DiffuseAlbedo = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
+	gray0->FresnelR0 = XMFLOAT3(0.04f, 0.04f, 0.04f);
+	gray0->Roughness = 0.0f;
 	
 	mMaterials["gray0"] = std::move(gray0);
 
@@ -760,9 +760,9 @@ void Picking::BuildMaterials()
 	highlight0->Name = "highlight0";
 	highlight0->MatCBIndex = 1;
 	highlight0->DiffuseSrvHeapIndex = 0;
-	highlight0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    highlight0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    highlight0->Roughness = 0.1f;
+	highlight0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 0.0f, 0.6f);
+	highlight0->FresnelR0 = XMFLOAT3(0.06f, 0.06f, 0.06f);
+	highlight0->Roughness = 0.0f;
 	
 	mMaterials["highlight0"] = std::move(highlight0);
 }
@@ -814,14 +814,17 @@ void Picking::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vec
     for(size_t i = 0; i < ritems.size(); ++i)
     {
         auto ri = ritems[i];
+		
+		//ch17. 如果不可见，则直接跳过
+		if (ri->Visible == false) continue;
 
         cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		cmdList->SetGraphicsRootShaderResourceView(0, objCBAddress);
 
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 		//现在InstanceCount不再是1了
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
