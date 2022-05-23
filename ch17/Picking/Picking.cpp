@@ -1,9 +1,10 @@
-//solution for quiz1601, by Je
+//copy of PickingApp by Frank Luna, ch17
+//evolved from ch15
+//要实现拾取功能，我们将玩家点击的点从屏幕空间转换到标准坐标空间，然后转换到屏幕空间、世界空间、局部空间，并判断与之发生了碰撞的三角形即可
+//我们不再使用实例化了，因此没有InstanceData，又回到了ObjectConstants
 
 #include "../../QuizCommonHeader.h"
-#include "Jed3dUtil.h"
 #include "FrameResource.h"
-#include <DirectXCollision.h>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -21,10 +22,15 @@ struct RenderItem
 	RenderItem() = default;
     RenderItem(const RenderItem& rhs) = delete;
  
+	bool Visible = true;
+
+	BoundingBox Bounds;	//AABB
+
     // World matrix of the shape that describes the object's local space
     // relative to the world space, which defines the position, orientation,
     // and scale of the object in the world.
     XMFLOAT4X4 World = MathHelper::Identity4x4();
+
 
 	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 
@@ -38,35 +44,31 @@ struct RenderItem
 	UINT ObjCBIndex = -1;
 
 	Material* Mat = nullptr;
-#pragma region Quiz1601
-	BoundingSphereMeshGeometry* Geo = nullptr;
-#pragma endregion
+	MeshGeometry* Geo = nullptr;
 
     // Primitive topology.
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-	//ch16. add InstanceData and BoundingBox
-#pragma region Quiz1601
-	//BoundingBox Bounds;	//AABB
-	BoundingSphere Bounds;
-#pragma endregion
-	std::vector<InstanceData> Instances;
-
     // DrawIndexedInstanced parameters.
     UINT IndexCount = 0;
-	//ch16. add InstanceCount
-	UINT InstanceCount = 0;
     UINT StartIndexLocation = 0;
     int BaseVertexLocation = 0;
 };
 
-class InstancingAndCulling : public D3DApp
+enum class RenderLayer : int
+{
+	Opaque = 0,
+	Highlight,
+	Count,
+};
+
+class Picking : public D3DApp
 {
 public:
-    InstancingAndCulling(HINSTANCE hInstance);
-    InstancingAndCulling(const InstancingAndCulling& rhs) = delete;
-    InstancingAndCulling& operator=(const InstancingAndCulling& rhs) = delete;
-    ~InstancingAndCulling();
+    Picking(HINSTANCE hInstance);
+    Picking(const Picking& rhs) = delete;
+    Picking& operator=(const Picking& rhs) = delete;
+    ~Picking();
 
     virtual bool Initialize()override;
 
@@ -81,9 +83,7 @@ private:
 
     void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
-	//change ObjectCB to InstanceBuffer
-	void UpdateInstanceData(const GameTimer& gt);
-	//void UpdateObjectCBs(const GameTimer& gt);
+	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
@@ -91,14 +91,15 @@ private:
     void BuildRootSignature();
 	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
-	//ch16. 没有Shape 只有Skull
-    //void BuildShapeGeometry();
-	void BuildSkullGeometry();
+	//ch17, 现在是Car
+	void BuildCarGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
     void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+	//ch17, 添加Pick方法
+	void Pick(int sx, int sy);
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
@@ -114,7 +115,7 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-	std::unordered_map<std::string, std::unique_ptr<BoundingSphereMeshGeometry>> mGeometries;
+	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
@@ -125,14 +126,11 @@ private:
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
-	// Render items divided by PSO.
-	std::vector<RenderItem*> mOpaqueRitems;
+	//RenderItems divided by PSO
+	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
-	//ch16. add InstanceCount
-	UINT mInstanceCount = 0;
-	//ch16. add CamFrustum and bool for whether enable culling
-	bool mFrustumCullingEnabled = true;
-	BoundingFrustum mCamFrustum;
+	//ch17. 当前选中的物体
+	RenderItem* mPickedRitem = nullptr;
 
     PassConstants mMainPassCB;
 
@@ -152,7 +150,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
-        InstancingAndCulling theApp(hInstance);
+        Picking theApp(hInstance);
         if(!theApp.Initialize())
             return 0;
 
@@ -165,18 +163,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     }
 }
 
-InstancingAndCulling::InstancingAndCulling(HINSTANCE hInstance)
+Picking::Picking(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
 }
 
-InstancingAndCulling::~InstancingAndCulling()
+Picking::~Picking()
 {
     if(md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
-bool InstancingAndCulling::Initialize()
+bool Picking::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
@@ -190,13 +188,14 @@ bool InstancingAndCulling::Initialize()
 
 	//设置相机的位置
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
+	//ch17. 设置相机看的位置
+	mCamera.LookAt(XMFLOAT3(5.0f, 4.0f, -15.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f));
  
 	LoadTextures();
     BuildRootSignature();
 	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
-	BuildSkullGeometry();
-    //BuildShapeGeometry();
+	BuildCarGeometry();
 	BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -213,16 +212,14 @@ bool InstancingAndCulling::Initialize()
     return true;
 }
  
-void InstancingAndCulling::OnResize()
+void Picking::OnResize()
 {
     D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
-
-	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 }
 
-void InstancingAndCulling::Update(const GameTimer& gt)
+void Picking::Update(const GameTimer& gt)
 {
 	//相机在这里更新
     OnKeyboardInput(gt);
@@ -242,13 +239,12 @@ void InstancingAndCulling::Update(const GameTimer& gt)
     }
 
 	AnimateMaterials(gt);
-	UpdateInstanceData(gt);
-	//UpdateObjectCBs(gt);
+	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
 	UpdateMainPassCB(gt);
 }
 
-void InstancingAndCulling::Draw(const GameTimer& gt)
+void Picking::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -279,22 +275,24 @@ void InstancingAndCulling::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	//ch16. 将PassCB和materialBuffer的熟悉怒互换。 因为现在Mat比passCB更频繁更新了
 	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
 	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
 	// set as a root descriptor.
-	//ch15 将所有的Material绑定到一个纹理数组上
 	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 	// Bind all the textures used in this scene.  Observe
     // that we only have to specify the first descriptor in the table.  
     // The root signature knows how many descriptors are expected in the table.
 	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-    DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+    DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	//ch17. 绘制高亮的部分
+	mCommandList->SetPipelineState(mPSOs["highlight"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Highlight]);
 
     // Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -320,20 +318,28 @@ void InstancingAndCulling::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void InstancingAndCulling::OnMouseDown(WPARAM btnState, int x, int y)
+void Picking::OnMouseDown(WPARAM btnState, int x, int y)
 {
-	mLastMousePos.x = x;
-	mLastMousePos.y = y;
+	//ch17. 左键移动， 右键选中
+	if ((btnState & MK_LBUTTON) != 0) 
+	{
+		mLastMousePos.x = x;
+		mLastMousePos.y = y;
 
-	SetCapture(mhMainWnd);
+		SetCapture(mhMainWnd);
+	}
+	else if ((btnState & MK_RBUTTON) != 0)
+	{
+		Pick(x, y);
+	}
 }
 
-void InstancingAndCulling::OnMouseUp(WPARAM btnState, int x, int y)
+void Picking::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void InstancingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
+void Picking::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
@@ -341,7 +347,6 @@ void InstancingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
-		//ch15, 只有在相机移动或旋转的时候，我们才需要更新相机
 		mCamera.Pitch(dy);
 		mCamera.RotateY(dx);
 	}
@@ -350,7 +355,7 @@ void InstancingAndCulling::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void InstancingAndCulling::OnKeyboardInput(const GameTimer& gt)
+void Picking::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 
@@ -366,66 +371,22 @@ void InstancingAndCulling::OnKeyboardInput(const GameTimer& gt)
 	if (GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f * dt);
 
-	//ch16. enable culling/ no culling
-	if (GetAsyncKeyState('1') & 0x8000)
-		mFrustumCullingEnabled = true;
-	if (GetAsyncKeyState('2') & 0x8000)
-		mFrustumCullingEnabled = false;
-
 	//这里有一个相机的更新方法
 	mCamera.UpdateViewMatrix();
 }
 
-void InstancingAndCulling::AnimateMaterials(const GameTimer& gt)
+void Picking::AnimateMaterials(const GameTimer& gt)
 {
 
 }
 
-void InstancingAndCulling::UpdateInstanceData(const GameTimer& gt)
+void Picking::UpdateObjectCBs(const GameTimer& gt)
 {
-	//ch16. we only update objects that occurs in bounds
-	XMMATRIX view = mCamera.GetView();
-	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-
 	//change objectCB to InstanceBuffer
-	//auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	auto currInstanceBuffer = mCurrFrameResource->InstanceBuffer.get();
+	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for (auto& e : mAllRitems)
 	{
-		const auto& instanceData = e->Instances;
-		int visibleInstanceCount = 0;
-		for (UINT i = 0; i < (UINT)instanceData.size(); ++i)
-		{
-			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
-			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
-
-			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
-
-			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld);
-			BoundingFrustum localSpaceFrustum;
-			mCamFrustum.Transform(localSpaceFrustum, viewToLocal);
-
-			if (mFrustumCullingEnabled == false || localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
-			{
-				InstanceData data;
-				XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
-				XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
-				data.MaterialIndex = instanceData[i].MaterialIndex;
-
-				currInstanceBuffer->CopyData(visibleInstanceCount++, data);
-			}
-		}
-
-		e->InstanceCount = visibleInstanceCount;
-
-		std::wostringstream outs;
-		outs.precision(6);
-		outs << L"Instanceing and Culling Demo" << L"    " << e->InstanceCount <<
-			L" objects visible out of " << e->Instances.size();
-		mMainWndCaption = outs.str();
-
-		/*
-		if(e->NumFramesDirty > 0)
+		if (e->NumFramesDirty > 0)
 		{
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
@@ -440,11 +401,10 @@ void InstancingAndCulling::UpdateInstanceData(const GameTimer& gt)
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
 		}
-		*/
 	}
 }
 
-void InstancingAndCulling::UpdateMaterialBuffer(const GameTimer& gt)
+void Picking::UpdateMaterialBuffer(const GameTimer& gt)
 {
 	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
 	for(auto& e : mMaterials)
@@ -471,7 +431,7 @@ void InstancingAndCulling::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
-void InstancingAndCulling::UpdateMainPassCB(const GameTimer& gt)
+void Picking::UpdateMainPassCB(const GameTimer& gt)
 {
 	//ch15, 现在view和proj都可以直接从Camera来
 	XMMATRIX view = mCamera.GetView();
@@ -507,51 +467,8 @@ void InstancingAndCulling::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void InstancingAndCulling::LoadTextures()
+void Picking::LoadTextures()
 {
-	auto bricksTex = std::make_unique<Texture>();
-	bricksTex->Name = "bricksTex";
-	bricksTex->Filename = L"Textures/bricks.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), bricksTex->Filename.c_str(),
-		bricksTex->Resource, bricksTex->UploadHeap));
-
-	auto stoneTex = std::make_unique<Texture>();
-	stoneTex->Name = "stoneTex";
-	stoneTex->Filename = L"Textures/stone.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), stoneTex->Filename.c_str(),
-		stoneTex->Resource, stoneTex->UploadHeap));
-
-	auto tileTex = std::make_unique<Texture>();
-	tileTex->Name = "tileTex";
-	tileTex->Filename = L"Textures/tile.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), tileTex->Filename.c_str(),
-		tileTex->Resource, tileTex->UploadHeap));
-
-	auto crateTex = std::make_unique<Texture>();
-	crateTex->Name = "crateTex";
-	crateTex->Filename = L"Textures/WoodCrate01.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), crateTex->Filename.c_str(),
-		crateTex->Resource, crateTex->UploadHeap));
-
-	//ch16. add more textures
-	auto iceTex = std::make_unique<Texture>();
-	iceTex->Name = "iceTex";
-	iceTex->Filename = L"Textures/ice.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), iceTex->Filename.c_str(),
-		iceTex->Resource, iceTex->UploadHeap));
-
-	auto grassTex = std::make_unique<Texture>();
-	grassTex->Name = "grassTex";
-	grassTex->Filename = L"Textures/grass.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), grassTex->Filename.c_str(),
-		grassTex->Resource, grassTex->UploadHeap));
-
 	auto defaultTex = std::make_unique<Texture>();
 	defaultTex->Name = "defaultTex";
 	defaultTex->Filename = L"Textures/white1x1.dds";
@@ -560,36 +477,22 @@ void InstancingAndCulling::LoadTextures()
 		defaultTex->Resource, defaultTex->UploadHeap));
 
 
-	mTextures[bricksTex->Name] = std::move(bricksTex);
-	mTextures[stoneTex->Name] = std::move(stoneTex);
-	mTextures[tileTex->Name] = std::move(tileTex);
-	mTextures[crateTex->Name] = std::move(crateTex);
-	mTextures[iceTex->Name] = std::move(iceTex);
-	mTextures[grassTex->Name] = std::move(grassTex);
 	mTextures[defaultTex->Name] = std::move(defaultTex);
 }
 
-void InstancingAndCulling::BuildRootSignature()
+void Picking::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	//ch16. change texture counts from 4 to 7
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7, 0, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
-	//ch16. 顺序变更。 我们现在按照的instance->mat->pass->cb的方式更新
-	slotRootParameter[0].InitAsShaderResourceView(0, 1);
-	slotRootParameter[1].InitAsShaderResourceView(1, 1);
-	slotRootParameter[2].InitAsConstantBufferView(0);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	/*
     slotRootParameter[0].InitAsConstantBufferView(0);
     slotRootParameter[1].InitAsConstantBufferView(1);
     slotRootParameter[2].InitAsShaderResourceView(0, 1);
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	*/
 
 
 	auto staticSamplers = GetStaticSamplers();
@@ -618,14 +521,14 @@ void InstancingAndCulling::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void InstancingAndCulling::BuildDescriptorHeaps()
+void Picking::BuildDescriptorHeaps()
 {
 	//
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	//ch16. 现在从4变成7
-	srvHeapDesc.NumDescriptors = 7;
+	//ch17. 只有一个defaultTex
+	srvHeapDesc.NumDescriptors = 1;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -635,69 +538,19 @@ void InstancingAndCulling::BuildDescriptorHeaps()
 	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	auto bricksTex = mTextures["bricksTex"]->Resource;
-	auto stoneTex = mTextures["stoneTex"]->Resource;
-	auto tileTex = mTextures["tileTex"]->Resource;
-	auto crateTex = mTextures["crateTex"]->Resource;
-	auto iceTex = mTextures["iceTex"]->Resource;
-	auto grassTex = mTextures["grassTex"]->Resource;
 	auto defaultTex = mTextures["defaultTex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = bricksTex->GetDesc().Format;
+	srvDesc.Format = defaultTex->GetDesc().Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = stoneTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = tileTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = crateTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = crateTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(crateTex.Get(), &srvDesc, hDescriptor);
-
-	//ch16. 添加新增的3个贴图，并上传到SRV中
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = iceTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = grassTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = grassTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(grassTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = defaultTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = defaultTex->GetDesc().MipLevels;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(defaultTex.Get(), &srvDesc, hDescriptor);
-
 }
 
-void InstancingAndCulling::BuildShadersAndInputLayout()
+void Picking::BuildShadersAndInputLayout()
 {
 	const D3D_SHADER_MACRO alphaTestDefines[] =
 	{
@@ -716,14 +569,14 @@ void InstancingAndCulling::BuildShadersAndInputLayout()
     };
 }
 
-//我们在这里创建了Skull的几何，并更新了Skull的AABB
-void InstancingAndCulling::BuildSkullGeometry()
+//ch17. 创建Car
+void Picking::BuildCarGeometry()
 {
-	std::ifstream fin("Models/skull.txt");
+	std::ifstream fin("Models/car.txt");
 
 	if (!fin)
 	{
-		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+		MessageBox(0, L"Models/car.txt not found.", 0, 0);
 		return;
 	}
 
@@ -749,6 +602,8 @@ void InstancingAndCulling::BuildSkullGeometry()
 
 		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
 
+		//ch17. 无需uv
+		/*
 		// Project point onto unit sphere and generate spherical texture coordinates.
 		XMFLOAT3 spherePos;
 		XMStoreFloat3(&spherePos, XMVector3Normalize(P));
@@ -765,25 +620,15 @@ void InstancingAndCulling::BuildSkullGeometry()
 		float v = phi / XM_PI;
 
 		vertices[i].TexC = { u, v };
+		*/
 
 		vMin = XMVectorMin(vMin, P);
 		vMax = XMVectorMax(vMax, P);
 	}
 
-#pragma region Quiz1601
-	//BoundingBox bounds;
-	BoundingSphere bounds;
-	auto center = 0.5f * (vMin + vMax);
-	XMStoreFloat3(&bounds.Center, center);
-	//XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
-	auto r = 0.0f;
-	for (auto& vertice : vertices)
-	{
-		auto dx = vertice.Pos.x - bounds.Center.x, dy = vertice.Pos.y - bounds.Center.y, dz = vertice.Pos.z - bounds.Center.z;
-		r = max(r, sqrtf(dx*dx + dy*dy + dz*dz));
-	}
-	bounds.Radius = r;
-#pragma endregion
+	BoundingBox bounds;
+	XMStoreFloat3(&bounds.Center, 0.5f * (vMin + vMax));
+	XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
 
 	fin >> ignore;
 	fin >> ignore;
@@ -805,8 +650,8 @@ void InstancingAndCulling::BuildSkullGeometry()
 
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
-	auto geo = std::make_unique<BoundingSphereMeshGeometry>();
-	geo->Name = "skullGeo";
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "carGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -825,19 +670,19 @@ void InstancingAndCulling::BuildSkullGeometry()
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	BoundingSphereSubmeshGeometry submesh;
+	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 	submesh.Bounds = bounds;
 
-	geo->DrawArgs["skull"] = submesh;
+	geo->DrawArgs["car"] = submesh;
 
 	mGeometries[geo->Name] = std::move(geo);
 
 }
 
-void InstancingAndCulling::BuildPSOs()
+void Picking::BuildPSOs()
 {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -868,9 +713,28 @@ void InstancingAndCulling::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	//ch17. 添加highlight
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC highlightPsoDesc = opaquePsoDesc;
+	highlightPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	highlightPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&highlightPsoDesc, IID_PPV_ARGS(&mPSOs["highlight"])));
 }
 
-void InstancingAndCulling::BuildFrameResources()
+void Picking::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
@@ -879,135 +743,72 @@ void InstancingAndCulling::BuildFrameResources()
     }
 }
 
-void InstancingAndCulling::BuildMaterials()
+void Picking::BuildMaterials()
 {
-	auto bricks0 = std::make_unique<Material>();
-	bricks0->Name = "bricks0";
-	//ch15,这里添加了MatCBIndex
-	bricks0->MatCBIndex = 0;
-	bricks0->DiffuseSrvHeapIndex = 0;
-	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    bricks0->Roughness = 0.1f;
-
-	auto stone0 = std::make_unique<Material>();
-	stone0->Name = "stone0";
-	stone0->MatCBIndex = 1;
-	stone0->DiffuseSrvHeapIndex = 1;
-	stone0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-    stone0->Roughness = 0.3f;
- 
-	auto tile0 = std::make_unique<Material>();
-	tile0->Name = "tile0";
-	tile0->MatCBIndex = 2;
-	tile0->DiffuseSrvHeapIndex = 2;
-	tile0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    tile0->Roughness = 0.3f;
-
-	auto crate0 = std::make_unique<Material>();
-	crate0->Name = "crate0";
-	crate0->MatCBIndex = 3;
-	crate0->DiffuseSrvHeapIndex = 3;
-	crate0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    crate0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-    crate0->Roughness = 0.2f;
-
-	auto ice0 = std::make_unique<Material>();
-	ice0->Name = "ice0";
-	ice0->MatCBIndex = 4;
-	ice0->DiffuseSrvHeapIndex = 4;
-	ice0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	ice0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	ice0->Roughness = 0.0f;
-
-	auto grass0 = std::make_unique<Material>();
-	grass0->Name = "grass0";
-	grass0->MatCBIndex = 5;
-	grass0->DiffuseSrvHeapIndex = 5;
-	grass0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	grass0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	grass0->Roughness = 0.2f;
-
-	auto skullMat = std::make_unique<Material>();
-	skullMat->Name = "skullMat";
-	skullMat->MatCBIndex = 6;
-	skullMat->DiffuseSrvHeapIndex = 6;
-	skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	skullMat->Roughness = 0.5f;
-
+	auto gray0 = std::make_unique<Material>();
+	gray0->Name = "gray0";
+	gray0->MatCBIndex = 0;
+	gray0->DiffuseSrvHeapIndex = 0;
+	gray0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    gray0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    gray0->Roughness = 0.1f;
 	
-	mMaterials["bricks0"] = std::move(bricks0);
-	mMaterials["stone0"] = std::move(stone0);
-	mMaterials["tile0"] = std::move(tile0);
-	mMaterials["crate0"] = std::move(crate0);
-	mMaterials["ice0"] = std::move(ice0);
-	mMaterials["grass0"] = std::move(grass0);
-	mMaterials["skullMat"] = std::move(skullMat);
+	mMaterials["gray0"] = std::move(gray0);
+
+
+	auto highlight0 = std::make_unique<Material>();
+	highlight0->Name = "highlight0";
+	highlight0->MatCBIndex = 1;
+	highlight0->DiffuseSrvHeapIndex = 0;
+	highlight0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    highlight0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    highlight0->Roughness = 0.1f;
+	
+	mMaterials["highlight0"] = std::move(highlight0);
 }
 
-//ch16. 现在只有骷髅了
-void InstancingAndCulling::BuildRenderItems()
+//ch17
+void Picking::BuildRenderItems()
 {
-	auto skullRitem = std::make_unique<RenderItem>();
-	skullRitem->World = MathHelper::Identity4x4();
-	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 0;
-	skullRitem->Mat = mMaterials["tile0"].get();
-	skullRitem->Geo = mGeometries["skullGeo"].get();
-	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	skullRitem->InstanceCount = 0;
-	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
-	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
-	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
-	skullRitem->Bounds = skullRitem->Geo->DrawArgs["skull"].Bounds;
+	auto carRitem = std::make_unique<RenderItem>();
+	carRitem->World = MathHelper::Identity4x4();
+	carRitem->TexTransform = MathHelper::Identity4x4();
+	carRitem->ObjCBIndex = 0;
+	carRitem->Mat = mMaterials["gray0"].get();
+	carRitem->Geo = mGeometries["carGeo"].get();
+	carRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	carRitem->Bounds = carRitem->Geo->DrawArgs["car"].Bounds;
+	carRitem->IndexCount = carRitem->Geo->DrawArgs["car"].IndexCount;
+	carRitem->StartIndexLocation = carRitem->Geo->DrawArgs["car"].StartIndexLocation;
+	carRitem->BaseVertexLocation = carRitem->Geo->DrawArgs["car"].BaseVertexLocation;
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(carRitem.get());
 
-	//Generate instance data
-	const int n = 5;
-	mInstanceCount = n * n * n;
-	skullRitem->Instances.resize(mInstanceCount);
+	//ch17. 选中的物体
+	auto pickedRitem = std::make_unique<RenderItem>();
+	pickedRitem->World = MathHelper::Identity4x4();
+	pickedRitem->TexTransform = MathHelper::Identity4x4();
+	pickedRitem->ObjCBIndex = 1;
+	pickedRitem->Mat = mMaterials["highlight0"].get();
+	pickedRitem->Geo = mGeometries["carGeo"].get();
+	pickedRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	//选中前不允许点亮
+	pickedRitem->Visible = false;
+	//直到被选中时，DrawCall相关的参数才被填充
+	pickedRitem->IndexCount = 0;
+	pickedRitem->StartIndexLocation = 0;
+	pickedRitem->BaseVertexLocation = 0;
 
-	float width = 200.0f;
-	float height = 200.0f;
-	float depth = 200.0f;
+	mPickedRitem = pickedRitem.get();
+	mRitemLayer[(int)RenderLayer::Highlight].push_back(pickedRitem.get());
 
-	float x = -0.5f * width, y = -0.5f * height, z = -0.5f * depth;
-	float dx = width / (n - 1), dy = height / (n - 1), dz = depth / (n - 1);
-	for (int k = 0; k < n; ++k)
-	{
-		for (int i = 0; i < n; ++i)
-		{
-			for (int j = 0; j < n; ++j)
-			{
-				int index = k * n * n + i * n + j;
-				skullRitem->Instances[index].World = XMFLOAT4X4(
-					1.0f, 0.0f, 0.0f, 0.0f,
-					0.0f, 1.0f, 0.0f, 0.0f,
-					0.0f, 0.0f, 1.0f, 0.0f,
-					x + j * dx, y + i * dy, z + k * dz, 1.0f);
-
-				XMStoreFloat4x4(&skullRitem->Instances[index].TexTransform, XMMatrixScaling(2.0f, 2.0f, 1.0f));
-				skullRitem->Instances[index].MaterialIndex = index % mMaterials.size();
-			}
-		}
-	}
-
-	mAllRitems.push_back(std::move(skullRitem));
-
-	// All the render items are opaque.
-	for(auto& e : mAllRitems)
-		mOpaqueRitems.push_back(e.get());
+	mAllRitems.push_back(std::move(carRitem));
+	mAllRitems.push_back(std::move(pickedRitem));
 }
 
-void InstancingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void Picking::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	//现在没有objectCB了 只有InstanceData
-	/*
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-	*/
 
     // For each render item...
     for(size_t i = 0; i < ritems.size(); ++i)
@@ -1018,16 +819,84 @@ void InstancingAndCulling::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, c
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        //D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();
-		cmdList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
+		cmdList->SetGraphicsRootShaderResourceView(0, objCBAddress);
 
 		//现在InstanceCount不再是1了
-        cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+        cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> InstancingAndCulling::GetStaticSamplers()
+//ch17. Pick方法
+void Picking::Pick(int sx, int sy)
+{
+	XMFLOAT4X4 P = mCamera.GetProj4x4f();
+
+	//计算观察空间中的拾取曲线
+	float vx = (+2.0f * sx / mClientWidth - 1.0f) / P(0, 0);
+	float vy = (-2.0f * sy / mClientHeight + 1.0f) / P(1, 1);
+	//定义观察空间中的向量
+	XMVECTOR rayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMVECTOR rayDir = XMVectorSet(vx, vy, 1.0f, 0.0f);
+	//计算观察矩阵的逆矩阵
+	XMMATRIX V = mCamera.GetView();
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(V), V);
+	//先假定没有物体被选中
+	mPickedRitem->Visible = false;
+	//检测是否有被选中的物体
+	for (auto ri : mRitemLayer[(int)RenderLayer::Opaque])
+	{
+		auto geo = ri->Geo;
+		//跳过不可见的对象
+		if (ri->Visible == false) continue;
+
+		//将拾取曲线转到局部空间
+		XMMATRIX W = XMLoadFloat4x4(&ri->World);
+		XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(W), W);
+		XMMATRIX toLocal = XMMatrixMultiply(invView, invWorld);
+
+		rayOrigin = XMVector3TransformCoord(rayOrigin, toLocal);
+		rayDir = XMVector3TransformNormal(rayDir, toLocal);
+
+		rayDir = XMVector3Normalize(rayDir);
+
+		//如果我们碰到了物体，则我们检索我们实际碰撞的面
+		float tmin = 0.0f;
+		if (ri->Bounds.Intersects(rayOrigin, rayDir, tmin))
+		{
+			auto vertices = (Vertex*)geo->VertexBufferCPU->GetBufferPointer();
+			auto indices = (std::uint32_t*)geo->IndexBufferCPU->GetBufferPointer();
+			UINT triCount = ri->IndexCount / 3;
+
+			tmin = MathHelper::Infinity;
+			for (UINT i = 0; i < triCount; ++i)
+			{
+				UINT i0 = indices[i * 3 + 0], i1 = indices[i * 3 + 1], i2 = indices[i * 3 + 2];
+				XMVECTOR v0 = XMLoadFloat3(&vertices[i0].Pos), v1 = XMLoadFloat3(&vertices[i1].Pos), v2 = XMLoadFloat3(&vertices[i2].Pos);
+
+				float t = 0.0f;
+				if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, t))
+				{
+					if (t < tmin)
+					{
+						tmin = t;
+						UINT pickedTriangle = i;
+
+						mPickedRitem->Visible = true;
+						mPickedRitem->IndexCount = 3;
+						mPickedRitem->BaseVertexLocation = 0;
+
+						mPickedRitem->World = ri->World;
+						mPickedRitem->NumFramesDirty = gNumFrameResources;
+						mPickedRitem->StartIndexLocation = 3 * pickedTriangle;
+					}
+				}
+			}
+		}
+	}
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Picking::GetStaticSamplers()
 {
 	// Applications usually only need a handful of samplers.  So just define them all up front
 	// and keep them available as part of the root signature.  
