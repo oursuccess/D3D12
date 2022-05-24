@@ -1,7 +1,9 @@
 //solution for quiz1701, by Je
+//和第16章一样。我们将BoundingBox替换为BoundingSphere即可
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
+#include "JeD3dUtil.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -21,7 +23,10 @@ struct RenderItem
  
 	bool Visible = true;
 
-	BoundingBox Bounds;	//AABB
+#pragma region Quiz1701
+	//BoundingBox Bounds;	//AABB
+	BoundingSphere Bounds;
+#pragma endregion
 
     // World matrix of the shape that describes the object's local space
     // relative to the world space, which defines the position, orientation,
@@ -41,7 +46,9 @@ struct RenderItem
 	UINT ObjCBIndex = -1;
 
 	Material* Mat = nullptr;
-	MeshGeometry* Geo = nullptr;
+#pragma region Quiz1701
+	JeMeshGeometry* Geo = nullptr;
+#pragma endregion
 
     // Primitive topology.
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -112,7 +119,9 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+#pragma region Quiz1701
+	std::unordered_map<std::string, std::unique_ptr<JeMeshGeometry>> mGeometries;
+#pragma endregion
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
@@ -623,9 +632,14 @@ void Picking::BuildCarGeometry()
 		vMax = XMVectorMax(vMax, P);
 	}
 
-	BoundingBox bounds;
-	XMStoreFloat3(&bounds.Center, 0.5f * (vMin + vMax));
-	XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
+#pragma region Quiz1701
+	BoundingBox boundBox;
+	XMStoreFloat3(&boundBox.Center, 0.5f * (vMin + vMax));
+	XMStoreFloat3(&boundBox.Extents, 0.5f * (vMax - vMin));
+
+	BoundingSphere bounds;
+	BoundingSphere::CreateFromBoundingBox(bounds, boundBox);
+#pragma endregion
 
 	fin >> ignore;
 	fin >> ignore;
@@ -647,7 +661,9 @@ void Picking::BuildCarGeometry()
 
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
-	auto geo = std::make_unique<MeshGeometry>();
+#pragma region Quiz1701
+	auto geo = std::make_unique<JeMeshGeometry>();
+#pragma endregion
 	geo->Name = "carGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
@@ -667,7 +683,9 @@ void Picking::BuildCarGeometry()
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	SubmeshGeometry submesh;
+#pragma region Quiz1701
+	JeSubmeshGeometry submesh;
+#pragma endregion
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
@@ -767,7 +785,9 @@ void Picking::BuildMaterials()
 //ch17
 void Picking::BuildRenderItems()
 {
+#pragma region Quiz1701
 	auto carRitem = std::make_unique<RenderItem>();
+#pragma endregion
 	carRitem->World = MathHelper::Identity4x4();
 	carRitem->TexTransform = MathHelper::Identity4x4();
 	carRitem->ObjCBIndex = 0;
