@@ -492,7 +492,6 @@ void CubeMap::LoadTextures()
 		mCommandList.Get(), skyCubeMap->Filename.c_str(),
 		skyCubeMap->Resource, skyCubeMap->UploadHeap));
 
-
 	mTextures[bricksTex->Name] = std::move(bricksTex);
 	mTextures[tileTex->Name] = std::move(tileTex);
 	mTextures[defaultTex->Name] = std::move(defaultTex);
@@ -568,7 +567,7 @@ void CubeMap::BuildDescriptorHeaps()
 	auto tileTex = mTextures["tileTex"]->Resource;
 	auto defaultTex = mTextures["defaultTex"]->Resource;
 	auto crateTex = mTextures["crateTex"]->Resource;
-	auto skyCubeMap = mTextures["skuCubeMap"]->Resource;
+	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
