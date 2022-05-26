@@ -1,6 +1,7 @@
-//***************************************************************************************
-// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
+//copy of Default.hlsl by Frank Luna, ch18
+//Default为默认的包含光照的Shader实现
+//VS: 将顶点转换到投影空间
+//PS: 计算光照并采样贴图、采样立方体图
 
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS

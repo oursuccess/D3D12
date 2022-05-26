@@ -1,6 +1,5 @@
-//***************************************************************************************
-// Common.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
+//copy of common.hlsl by Frank Luna, ch18
+//由Default和Sky同时包含。 其中定义了材质的数据、立方体图、物体数据、Pass数据
 
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS

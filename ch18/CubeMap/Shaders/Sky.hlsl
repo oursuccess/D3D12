@@ -1,6 +1,6 @@
-//=============================================================================
-// Sky.fx by Frank Luna (C) 2011 All Rights Reserved.
-//=============================================================================
+//copy of Sky.hlsl by Frank Luna, ch18
+//天空纹理简单返回了采样立方体图的数据。 用来绘制天空
+//为了防止穿帮，并模拟远处的天空，因此我们总是将采样点放在相机上，并总是让PosH(投影矩阵)的z等于w
 
 // Include common HLSL code.
 #include "Common.hlsl"
@@ -39,6 +39,6 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-	return gCubeMap.Sample(gsamLinearWrap, pin.PosL);
+    return gCubeMap.Sample(gsamLinearWrap, pin.PosL);
 }
 
