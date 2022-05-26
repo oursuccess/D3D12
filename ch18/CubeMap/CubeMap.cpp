@@ -875,6 +875,7 @@ void CubeMap::BuildRenderItems()
 	skyRitem->TexTransform = MathHelper::Identity4x4();
 	skyRitem->ObjCBIndex = 0;
 	skyRitem->Mat = mMaterials["sky"].get();
+	skyRitem->Geo = mGeometries["shapeGeo"].get();
 	skyRitem->IndexCount = skyRitem->Geo->DrawArgs["sphere"].IndexCount;
 	skyRitem->StartIndexLocation = skyRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 	skyRitem->BaseVertexLocation = skyRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
