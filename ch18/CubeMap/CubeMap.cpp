@@ -1,5 +1,12 @@
 //copy of CubeMapApp by Frank Luna, ch18
 //evoluted from ch15
+/*
+ * 对于静态的天空盒/立方体图
+ * 我们只需要在外部创建好立方体纹理后
+ * LoadTexture
+ * 然后在DrawCall之前将该立方体纹理传入Shader即可
+ * 然后，要绘制天空。我们只需要在绘制过所有其它内容后，绘制代表天空的球即可
+*/
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
