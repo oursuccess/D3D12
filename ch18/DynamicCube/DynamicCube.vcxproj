@@ -134,6 +134,7 @@
     <ClCompile Include="..\..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\MathHelper.cpp" />
+    <ClCompile Include="CubeRenderTarget.cpp" />
     <ClCompile Include="DynamicCubeMap.cpp" />
     <ClCompile Include="FrameResource.cpp" />
   </ItemGroup>
@@ -147,6 +148,7 @@
     <ClInclude Include="..\..\d3d12book-master\Common\GeometryGenerator.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\UploadBuffer.h" />
+    <ClInclude Include="CubeRenderTarget.h" />
     <ClInclude Include="FrameResource.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

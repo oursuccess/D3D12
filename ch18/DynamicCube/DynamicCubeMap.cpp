@@ -10,6 +10,7 @@
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
+#include "CubeRenderTarget.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -19,6 +20,9 @@ using namespace DirectX::PackedVector;
 #pragma comment(lib, "D3D12.lib")
 
 const int gNumFrameResources = 3;
+
+//ch1802, 添加CubeMapSize
+const UINT CuheMapSize = 512;
 
 // Lightweight structure stores parameters to draw a shape.  This will
 // vary from app-to-app.
@@ -58,6 +62,8 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	//ch1802, 添加动态立方体图
+	OpaqueDynamicReflectors,
 	Sky,
 	Count
 };
@@ -86,19 +92,29 @@ private:
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
+	//ch1802, 更新立方体图的帧常量缓冲区
+	void UpdateCubeMapFacePassCBs();
 
 	void LoadTextures();
     void BuildRootSignature();
 	void BuildDescriptorHeaps();
+	//ch1802,更新立方体图的深度、模板缓冲区
+	void BuildCubeDepthStencil();
     void BuildShadersAndInputLayout();
+	//ch1802,添加回来骷髅
+	void BuildSkullGeometry();
     void BuildShapeGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
     void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+	//ch1802,将场景绘制到立方体图中
+	void DrawSceneToCubeMap();
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+	//ch1802,创建立方体图相机
+	void BuildCubeFaceCamera(float x, float y, float z);
 
 private:
 
@@ -111,6 +127,9 @@ private:
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
+	//ch1802,深度、模板缓冲区
+	ComPtr<ID3D12Resource> mCubeDepthStencilBuffer;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
@@ -128,11 +147,21 @@ private:
 
 	//ch18. 记录天空纹理的偏移量
 	UINT mSkyTexHeapIndex = 0;
+	//ch1802, 记录动态贴图的偏移
+	UINT mDynamicTexHeapIndex = 0;
+	//ch1802, 记录骷髅
+	RenderItem* mSkullRitem = nullptr;
+	//ch1802,添加动态立方体图
+	std::unique_ptr<CubeRenderTarget> mDynamicCubeMap = nullptr;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mCubeDSV;
+
 
     PassConstants mMainPassCB;
 
 	//ch15, 添加一个相机类
 	Camera mCamera;
+	//ch1802,添加6个用于立方体图生成的相机
+	Camera mCubeMapCamera[6];
 
     POINT mLastMousePos;
 };
@@ -462,6 +491,10 @@ void DynamicCubeMap::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+void DynamicCubeMap::UpdateCubeMapFacePassCBs()
+{
+}
+
 void DynamicCubeMap::LoadTextures()
 {
 	auto bricksTex = std::make_unique<Texture>();
@@ -621,6 +654,10 @@ void DynamicCubeMap::BuildDescriptorHeaps()
 	mSkyTexHeapIndex = 4;
 }
 
+void DynamicCubeMap::BuildCubeDepthStencil()
+{
+}
+
 void DynamicCubeMap::BuildShadersAndInputLayout()
 {
 	const D3D_SHADER_MACRO alphaTestDefines[] =
@@ -641,6 +678,10 @@ void DynamicCubeMap::BuildShadersAndInputLayout()
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
+}
+
+void DynamicCubeMap::BuildSkullGeometry()
+{
 }
 
 void DynamicCubeMap::BuildShapeGeometry()
@@ -1010,6 +1051,10 @@ void DynamicCubeMap::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const s
     }
 }
 
+void DynamicCubeMap::DrawSceneToCubeMap()
+{
+}
+
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> DynamicCubeMap::GetStaticSamplers()
 {
 	// Applications usually only need a handful of samplers.  So just define them all up front
@@ -1065,4 +1110,8 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> DynamicCubeMap::GetStaticSample
 		pointWrap, pointClamp,
 		linearWrap, linearClamp, 
 		anisotropicWrap, anisotropicClamp };
+}
+
+void DynamicCubeMap::BuildCubeFaceCamera(float x, float y, float z)
+{
 }
