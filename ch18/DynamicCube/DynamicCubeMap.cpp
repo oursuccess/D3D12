@@ -329,8 +329,9 @@ void DynamicCubeMap::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 	
 	//ch18. 我们将天空纹理描述符也绑定到命令列表中。其在根描述符表中的第三个。 因此，纹理现在从3变为4
+
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvDescriptorSize);
+	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 
 	// Bind all the textures used in this scene.  Observe
@@ -358,14 +359,19 @@ void DynamicCubeMap::Draw(const GameTimer& gt)
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-	//ch1802. 使用动态立方体图作为动态映射层
-	CD3DX12_GPU_DESCRIPTOR_HANDLE dynamicTexDescritpor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	dynamicTexDescritpor.Offset(mSkyTexHeapIndex + 1, mCbvSrvDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(3, dynamicTexDescritpor);
 
-	//ch18. 先画Opaque
-    DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
-	//ch18. 然后更换PSO之后绘制Sky
+	// Use the dynamic cube map for the dynamic reflectors layer.
+	CD3DX12_GPU_DESCRIPTOR_HANDLE dynamicTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	dynamicTexDescriptor.Offset(mSkyTexHeapIndex + 1, mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(3, dynamicTexDescriptor);
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::OpaqueDynamicReflectors]);
+
+	// Use the static "background" cube map for the other objects (including the sky)
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
 
@@ -534,6 +540,8 @@ void DynamicCubeMap::UpdateMainPassCB(const GameTimer& gt)
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
+
+	UpdateCubeMapFacePassCBs();
 }
 
 void DynamicCubeMap::UpdateCubeMapFacePassCBs()
@@ -569,46 +577,33 @@ void DynamicCubeMap::UpdateCubeMapFacePassCBs()
 
 void DynamicCubeMap::LoadTextures()
 {
-	auto bricksTex = std::make_unique<Texture>();
-	bricksTex->Name = "bricksTex";
-	bricksTex->Filename = L"Textures/bricks2.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), bricksTex->Filename.c_str(),
-		bricksTex->Resource, bricksTex->UploadHeap));
+	std::vector<std::string> texNames =
+	{
+		"bricksDiffuseMap",
+		"tileDiffuseMap",
+		"defaultDiffuseMap",
+		"skyCubeMap"
+	};
 
-	auto tileTex = std::make_unique<Texture>();
-	tileTex->Name = "tileTex";
-	tileTex->Filename = L"Textures/tile.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), tileTex->Filename.c_str(),
-		tileTex->Resource, tileTex->UploadHeap));
+	std::vector<std::wstring> texFilenames =
+	{
+		L"Textures/bricks2.dds",
+		L"Textures/tile.dds",
+		L"Textures/white1x1.dds",
+		L"Textures/grasscube1024.dds"
+	};
 
-	auto defaultTex = std::make_unique<Texture>();
-	defaultTex->Name = "defaultTex";
-	defaultTex->Filename = L"Textures/white1x1.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), defaultTex->Filename.c_str(),
-		defaultTex->Resource, defaultTex->UploadHeap));
+	for (int i = 0; i < (int)texNames.size(); ++i)
+	{
+		auto texMap = std::make_unique<Texture>();
+		texMap->Name = texNames[i];
+		texMap->Filename = texFilenames[i];
+		ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+			mCommandList.Get(), texMap->Filename.c_str(),
+			texMap->Resource, texMap->UploadHeap));
 
-	auto crateTex = std::make_unique<Texture>();
-	crateTex->Name = "crateTex";
-	crateTex->Filename = L"Textures/WoodCrate01.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), crateTex->Filename.c_str(),
-		crateTex->Resource, crateTex->UploadHeap));
-
-	auto skyCubeMap = std::make_unique<Texture>();
-	skyCubeMap->Name = "skyCubeMap";
-	skyCubeMap->Filename = L"Textures/grasscube1024.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), skyCubeMap->Filename.c_str(),
-		skyCubeMap->Resource, skyCubeMap->UploadHeap));
-
-	mTextures[bricksTex->Name] = std::move(bricksTex);
-	mTextures[tileTex->Name] = std::move(tileTex);
-	mTextures[defaultTex->Name] = std::move(defaultTex);
-	mTextures[crateTex->Name] = std::move(crateTex);
-	mTextures[skyCubeMap->Name] = std::move(skyCubeMap);
+		mTextures[texMap->Name] = std::move(texMap);
+	}
 }
 
 void DynamicCubeMap::BuildRootSignature()
@@ -618,7 +613,7 @@ void DynamicCubeMap::BuildRootSignature()
 	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6, 1, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -665,7 +660,7 @@ void DynamicCubeMap::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 7;
+	srvHeapDesc.NumDescriptors = 6;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -675,11 +670,10 @@ void DynamicCubeMap::BuildDescriptorHeaps()
 	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	auto bricksTex = mTextures["bricksTex"]->Resource;
-	auto tileTex = mTextures["tileTex"]->Resource;
-	auto defaultTex = mTextures["defaultTex"]->Resource;
-	auto crateTex = mTextures["crateTex"]->Resource;
-	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
+	auto bricksTex = mTextures["bricksDiffuseMap"]->Resource;
+	auto tileTex = mTextures["tileDiffuseMap"]->Resource;
+	auto whiteTex = mTextures["defaultDiffuseMap"]->Resource;
+	auto skyTex = mTextures["skyCubeMap"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -691,53 +685,48 @@ void DynamicCubeMap::BuildDescriptorHeaps()
 	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
 
 	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
 	srvDesc.Format = tileTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
 
-	//ch18. 反射
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	// next descriptor
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
-	srvDesc.Format = defaultTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = defaultTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(defaultTex.Get(), &srvDesc, hDescriptor);
+	srvDesc.Format = whiteTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = whiteTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(whiteTex.Get(), &srvDesc, hDescriptor);
 
 	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = crateTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = crateTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(crateTex.Get(), &srvDesc, hDescriptor);
-
-	//ch18. 添加天空盒。 放在最后面
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 	srvDesc.TextureCube.MostDetailedMip = 0;
-	srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;
+	srvDesc.TextureCube.MipLevels = skyTex->GetDesc().MipLevels;
 	srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-	srvDesc.Format = skyCubeMap->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
+	srvDesc.Format = skyTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(skyTex.Get(), &srvDesc, hDescriptor);
 
-	//更新天空纹理的偏移量
-	mSkyTexHeapIndex = 4;
-	//ch1802, 创建立方体图用的SRV
+	mSkyTexHeapIndex = 3;
 	mDynamicTexHeapIndex = mSkyTexHeapIndex + 1;
 
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto rtvCpuStart = mRtvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	// Cubemap RTV goes after the swap chain descriptors.
 	int rtvOffset = SwapChainBufferCount;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cubeRtvHandles[6];
 	for (int i = 0; i < 6; ++i)
 		cubeRtvHandles[i] = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvCpuStart, rtvOffset + i, mRtvDescriptorSize);
 
-	mDynamicCubeMap->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDynamicTexHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDynamicTexHeapIndex, mCbvSrvDescriptorSize), cubeRtvHandles);
+	// Dynamic cubemap SRV is after the sky SRV.
+	mDynamicCubeMap->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDynamicTexHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDynamicTexHeapIndex, mCbvSrvUavDescriptorSize),
+		cubeRtvHandles);
 }
 
 void DynamicCubeMap::BuildCubeDepthStencil()
@@ -1077,60 +1066,48 @@ void DynamicCubeMap::BuildMaterials()
 {
 	auto bricks0 = std::make_unique<Material>();
 	bricks0->Name = "bricks0";
-	//ch15,这里添加了MatCBIndex
 	bricks0->MatCBIndex = 0;
 	bricks0->DiffuseSrvHeapIndex = 0;
 	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    bricks0->Roughness = 0.1f;
- 
+	bricks0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	bricks0->Roughness = 0.3f;
+
 	auto tile0 = std::make_unique<Material>();
 	tile0->Name = "tile0";
 	tile0->MatCBIndex = 1;
 	tile0->DiffuseSrvHeapIndex = 1;
-	tile0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    tile0->Roughness = 0.3f;
+	tile0->DiffuseAlbedo = XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
+	tile0->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	tile0->Roughness = 0.1f;
 
 	auto mirror0 = std::make_unique<Material>();
 	mirror0->Name = "mirror0";
 	mirror0->MatCBIndex = 2;
 	mirror0->DiffuseSrvHeapIndex = 2;
-	mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.1, 1.0f);
+	mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 	mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
 	mirror0->Roughness = 0.1f;
 
-	auto crate0 = std::make_unique<Material>();
-	crate0->Name = "crate0";
-	crate0->MatCBIndex = 3;
-	crate0->DiffuseSrvHeapIndex = 3;
-	crate0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    crate0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-    crate0->Roughness = 0.2f;
-	
-	auto skyMat = std::make_unique<Material>();
-	skyMat->Name = "sky";
-	skyMat->MatCBIndex = 4;
-	skyMat->DiffuseSrvHeapIndex = 4;
-	skyMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    skyMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-    skyMat->Roughness = 1.0f;
+	auto sky = std::make_unique<Material>();
+	sky->Name = "sky";
+	sky->MatCBIndex = 3;
+	sky->DiffuseSrvHeapIndex = 3;
+	sky->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	sky->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	sky->Roughness = 1.0f;
+
+	auto skullMat = std::make_unique<Material>();
+	skullMat->Name = "skullMat";
+	skullMat->MatCBIndex = 4;
+	skullMat->DiffuseSrvHeapIndex = 2;
+	skullMat->DiffuseAlbedo = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+	skullMat->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	skullMat->Roughness = 0.2f;
 
 	mMaterials["bricks0"] = std::move(bricks0);
 	mMaterials["tile0"] = std::move(tile0);
-	mMaterials["crate0"] = std::move(crate0);
 	mMaterials["mirror0"] = std::move(mirror0);
-	mMaterials["sky"] = std::move(skyMat);
-
-	//ch1802,添加骷髅材质
-	auto skullMat = std::make_unique<Material>();
-    skullMat->Name = "skullMat";
-    skullMat->MatCBIndex = 4;
-    skullMat->DiffuseSrvHeapIndex = 2;
-    skullMat->DiffuseAlbedo = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-    skullMat->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
-    skullMat->Roughness = 0.2f;
-
+	mMaterials["sky"] = std::move(sky);
 	mMaterials["skullMat"] = std::move(skullMat);
 }
 
@@ -1169,10 +1146,10 @@ void DynamicCubeMap::BuildRenderItems()
 
 
 	auto boxRitem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxRitem->ObjCBIndex = 2;
-	boxRitem->Mat = mMaterials["crate0"].get();
+	boxRitem->Mat = mMaterials["bricks0"].get();
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
@@ -1193,8 +1170,12 @@ void DynamicCubeMap::BuildRenderItems()
 	globeRitem->StartIndexLocation = globeRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 	globeRitem->BaseVertexLocation = globeRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
 
-    auto gridRitem = std::make_unique<RenderItem>();
-    gridRitem->World = MathHelper::Identity4x4();
+
+	mRitemLayer[(int)RenderLayer::OpaqueDynamicReflectors].push_back(globeRitem.get());
+	mAllRitems.push_back(std::move(globeRitem));
+
+	auto gridRitem = std::make_unique<RenderItem>();
+	gridRitem->World = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
 	gridRitem->ObjCBIndex = 4;
 	gridRitem->Mat = mMaterials["tile0"].get();
@@ -1206,7 +1187,7 @@ void DynamicCubeMap::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 	mAllRitems.push_back(std::move(gridRitem));
 
-	XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	UINT objCBIndex = 5;
 	for(int i = 0; i < 5; ++i)
 	{
@@ -1399,4 +1380,37 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> DynamicCubeMap::GetStaticSample
 
 void DynamicCubeMap::BuildCubeFaceCamera(float x, float y, float z)
 {
+	// Generate the cube map about the given position.
+	XMFLOAT3 center(x, y, z);
+	XMFLOAT3 worldUp(0.0f, 1.0f, 0.0f);
+
+	// Look along each coordinate axis.
+	XMFLOAT3 targets[6] =
+	{
+		XMFLOAT3(x + 1.0f, y, z), // +X
+		XMFLOAT3(x - 1.0f, y, z), // -X
+		XMFLOAT3(x, y + 1.0f, z), // +Y
+		XMFLOAT3(x, y - 1.0f, z), // -Y
+		XMFLOAT3(x, y, z + 1.0f), // +Z
+		XMFLOAT3(x, y, z - 1.0f)  // -Z
+	};
+
+	// Use world up vector (0,1,0) for all directions except +Y/-Y.  In these cases, we
+	// are looking down +Y or -Y, so we need a different "up" vector.
+	XMFLOAT3 ups[6] =
+	{
+		XMFLOAT3(0.0f, 1.0f, 0.0f),  // +X
+		XMFLOAT3(0.0f, 1.0f, 0.0f),  // -X
+		XMFLOAT3(0.0f, 0.0f, -1.0f), // +Y
+		XMFLOAT3(0.0f, 0.0f, +1.0f), // -Y
+		XMFLOAT3(0.0f, 1.0f, 0.0f),	 // +Z
+		XMFLOAT3(0.0f, 1.0f, 0.0f)	 // -Z
+	};
+
+	for (int i = 0; i < 6; ++i)
+	{
+		mCubeMapCamera[i].LookAt(center, targets[i], ups[i]);
+		mCubeMapCamera[i].SetLens(0.5f * XM_PI, 1.0f, 0.1f, 1000.0f);
+		mCubeMapCamera[i].UpdateViewMatrix();
+	}
 }
