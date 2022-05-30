@@ -840,16 +840,26 @@ void CubeMap::BuildMaterials()
 	mirror0->MatCBIndex = 2;
 	mirror0->DiffuseSrvHeapIndex = 2;
 	mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.1, 1.0f);
-	mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
-	mirror0->Roughness = 0.1f;
+#pragma region Quiz1801
+	//尝试修改R0和Albedo
+	mirror0->FresnelR0 = XMFLOAT3(0.58f, 0.97f, 0.05f);
+	mirror0->Roughness = 0.3f;
+	//mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
+	//mirror0->Roughness = 0.1f;
+#pragma endregion
 
 	auto crate0 = std::make_unique<Material>();
 	crate0->Name = "crate0";
 	crate0->MatCBIndex = 3;
 	crate0->DiffuseSrvHeapIndex = 3;
-	crate0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    crate0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+#pragma region Quiz1801
+	//要让立方体反射，我们只需要修改这里的R0和Albedo
+	crate0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.1f, 1.0f);
+    crate0->FresnelR0 = XMFLOAT3(0.95f, 0.95f, 0.95f);
+	//crate0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    //crate0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
     crate0->Roughness = 0.2f;
+#pragma endregion
 	
 	auto skyMat = std::make_unique<Material>();
 	skyMat->Name = "sky";
