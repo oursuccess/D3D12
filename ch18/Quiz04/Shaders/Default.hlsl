@@ -90,7 +90,41 @@ float4 PS(VertexOut pin) : SV_Target
 	// Add in specular reflections.
 	float3 r = reflect(-toEyeW, pin.NormalW);
 	float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
-	float3 fresnelFactor = SchlickFresnel(fresnelR0, pin.NormalW, r);
+
+    //Quiz1804,弄一次模糊，我们直接6次偏移完事儿
+    int blurLayer = 3;
+    float step = 0.1f;
+
+    float3 r0s[18];
+    r0s[0] = r + float3(step, step, 0);
+    r0s[1] = r - float3(step, step, 0);
+    r0s[2] = r + float3(step, 0, step);
+    r0s[3] = r - float3(step, 0, step);
+    r0s[4] = r + float3(0, step, step);
+    r0s[5] = r - float3(0, step, step);
+
+    r0s[6] = r + float3(2 * step, 2 * step, 0);
+    r0s[7] = r - float3(2 * step, 2 * step, 0);
+    r0s[8] = r + float3(2 * step, 0, 2 * step);
+    r0s[9] = r - float3(2 * step, 0, 2 * step);
+    r0s[10] = r + float3(0, 2 * step, 2 * step);
+    r0s[11] = r - float3(0, 2 * step, 2 * step);
+
+    r0s[12] = r + float3(3 * step, 3 * step, 0);
+    r0s[13] = r - float3(3 * step, 3 * step, 0);
+    r0s[14] = r + float3(3 * step, 0, 3 * step);
+    r0s[15] = r - float3(3 * step, 0, 3 * step);
+    r0s[16] = r + float3(0, 3 * step, 3 * step);
+    r0s[17] = r - float3(0, 3 * step, 3 * step);
+
+    for (int i = 0, iMax = 6 * blurLayer; i < iMax; ++i)
+    {
+        reflectionColor += gCubeMap.Sample(gsamLinearWrap, r0s[i]);
+    }
+    reflectionColor = reflectionColor / (blurLayer * 6 + 1);
+    //Quiz1804在这里结束
+
+    float3 fresnelFactor = SchlickFresnel(fresnelR0, pin.NormalW, r);
 	litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
 
     // Common convention to take alpha from diffuse albedo.
