@@ -2,6 +2,7 @@
 //Default为默认的包含光照的Shader实现
 //VS: 将顶点转换到投影空间
 //PS: 计算光照并采样贴图、采样立方体图
+//ch19中添加了法线贴图所需要的TangentU
 
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
@@ -24,6 +25,7 @@ struct VertexIn
 	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
+    float3 TangentU : TANGENT;
 };
 
 struct VertexOut
@@ -31,6 +33,7 @@ struct VertexOut
 	float4 PosH    : SV_POSITION;
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
+    float3 TangentW : TANGENT;
 	float2 TexC    : TEXCOORD;
 };
 
@@ -47,6 +50,9 @@ VertexOut VS(VertexIn vin)
 
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+
+    //ch19. 传入TangentW
+    vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
 
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
@@ -73,24 +79,29 @@ float4 PS(VertexOut pin) : SV_Target
     // Interpolating normal can unnormalize it, so renormalize it.
     pin.NormalW = normalize(pin.NormalW);
 
+    //ch19. 采样法线
+    uint normalMapIndex = matData.NormalMapIndex;
+    float4 normalMapSample = gDiffuseMap[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
+
     // Vector from point being lit to eye. 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
     // Light terms.
     float4 ambient = gAmbientLight*diffuseAlbedo;
 
-	const float shininess = 1.0f - roughness;
+    const float shininess = (1.0f - roughness) * normalMapSample.a;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
     float3 shadowFactor = 1.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
-        pin.NormalW, toEyeW, shadowFactor);
+        bumpedNormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 
 	// Add in specular reflections.
-	float3 r = reflect(-toEyeW, pin.NormalW);
+	float3 r = reflect(-toEyeW, bumpedNormalW);
 	float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
-	float3 fresnelFactor = SchlickFresnel(fresnelR0, pin.NormalW, r);
+	float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
 	litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
 
     // Common convention to take alpha from diffuse albedo.
