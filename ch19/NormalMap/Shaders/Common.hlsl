@@ -28,7 +28,6 @@ struct MaterialData
     uint     NormalMapIndex;
 	uint     MatPad0;
 	uint     MatPad1;
-	uint     MatPad2;
 };
 
 TextureCube gCubeMap : register(t0);
