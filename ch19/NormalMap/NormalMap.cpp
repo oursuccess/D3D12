@@ -410,6 +410,7 @@ void CubeMap::UpdateMaterialBuffer(const GameTimer& gt)
 			matData.Roughness = mat->Roughness;
 			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
 			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
 
 			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 
