@@ -1,5 +1,7 @@
 //copy of NormalMapApp by Frank Luna, ch19
 //evoluted from ch18
+//要实现法线贴图，我们只需要简单传入法线纹理图即可， 法线纹理和正常纹理的传入方式是相同的
+//在shader中，我们根据原本顶点的纹理和法线纹理中的扰动值进行计算，然后将纹理再转换到世界空间中，从而计算光照
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"

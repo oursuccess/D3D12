@@ -88,13 +88,18 @@ cbuffer cbPass : register(b1)
 //ch19. 添加一个将Normal加上偏移量后转换到世界空间中的方法
 float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, float3 tangentW)
 {
+    //将normal从[0, 1]映射到[-1, 1]
     float3 normalT = 2.0f * normalMapSample - 1.0f;
+    //计算TBN, TBN按行排列为切线空间到物体空间的变换矩阵. 由于这里的Normal和Tangent都已经乘过世界矩阵了，因此这里变换到的是世界空间
     float3 N = unitNormalW;
+    //保证T和N正交
     float3 T = normalize(tangentW - dot(tangentW, N) * N);
+    //N和T叉乘得到B。 左手定则
     float3 B = cross(N, T);
 
     float3x3 TBN = { T, B, N };
 
+    //将normal转换到世界空间中
     float3 bumpedNormalW = mul(normalT, TBN);
     return bumpedNormalW;
 }
