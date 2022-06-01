@@ -50,9 +50,14 @@ VertexOut VS(VertexIn vin)
 
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+    
+    //Quiz1903, 方法1, 让T也同样进行纹理变换，从而和旋转矩阵对应
+    //vin.TangentU = mul(vin.TangentU, (float3x3) matData.MatTransform);
 
     //ch19. 传入TangentW
     vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
+    //Quiz1903, 方法2, 让TangentW也跟随旋转. 绕着Normal进行旋转
+    vout.TangentW = mul(vout.TangentW, (float3x3) matData.MatTransform);
 
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
