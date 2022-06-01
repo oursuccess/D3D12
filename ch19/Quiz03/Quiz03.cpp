@@ -361,10 +361,15 @@ void CubeMap::OnKeyboardInput(const GameTimer& gt)
 	mCamera.UpdateViewMatrix();
 }
  
+#pragma region Quiz1903
+//我们让Box的材质旋转起来
 void CubeMap::AnimateMaterials(const GameTimer& gt)
 {
-	
+	auto matBox = mMaterials["bricks0"].get();
+	XMStoreFloat4x4(&matBox->MatTransform, XMMatrixRotationZ(gt.TotalTime()));
+	matBox->NumFramesDirty = gNumFrameResources;
 }
+#pragma endregion
 
 void CubeMap::UpdateObjectCBs(const GameTimer& gt)
 {
