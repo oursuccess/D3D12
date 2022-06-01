@@ -57,9 +57,13 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 	
+    //Quiz1903, 我们将UV映射到(-0.5, 0.5)范围内
+    vin.TexC -= float2(0.5f, 0.5f);
 	// Output vertex attributes for interpolation across triangle.
 	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
 	vout.TexC = mul(texC, matData.MatTransform).xy;
+    //Quiz1903, 再重新将UV映射回(0, 1)范围
+    vout.TexC += float2(0.5f, 0.5f);
 	
     return vout;
 }
