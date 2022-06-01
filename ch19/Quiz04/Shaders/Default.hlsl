@@ -96,7 +96,7 @@ float4 PS(VertexOut pin) : SV_Target
     float3 T = normalize(pin.TangentU - dot(pin.TangentU, N) * N);
     float3 B = cross(N, T);
     float3x3 TBN = { T, B, N };
-    float3 worldToU = mul(TBN, (float3x3) gWorld);
+    float3x3 worldToU = mul(TBN, (float3x3) gWorld);
     //求出观察向量在切线空间中的位置
     float3 toEyeU = mul(worldToU, toEyeW);
     //求出顶点在切线空间中的位置
@@ -127,8 +127,12 @@ float4 PS(VertexOut pin) : SV_Target
     float4 litColor = ambient + directLight;
 
 	// Add in specular reflections.
-	//float3 r = reflect(-toEyeW, bumpedNormalW);
-    float3 r = reflect(-toEyeU, normalU);
+    //天空盒还是要在世界空间中进行采样。 因为我们的天空盒是在世界空间中生成的
+    float3 tangentW = mul(pin.TangentU, (float3x3) gWorld);
+    float3 normalW = mul(pin.NormalL, (float3x3) gWorld);
+    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, normalW, tangentW);
+	float3 r = reflect(-toEyeW, bumpedNormalW);
+    //float3 r = reflect(-toEyeU, normalU);
 	float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
 	//float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
     float3 fresnelFactor = SchlickFresnel(fresnelR0, normalU, r);
