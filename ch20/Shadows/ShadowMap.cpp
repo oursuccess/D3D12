@@ -72,7 +72,7 @@ void ShadowMap::OnResize(UINT newWidth, UINT newHeight)
 void ShadowMap::BuildDescriptors()
 {
     // Create SRV to resource so we can sample the shadow map in a shader program.
-    //创建一个可以用于对深度图采样的资源
+    //利用阴影贴图创建一个可以用于对深度图采样的资源
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
@@ -84,7 +84,7 @@ void ShadowMap::BuildDescriptors()
     md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv);
 
     // Create DSV to resource so we can render to the shadow map.
-    //创建深度图资源
+    //利用阴影贴图创建深度图资源
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;

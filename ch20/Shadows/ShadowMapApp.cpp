@@ -1,4 +1,9 @@
 //copy of ShadowMapApp.cpp by FrankLuna, ch20
+/*
+ * 要实现阴影效果，我们可以先在光源处对场景采样，记录所有物体相对于光源的深度
+ * 然后，在以摄像机视角绘制场景时，记录所有物体相对于光源的深度，然后和深度图中记录的深度信息对比，若深度比深度图中的深度更大，则说明物体处于阴影中
+ * 为了防止较小的阴影图下的锯齿等问题，我们可以使用深度偏移量和OPT核方法，来尽可能柔滑深度阴影的边缘
+*/
 
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
@@ -123,9 +128,11 @@ private:
 	UINT mSkyTexHeapIndex = 0;
     UINT mShadowMapHeapIndex = 0;
 
+    //ch20. 添加阴影图所用的立方体和贴图纹理偏移
     UINT mNullCubeSrvIndex = 0;
     UINT mNullTexSrvIndex = 0;
 
+    //ch20. 阴影图的着色器资源视图
     CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
 
     PassConstants mMainPassCB;  // index 0 of pass cbuffer.
@@ -133,10 +140,13 @@ private:
 
 	Camera mCamera;
 
+    //阴影贴图类
     std::unique_ptr<ShadowMap> mShadowMap;
 
+    //整个场景的包围球， 用来模拟天空，从而让光源在天空中移动
     DirectX::BoundingSphere mSceneBounds;
 
+    //光源的相关信息
     float mLightNearZ = 0.0f;
     float mLightFarZ = 0.0f;
     XMFLOAT3 mLightPosW;
@@ -205,6 +215,7 @@ bool ShadowMapApp::Initialize()
 
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
  
+    //创建一个2048*2048的阴影图
     mShadowMap = std::make_unique<ShadowMap>(
         md3dDevice.Get(), 2048, 2048);
 
@@ -232,6 +243,7 @@ bool ShadowMapApp::Initialize()
 
 void ShadowMapApp::CreateRtvAndDsvDescriptorHeaps()
 {
+    //添加额外的6个用于立方体贴图的渲染目标
     // Add +6 RTV for cube render target.
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
     rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
@@ -241,6 +253,7 @@ void ShadowMapApp::CreateRtvAndDsvDescriptorHeaps()
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
         &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
+    //添加一个用于阴影贴图的深度/模板缓冲区
     // Add +1 DSV for shadow map.
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
     dsvHeapDesc.NumDescriptors = 2;
@@ -280,6 +293,7 @@ void ShadowMapApp::Update(const GameTimer& gt)
     // Animate the lights (and hence shadows).
     //
 
+    //变更光源方向，从而影响阴影
     mLightRotationAngle += 0.1f*gt.DeltaTime();
 
     XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
@@ -293,6 +307,7 @@ void ShadowMapApp::Update(const GameTimer& gt)
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
+    //更新阴影的变换矩阵
     UpdateShadowTransform(gt);
 	UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
@@ -321,6 +336,7 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
     // Bind null SRV for shadow map pass.
+    //ch20, 将阴影用Srv与阴影贴图纹理绑定
     mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);	 
 
     // Bind all the textures used in this scene.  Observe
@@ -328,6 +344,7 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     // The root signature knows how many descriptors are expected in the table.
     mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
+    //ch20, 绘制阴影贴图
     DrawSceneToShadowMap();
 
     mCommandList->RSSetViewports(1, &mScreenViewport);
@@ -359,6 +376,7 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
+    //ch20, 绘制用于显示阴影所用的深度/模板缓冲区的贴图
     mCommandList->SetPipelineState(mPSOs["debug"].Get());
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
 
@@ -498,6 +516,7 @@ void ShadowMapApp::UpdateMaterialBuffer(const GameTimer& gt)
 void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 {
     // Only the first "main" light casts a shadow.
+    //我们只产生主光源的阴影
     XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);
     XMVECTOR lightPos = -2.0f*mSceneBounds.Radius*lightDir;
     XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);
@@ -507,6 +526,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
     XMStoreFloat3(&mLightPosW, lightPos);
 
     // Transform bounding sphere to light space.
+    //将场景包围球变换到光照空间
     XMFLOAT3 sphereCenterLS;
     XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
 
@@ -520,15 +540,18 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 
     mLightNearZ = n;
     mLightFarZ = f;
+    //求得平行光远的正交投影的立方体
     XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
 
     // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+    //计算从NDC空间转到纹理空间的变换矩阵
     XMMATRIX T(
         0.5f, 0.0f, 0.0f, 0.0f,
         0.0f, -0.5f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.5f, 0.5f, 0.0f, 1.0f);
 
+    //光照 * 光照投影矩阵 = NDC下的坐标
     XMMATRIX S = lightView*lightProj*T;
     XMStoreFloat4x4(&mLightView, lightView);
     XMStoreFloat4x4(&mLightProj, lightProj);
@@ -573,6 +596,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+//ch20. 更新阴影图
 void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
 {
     XMMATRIX view = XMLoadFloat4x4(&mLightView);
@@ -1379,6 +1403,7 @@ void ShadowMapApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
     }
 }
 
+//根据场景更新阴影图
 void ShadowMapApp::DrawSceneToShadowMap()
 {
     mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
