@@ -636,7 +636,10 @@ void ShadowMapApp::LoadTextures()
 		"tileNormalMap",
 		"defaultDiffuseMap",
 		"defaultNormalMap",
-		"skyCubeMap"
+		"skyCubeMap",
+#pragma region Quiz2001
+        "iceDiffuseMap",
+#pragma endregion
 	};
 	
     std::vector<std::wstring> texFilenames =
@@ -647,7 +650,10 @@ void ShadowMapApp::LoadTextures()
         L"Textures/tile_nmap.dds",
         L"Textures/white1x1.dds",
         L"Textures/default_nmap.dds",
-        L"Textures/desertcube1024.dds"
+        L"Textures/desertcube1024.dds",
+#pragma region Quiz2001
+        L"Textures/ice.dds",
+#pragma endregion
     };
 	
 	for(int i = 0; i < (int)texNames.size(); ++i)
@@ -669,7 +675,7 @@ void ShadowMapApp::BuildRootSignature()
 	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 11, 2, 0);
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -714,7 +720,10 @@ void ShadowMapApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 14;
+#pragma region Quiz2001
+    //添加一个ice，因此这里从14变为15
+	srvHeapDesc.NumDescriptors = 15;
+#pragma endregion
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -731,7 +740,10 @@ void ShadowMapApp::BuildDescriptorHeaps()
 		mTextures["tileDiffuseMap"]->Resource,
 		mTextures["tileNormalMap"]->Resource,
 		mTextures["defaultDiffuseMap"]->Resource,
-		mTextures["defaultNormalMap"]->Resource
+		mTextures["defaultNormalMap"]->Resource,
+#pragma region Quiz2001
+		mTextures["iceDiffuseMap"]->Resource,
+#pragma endregion
 	};
 	
 	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
