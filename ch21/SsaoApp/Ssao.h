@@ -61,6 +61,21 @@ struct PassConstants
 	Light Lights[MaxLights];
 };
 
+//用于实现环境光遮蔽的常量
+struct SsaoConstants
+{
+	//光源的投影矩阵
+	DirectX::XMFLOAT4X4 Proj;
+	//光源投影矩阵的逆矩阵
+	DirectX::XMFLOAT4X4 InvProj;
+	//光源的投影矩阵和纹理采样矩阵的联立。用于直接从光源坐标系下对阴影图进行采样
+	DirectX::XMFLOAT4X4 ProjTex;
+	//相对于当前采样点的随机发散点r
+	DirectX::XMFLOAT4 OffsetVectors[14];
+
+	DirectX::XMFLOAT4 BlurWeights[3];
+};
+
 class Ssao
 {
 };
