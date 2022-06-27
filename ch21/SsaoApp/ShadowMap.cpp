@@ -1,7 +1,7 @@
 #include "ShadowMap.h"
 
 ShadowMap::ShadowMap(ID3D12Device* device, UINT width, UINT height) :
-    md3dDevice(device), mWidth(width), mHeight(height), mViewPort({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f}),
+    md3dDevice(device), mWidth(width), mHeight(height), mViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f}),
     mScissorRect({0, 0, (int)width, (int)height})
 {
     BuildResource();
@@ -34,7 +34,7 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE ShadowMap::Dsv() const
 
 D3D12_VIEWPORT ShadowMap::Viewport() const
 {
-    return mViewPort;
+    return mViewport;
 }
 
 D3D12_RECT ShadowMap::ScissorRect() const
