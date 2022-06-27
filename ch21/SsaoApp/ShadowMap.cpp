@@ -74,7 +74,7 @@ void ShadowMap::BuildDescriptors()
     srvDesc.Texture2D.MipLevels = 1;    //默认该2D着色器资源的Mip层级数量
     srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;   //默认该2D着色器资源允许的最小的LOD值。 我们采样的值不能比该值小
     srvDesc.Texture2D.PlaneSlice = 0;   //描述该2D着色器资源使用的平面的索引值
-    md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv); //创建着色器资源视图
+    md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv); //在CPUSrv处，根据srvDesc创建着色器资源视图, 该资源将被创建到CpuSrv的位置
 
     //构建保存深度信息的深度/模板视图
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -82,32 +82,32 @@ void ShadowMap::BuildDescriptors()
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;  //描述该深度视图的纬度。 2D
     dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; //描述该深度视图的格式。 我们使用24位存储深度，使用8位存储模板
     dsvDesc.Texture2D.MipSlice = 0; //描述该深度图的最小索引值
-    md3dDevice->CreateDepthStencilView(mShadowMap.Get(), &dsvDesc, mhCpuDsv);
+    md3dDevice->CreateDepthStencilView(mShadowMap.Get(), &dsvDesc, mhCpuDsv);   //在CpuDsv处创建深度/模板视图
 }
 
 void ShadowMap::BuildResource()
 {
-    //我们无法压缩资源，因为压缩格式无法用于随机采样
+    //我们无法压缩资源，因为压缩格式无法用于随机采样(UAV)
     D3D12_RESOURCE_DESC texDesc;
     ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
-    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    texDesc.Alignment = 0;
-    texDesc.Width = mWidth;
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; //表示该资源为2D的贴图
+    texDesc.Alignment = 0;  //表示该资源的alignment
+    texDesc.Width = mWidth; //资源的宽和高
     texDesc.Height = mHeight;
-    texDesc.DepthOrArraySize = 1;
+    texDesc.DepthOrArraySize = 1;   //记录该资源的数组长度
     texDesc.MipLevels = 1;
     texDesc.Format = mFormat;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.SampleDesc.Quality = 0;
-    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    texDesc.SampleDesc.Count = 1;   //表示资源的多重采样数量
+    texDesc.SampleDesc.Quality = 0; //资源的质量。 质量越高，效率越低
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;  //表明该纹理资源的布局。 UNKNOWN表示其不会自动设置
+    texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;    //表明该资源为允许深度/模板写入
 
-    D3D12_CLEAR_VALUE optClear;
-    optClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    D3D12_CLEAR_VALUE optClear; //该值表示对资源进行初始化/重置时的将修改的值
+    optClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;    //表明该资源的类型
     optClear.DepthStencil.Depth = 1.0f;
     optClear.DepthStencil.Stencil = 0;
 
     ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mShadowMap)));
+        D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mShadowMap)));  //创建一个只读的ID3DResource,用来创建深度视图和资源着色器视图
 
 }

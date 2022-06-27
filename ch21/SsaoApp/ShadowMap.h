@@ -42,18 +42,18 @@ private:
 	void BuildResource();	//构建该阴影纹理所需的资源
 
 private:
-	ID3D12Device* md3dDevice = nullptr;
-	D3D12_VIEWPORT mViewport;
-	D3D12_RECT mScissorRect;
-	UINT mWidth = 0;
+	ID3D12Device* md3dDevice = nullptr;	//记录设备
+	D3D12_VIEWPORT mViewport;	//记录当前的视口大小
+	D3D12_RECT mScissorRect;	//记录当前裁剪矩形
+	UINT mWidth = 0;	//阴影纹理的宽和高
 	UINT mHeight = 0;
-	DXGI_FORMAT mFormat = DXGI_FORMAT_R24G8_TYPELESS;
+	DXGI_FORMAT mFormat = DXGI_FORMAT_R24G8_TYPELESS;	//我们使用24位的R通道和8位的G通道
 	
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuSrv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuSrv;	//着色器资源视图分别在CPU和GPU侧的描述符句柄
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuDsv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuDsv;	//深度/模板视图在CPU侧的描述符句柄
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap = nullptr;	//阴影纹理资源
 
 };
 
