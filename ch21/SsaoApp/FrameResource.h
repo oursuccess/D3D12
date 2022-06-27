@@ -35,7 +35,7 @@ struct PassConstants
 	//观察投影矩阵的逆矩阵
 	DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
 	//观察投影矩阵和纹理采样矩阵联立。这里采样的是阴影深度图 叉乘该矩阵后，可以直接得到该坐标对应的可视深度
-	DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 ViewProjTex = MathHelper::Identity4x4();
 	//阴影图的采样矩阵。 使用该矩阵在标准设备坐标系中对阴影图进行采样
 	DirectX::XMFLOAT4X4 ShadowTransform = MathHelper::Identity4x4();
 	//相机(观察点)位置
