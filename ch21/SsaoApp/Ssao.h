@@ -52,7 +52,7 @@ private:
 	void BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount);	//模糊遮蔽率图
 	void BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur);	//我们将x和y方向分别blur，从而将n*n的计算变为n+n
 
-	void BuildResource();	//实际的资源构建
+	void BuildResources();	//实际的资源构建
 	void BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList);	//构建采样贴图
 
 	void BuildOffsetVectors();	//构建计算遮蔽率时对当前点周围进行偏移的采样方向
@@ -72,8 +72,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap1;	//之所以要两个遮蔽率图，是因为我们需要进行blur
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuSrv;	//分别为法线图、深度图、随机采样图、两个遮蔽率图对应的Srv与Rtv. 不需要在本对象中动态构建的对象不需要rtv
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuRtv;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mhNormalMapGpuSrv;	//Srv有两个，一个是CPU一个是GPU.
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuRtv;	//Rtv则只有一个CPU
 
 	
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthMapCpuSrv;
