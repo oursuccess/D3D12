@@ -132,26 +132,121 @@ void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)	//进行描述
 	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
 }
 
-void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso)
+void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso)	//记录流水线状态对象
 {
 	mSsaoPso = ssaoPso;
 	mBlurPso = ssaoBlurPso;
 }
 
-void Ssao::OnResize(UINT newWidth, UINT newHeight)
+void Ssao::OnResize(UINT newWidth, UINT newHeight)	//当分辨率变化时，同步更新视口、裁剪矩形、渲染对象分辨率，然后重建资源
 {
+	if (mRenderTargetWidth != newWidth || mRenderTargetHeight != newHeight) 
+	{
+		mRenderTargetWidth = newWidth;
+		mRenderTargetHeight = newHeight;
+
+		mViewport.TopLeftX = 0.0f;
+		mViewport.TopLeftY = 0.0f;
+		mViewport.Width = mRenderTargetWidth / 2.0f;	//我们以实际分辨率的一半构建遮蔽率图
+		mViewport.Height = mRenderTargetHeight / 2.0f;	
+		mViewport.MinDepth = 0.0f;	//在视锥体空间中，低于该depth的将被剔除. 最小值为0
+		mViewport.MaxDepth = 1.0f;	//在视锥体空间中，高于该depth的将被剔除. 最大值为1
+
+		mScissorRect = { 0, 0, (int)mRenderTargetWidth / 2, (int)mRenderTargetHeight / 2};	//我们的裁剪矩阵同样是实际分辨率的一半
+
+		BuildResources();
+	}
 }
 
 void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+	cmdList->RSSetViewports(1, &mViewport);	//将命令列表的视口与裁剪矩阵设为ssao所需
+	cmdList->RSSetScissorRects(1, &mScissorRect);	//1表示我们只有一个裁剪矩阵
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(), 
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//将遮蔽率图指向的资源的状态从只读改为渲染对象
+
+	float clearValue[] = { 1.0f, 1.0f, 1.0f, 1.0f };	//指定我们将遮蔽率图清除为什么. 尽管我们只用到了R16，但是我们在清除的时候，还是需要传入RGBA
+	cmdList->ClearRenderTargetView(mhAmbientMap0CpuRtv, clearValue, 0, nullptr);	//我们清除的是RenderTargetView，因此自然是传入Rtv
+
+	//OM: Output-Merger 输出合并阶段, 在此阶段我们才可能设置渲染对象
+	cmdList->OMSetRenderTargets(1, &mhAmbientMap0CpuRtv, true, nullptr);	//设置渲染对象, 我们将渲染对象数量设置为1，传入遮蔽图1的地址，并声称我们传入的地址们是连续的(尽管由于只传入了1个，因此不需要额外指定)，最后，由于我们不需要实际持有该资源，因此由底层自行创建即可
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();	//我们从当前帧资源中获取ssao所需的常量缓冲区的地址，并在命令行列表中将其绑定到寄存器的编号0开始
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
+	cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);	//然后，我们传入一个新的根常量，该常量绑定到寄存器的编号1
+
+	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);	//然后，在寄存器的编号2上，我们将我们的法线贴图绑定到描述符表
+	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv); //在寄存器的编号3上，我们将我们的随机向量采样贴图绑定到描述符表
+
+	cmdList->SetPipelineState(mSsaoPso);	//在所需的资源绑定完毕后，我们即可设置渲染状态
+
+	//IA: Input-Assembler 输入装配阶段, 在此阶段我们传入需要处理的顶点和材质们
+	cmdList->IASetVertexBuffers(0, 0, nullptr);	//我们不需要传入顶点和索引， 因为我们只需要使用法线贴图、深度图、随机向量图、世界矩阵、投影矩阵来进行计算
+	cmdList->IASetIndexBuffer(nullptr);
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	//将顶点的拓扑修改为三角形列表
+	cmdList->DrawInstanced(6, 1, 0, 0);	//简单画一个全屏的四边形
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//在绘制调用后，我们可以将遮蔽图0修改为只读状态了
+
+	BlurAmbientMap(cmdList, currFrame, blurCount);	//开始模糊，从而减少毛刺现象
 }
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+	cmdList->SetPipelineState(mBlurPso);	//将流水线状态改为blur
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//设置模糊所需要的常量缓冲区视图
+
+	for (int i = 0; i < blurCount; ++i)
+	{
+		BlurAmbientMap(cmdList, true);	//我们将Blur分为横向和纵向两部分, 其除了合并的位置，其它方向的计算相同
+		BlurAmbientMap(cmdList, false);
+	}
 }
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 {
+	ID3D12Resource* output = nullptr;	//定义我们的输入、输出对象，以及过程中所需要的资源
+	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtv;
+
+	if (horzBlur == true)	//如果我们横向模糊，则我们使用ambientMap1，同时我们以AmbientMap0的GpuSrv作为输入，将其输出到mhAmbientMap1CpuRtv中
+	{
+		output = mAmbientMap1.Get();
+		inputSrv = mhAmbientMap0GpuSrv;
+		outputRtv = mhAmbientMap1CpuRtv;
+	}
+	else //否则，我们使用ambient0进行存储，并且使用AmbientMap1的GpuSrv作为输入，将其输出到AmbientMap0中。 从这里，我们可以看出，我们要先进行横向模糊，再纵向模糊。 因为初始时我们只渲染了AmbientMap0, 最后又把数据写回到了AbmientMap0
+	{
+		output = mAmbientMap0.Get();
+		inputSrv = mhAmbientMap1GpuSrv;
+		outputRtv = mhAmbientMap0CpuRtv;
+	}
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将output的状态从只读变为渲染对象. 因为我们在其它对该对象的操作离开前都将其变回了Generic_Read
+
+	float clearValue[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	cmdList->ClearRenderTargetView(outputRtv, clearValue, 0, nullptr);	//我们清除我们渲染目标的当前值. 我们在以0为输入的时候清除了1，在以1为输入的时候清除了0，因此不会错误清除
+
+	cmdList->OMSetRenderTargets(1, &outputRtv, true, nullptr);	//设置渲染目标
+
+	//由于在ComputeSsao中我们绑定了法线贴图，因此事实上这一行是可以不存在的. 但这里是为了减少前面一定要是ComputeSsao的假设
+	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
+
+	cmdList->SetGraphicsRootDescriptorTable(3, inputSrv); //以我们现在所需要的输入(遮蔽率图0/1来作为着色器资源，来计算环境光遮蔽)
+
+	//下面这3行感觉也是不需要的， 因为我们在ComputeSsao中就是如此. 但是这是为了减少对ComputSsao的依赖
+	cmdList->IASetVertexBuffers(0, 0, nullptr);
+	cmdList->IASetIndexBuffer(nullptr);
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmdList->DrawInstanced(6, 1, 0, 0);
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//然后将渲染目标的状态再变回Generic Read
 }
 
 void Ssao::BuildResources()
