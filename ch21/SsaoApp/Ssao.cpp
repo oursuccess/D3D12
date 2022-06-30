@@ -1,4 +1,9 @@
 #include "Ssao.h"
+#include <DirectXPackedVector.h>
+
+using namespace DirectX;
+using namespace DirectX::PackedVector;
+using namespace Microsoft::WRL;
 
 Ssao::Ssao(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height) :
 	md3dDevice(device)
@@ -6,7 +11,7 @@ Ssao::Ssao(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width,
 	OnResize(width, height);
 
 	BuildOffsetVectors();
-	BuildRandomVectorTexture();
+	BuildRandomVectorTexture(cmdList);
 }
 
 UINT Ssao::SsaoMapWidth() const
@@ -251,12 +256,76 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 
 void Ssao::BuildResources()
 {
+	mNormalMap = nullptr;
+	mAmbientMap0 = nullptr;
+	mAmbientMap1 = nullptr;
+
+	D3D12_RESOURCE_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
+	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	texDesc.Alignment = 0;
+	texDesc.Width = mRenderTargetWidth;
+	texDesc.Height = mRenderTargetHeight;
+	texDesc.DepthOrArraySize = 1;
+	texDesc.MipLevels = 1;
+	texDesc.Format = NormalMapFormat;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	float normalClearColor[] = { 0.0f, 0.0f, 1.0f, 0.0f };
+	CD3DX12_CLEAR_VALUE optClear(NormalMapFormat, normalClearColor);
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mNormalMap)));
+
+	texDesc.Width = mRenderTargetWidth / 2;
+	texDesc.Height = mRenderTargetHeight / 2;
+
+	float ambientClearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	optClear = CD3DX12_CLEAR_VALUE(AmbientMapFormat, ambientClearColor);
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap0)));
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap1)));
 }
 
 void Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList)
 {
 }
 
-void Ssao::BuildOffsetVectors()
+void Ssao::BuildOffsetVectors() //为了防止随机生成的向量分布不随机，因此我们直接以当前点为中心，取其所在的立方体的8个顶点与其与6个面的交点作为扰动向量
 {
+	// 8 cube corners
+	mOffsets[0] = XMFLOAT4(+1.0f, +1.0f, +1.0f, 0.0f);
+	mOffsets[1] = XMFLOAT4(-1.0f, -1.0f, -1.0f, 0.0f);
+
+	mOffsets[2] = XMFLOAT4(-1.0f, +1.0f, +1.0f, 0.0f);
+	mOffsets[3] = XMFLOAT4(+1.0f, -1.0f, -1.0f, 0.0f);
+
+	mOffsets[4] = XMFLOAT4(+1.0f, +1.0f, -1.0f, 0.0f);
+	mOffsets[5] = XMFLOAT4(-1.0f, -1.0f, +1.0f, 0.0f);
+
+	mOffsets[6] = XMFLOAT4(-1.0f, +1.0f, -1.0f, 0.0f);
+	mOffsets[7] = XMFLOAT4(+1.0f, -1.0f, +1.0f, 0.0f);
+
+	// 6 centers of cube faces
+	mOffsets[8] = XMFLOAT4(-1.0f, 0.0f, 0.0f, 0.0f);
+	mOffsets[9] = XMFLOAT4(+1.0f, 0.0f, 0.0f, 0.0f);
+
+	mOffsets[10] = XMFLOAT4(0.0f, -1.0f, 0.0f, 0.0f);
+	mOffsets[11] = XMFLOAT4(0.0f, +1.0f, 0.0f, 0.0f);
+
+	mOffsets[12] = XMFLOAT4(0.0f, 0.0f, -1.0f, 0.0f);
+	mOffsets[13] = XMFLOAT4(0.0f, 0.0f, +1.0f, 0.0f);
+
+    for(int i = 0; i < 14; ++i)
+	{
+		// Create random lengths in [0.25, 1.0].
+		float s = MathHelper::RandF(0.25f, 1.0f);
+		
+		XMVECTOR v = s * XMVector4Normalize(XMLoadFloat4(&mOffsets[i]));
+		
+		XMStoreFloat4(&mOffsets[i], v);
+	}
 }
