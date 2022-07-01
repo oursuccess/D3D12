@@ -256,42 +256,93 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 
 void Ssao::BuildResources()
 {
-	mNormalMap = nullptr;
+	mNormalMap = nullptr;	//先将已持有的资源置空
 	mAmbientMap0 = nullptr;
 	mAmbientMap1 = nullptr;
 
-	D3D12_RESOURCE_DESC texDesc;
-	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
-	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	texDesc.Alignment = 0;
-	texDesc.Width = mRenderTargetWidth;
+	D3D12_RESOURCE_DESC texDesc;	//创建资源描述
+	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));	//清空一下资源
+	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;	//我们指定资源为2D纹理
+	texDesc.Alignment = 0;	//其对齐为0
+	texDesc.DepthOrArraySize = 1;	//数组大小则为1
+	texDesc.MipLevels = 1;	//同样的，我们不需要MipMap，因此将MipLevels设为1
+	texDesc.SampleDesc.Count = 1;	//其多重采样数量同样为1，即不需要多重采样
+	texDesc.SampleDesc.Quality = 0;	//采样质量为0
+	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;	//布局暂时不定义, 使用默认即可
+	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;	//我们将该资源描述设置为允许作为渲染对象
+	texDesc.Width = mRenderTargetWidth;	//宽度和高度为实际分辨率
 	texDesc.Height = mRenderTargetHeight;
-	texDesc.DepthOrArraySize = 1;
-	texDesc.MipLevels = 1;
-	texDesc.Format = NormalMapFormat;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	texDesc.Format = NormalMapFormat;	//首先创建为法线贴图
 
-	float normalClearColor[] = { 0.0f, 0.0f, 1.0f, 0.0f };
-	CD3DX12_CLEAR_VALUE optClear(NormalMapFormat, normalClearColor);
+	float normalClearColor[] = { 0.0f, 0.0f, 1.0f, 0.0f };	//我们指定当对法线贴图进行clear操作时的ARGB4个通道的值. 我们将z定为1, 其它都设为0, 表示没有x和y方向的扰动
+	CD3DX12_CLEAR_VALUE optClear(NormalMapFormat, normalClearColor);	//根据clear的值创建CLEAR_VALUE，然后进行实际的要提交的资源的创建
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mNormalMap)));
 
-	texDesc.Width = mRenderTargetWidth / 2;
+	texDesc.Width = mRenderTargetWidth / 2;	//然后，我们将宽高与格式设为遮蔽率贴图所需
 	texDesc.Height = mRenderTargetHeight / 2;
+	texDesc.Format = AmbientMapFormat;
 
-	float ambientClearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float ambientClearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };	//指定遮蔽率图的clear操作的值. 我们只使用了R16, 但是依然需要传入rgba四个通道
 	optClear = CD3DX12_CLEAR_VALUE(AmbientMapFormat, ambientClearColor);
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap0)));
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap0)));	//由于有两个，因此我们需要创建两次
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap1)));
 }
 
 void Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList)
 {
+	//创建采样向量数组, 其分辨率为256*256, 格式则为R8G8B8A8
+	D3D12_RESOURCE_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
+	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	texDesc.Alignment = 0;
+	texDesc.Width = 256;
+	texDesc.Height = 256;
+	texDesc.DepthOrArraySize = 1;
+	texDesc.MipLevels = 1;
+	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mRandomVectorMap)));
+
+	//然后，我们创建一个中间堆，来更新RandomVectorMap, 其大小应当为元素数量[texDesc的数组数量乘上其MipLevel(均为1)] * RandomVectorMap资源的大小
+	const UINT num2DSubresources = texDesc.DepthOrArraySize * texDesc.MipLevels;
+	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(mRandomVectorMap.Get(), 0, num2DSubresources);
+
+	//我们将创建一个只读的用于更新mRandomVectorMap的上传堆缓冲区
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize), D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(mRandomVectorMapUploadBuffer.GetAddressOf())));
+
+	//256 * 256，我们每个点都进行一下随机扰动, 来模拟实际的x、y、z分量上的长度
+	XMCOLOR initData[256 * 256];
+	for (int i = 0; i < 256; ++i)
+	{
+		for (int j = 0; j < 256; ++j)
+		{
+			XMFLOAT3 v(MathHelper::RandF(), MathHelper::RandF(), MathHelper::RandF()); //每个分量都是(0, 1)，我们在shader里将其改为[-1, 1]
+
+			initData[i * 256 + j] = XMCOLOR(v.x, v.y, v.z, 0.0f);
+		}
+	}
+
+	D3D12_SUBRESOURCE_DATA subResourceData = {};	//根据initData来创建资源
+	subResourceData.pData = initData;
+	subResourceData.RowPitch = 256 * sizeof(XMCOLOR);	//其为一个2D的纹理数组, 每个点都记录了我们要访问的具体长度
+	subResourceData.SlicePitch = subResourceData.RowPitch * 256;
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRandomVectorMap.Get(), 
+		D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COPY_DEST));		//我们根据subResourceData来用mRandomVectorMapUploadBuffer对mRandomVectorMap进行更新
+	UpdateSubresources(cmdList, mRandomVectorMap.Get(), mRandomVectorMapUploadBuffer.Get(),
+		0, 0, num2DSubresources, &subResourceData);
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRandomVectorMap.Get(), 
+		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
 void Ssao::BuildOffsetVectors() //为了防止随机生成的向量分布不随机，因此我们直接以当前点为中心，取其所在的立方体的8个顶点与其与6个面的交点作为扰动向量

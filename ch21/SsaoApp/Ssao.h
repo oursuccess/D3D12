@@ -65,7 +65,7 @@ private:
 	ID3D12PipelineState* mSsaoPso = nullptr;	//ssao对应的pso
 	ID3D12PipelineState* mBlurPso = nullptr;	//blur对应的pso
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;	//分别存储了随机采样点，法线图，两个遮蔽率图
+	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;	//分别存储了随机采样点的长度!，法线图，两个遮蔽率图
 	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;
@@ -93,7 +93,7 @@ private:
 	UINT mRenderTargetWidth;	//作为渲染对象的贴图的宽和高
 	UINT mRenderTargetHeight;
 
-	DirectX::XMFLOAT4 mOffsets[14];	//存储了采样点周围计算的随机点相对采样点的便宜
+	DirectX::XMFLOAT4 mOffsets[14];	//存储了采样点周围计算的随机点相对采样点的方向向量
 
 	D3D12_VIEWPORT mViewport;	//分别存储了视口和裁剪矩形
 	D3D12_RECT mScissorRect;
