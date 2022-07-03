@@ -87,7 +87,7 @@ private:
 	void BuildRenderItems();	//构建渲染项. 渲染项包含了世界矩阵、采样矩阵、物体对象在资源中的便宜、其材质、其几何、其顶点数量、其索引起始量等
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);	//根据传入的渲染项依次绘制渲染项. 将绘制命令放在命令列表中
 	void DrawSceneToShadowMap();	//根据场景绘制阴影贴图(从光源看的深度图)
-	void DrawNormalsAndDepths();	//绘制法线和深度图(从相机看的)
+	void DrawNormalsAndDepth();	//绘制法线和深度图(从相机看的)
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index) const;	//分别为获取对应的着色器资源视图、深度模板视图、渲染对象视图的方法
 	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index) const;
