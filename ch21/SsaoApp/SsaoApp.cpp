@@ -410,8 +410,14 @@ void SsaoApp::UpdateObjectCBs(const GameTimer& gt)
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);	//获取其纹理采样矩阵
 
 			ObjectConstants objConstants;
-			//FIXME
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//我们将世界矩阵的转置矩阵存入objConstants. 在dx的矩阵变换中，矩阵为按行摆放的，然后顶点/向量在左边，这里为什么转置了????
+			//dx中，XMMATRIX为row-major, hlsl默认为column-major:
+			//https://docs.microsoft.com/en-us/windows/win32/api/directxmath/nf-directxmath-xmloadfloat4x4
+			//https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-per-component-math
+			//相比之下, opengl和cg中默认均为column-major, 因为opengl期望顶点/矢量在矩阵乘法的右边, 被转为列矩阵
+			//总结即为, 只有dx中为row-major, 其它均为column-major
+			//我们需要在从dx传入hlsl时进行一次转置
+			//https://stackoverflow.com/questions/31504378/why-do-we-need-to-use-the-transpose-of-a-transformed-matrix-direct3d11
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//我们将世界矩阵的转置矩阵存入objConstants. 在dx的矩阵变换中，矩阵为按行摆放的，然后顶点/向量在左边，这里之所以转置，是因为hlsl默认是column-major, 而XMMATRIX则默认是row-major!!!
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));	//同样的，存入objConstants的纹理采样矩阵的也是其纹理采样矩阵的转置矩阵
 			objConstants.MaterialIndex = e->Mat->MatCBIndex;	//其材质下标和原本的下标相同
 
