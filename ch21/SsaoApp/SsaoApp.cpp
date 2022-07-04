@@ -209,14 +209,67 @@ bool SsaoApp::Initialize()
 
 void SsaoApp::CreateRtvAndDsvDescriptorHeaps()
 {
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;	//创建描述符堆,用于描述渲染对象
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 3;	//渲染对象要多3个，其中1个为屏幕法线图，还有2个为遮蔽率图. 这些都是Ssao要用的. 原本所需的是SwapChainBufferCount
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;	//其类型自然为渲染目标
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;	//没什么特殊标记
+	rtvHeapDesc.NodeMask = 0;	//同样没有节点标记
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));	//根据描述符堆说明创建实际的描述符堆
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;	//为了ShadowMap，增加一个用于描述深度/模板视图的描述符堆描述
+	dsvHeapDesc.NumDescriptors = 2;	//原本需要一个深度/模板视图(参见D3DApp::CreateRtvAndDsvDescriptorHeap()), 现在又增加了1个
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;	//其类型自然为DSV
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;	//同样没有特殊标记
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));	//根据说明创建实际的描述符堆
 }
 
 void SsaoApp::OnResize()
 {
+	D3DApp::OnResize();	//首先调用基类的OnResize方法. 基类的方法中调整了窗口分辨率、裁剪矩形, 并对分辨率进行了保存
+
+	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);		//重新构建相机视角. 其第一个参数为FOV
+
+	if (mSsao != nullptr)
+	{
+		mSsao->OnResize(mClientWidth, mClientHeight);	//若Ssao启用，则同时调用Ssao的OnResize方法
+
+		mSsao->RebuildDescriptors(mDepthStencilBuffer.Get());	//同样的我们让Ssao重新构建描述符. 之所以要传入mDepthStencilBuffer，是因为我们在App中还需要该缓冲区
+	}
 }
 
 void SsaoApp::Update(const GameTimer& gt)
 {
+	OnKeyboardInput(gt);	//首先响应玩家的输入
+
+	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;	//每次步进一个FrameResourceIndex
+	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)	//如果当前帧资源的围栏值不为0，且GPU尚未处理到该Frame，则无限等待. 
+	{
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));	//在GPU处理该FrameResource后，会将当前Fence值设置为当前帧的Fence值
+		WaitForSingleObject(eventHandle, INFINITE);	//无限等待直至该事件被触发(此时Fence值也将被设置)
+		CloseHandle(eventHandle);	//事件触发后，关闭事件
+	}
+
+	mLightRotationAngle += 0.1f * gt.DeltaTime();	//让光旋转. 每秒旋转1/10. 每帧旋转时间乘以该值
+
+	XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);	//根据该角度构建绕y轴旋转的矩阵
+	for (int i = 0; i < 3; ++i)
+	{
+		XMVECTOR lightDir = XMLoadFloat3(&mBaseLightDirections[i]);
+		lightDir = XMVector3TransformNormal(lightDir, R);	//旋转一个向量，因此我们使用TransformNormal方法. 若用Transform，则默认为旋转点
+		XMStoreFloat3(&mRotatedLightDirections[i], lightDir);
+	}
+
+	AnimateMaterials(gt);	//材质的动画
+	UpdateObjectCBs(gt);	//更新物体常量缓冲区
+	UpdateMaterialBuffer(gt);	//更新材质缓冲区
+	UpdateShadowTransform(gt);	//更新阴影的变换矩阵
+	UpdateMainPassCB(gt);	//更新主帧的常量缓冲区
+	UpdateShadowPassCB(gt);	//更新阴影图的常量缓冲区
+	UpdateSsaoCB(gt);	//更新Ssao的常量缓冲区
 }
 
 void SsaoApp::Draw(const GameTimer& gt)

@@ -116,7 +116,7 @@ void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)	//进行描述
 
 	//此后，我们不断更新格式, 并分别创建相应的srv
 	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;	//深度图只需要R24通道	
-	md3dDevice->CreateShaderResourceView(depthStencilBuffer, &srvDesc, mhRandomVectorMapCpuSrv);	//由于深度图并不是我们创建，且我们也不需要在SsaoCPU侧使用，因此我们不需要持有其资源，只需要持有其句柄即可
+	md3dDevice->CreateShaderResourceView(depthStencilBuffer, &srvDesc, mhRandomVectorMapCpuSrv);	//由于深度图并不是我们创建，且我们也不需要在SsaoCPU侧使用，因此我们不需要持有其资源，只需要持有其句柄即可. 但是，我们需要将其资源传递出去。 因为外部需要改位置
 
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//偏移向量纹理图的格式为R8B8G8A8
 	md3dDevice->CreateShaderResourceView(mRandomVectorMap.Get(), &srvDesc, mhRandomVectorMapCpuSrv);
