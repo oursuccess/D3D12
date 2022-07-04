@@ -563,11 +563,42 @@ void SsaoApp::UpdateShadowPassCB(const GameTimer& gt)
 	mShadowPassCB.FarZ = mLightFarZ;
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();	//同样获取当前帧的常量缓冲区
-	currPassCB->CopyData(1, mShadowPassCB);	//注意这里复制到的下标位置为1，而不是MainPass对应的0!
+	currPassCB->CopyData(1, mShadowPassCB);	//注意这里复制到的下标位置为1，而不是MainPass对应的0!	而currFrameResourceCB的长度为2. 可参见BuildFrameResources方法
 }
 
 void SsaoApp::UpdateSsaoCB(const GameTimer& gt)
 {
+	SsaoConstants ssaoCB;	//创建ssaoCB
+	
+	XMMATRIX P = mCamera.GetProj();	//获取相机的投影矩阵
+
+	XMMATRIX T{	//将坐标从[-1, 1]的NDC空间变换到[0, 1]的纹理采样坐标的变换矩阵
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f,
+	};
+
+	ssaoCB.Proj = mMainPassCB.Proj;	//从mainPassCB中复制投影和逆投影矩阵
+	ssaoCB.InvProj = mMainPassCB.InvProj;
+	XMStoreFloat4x4(&ssaoCB.ProjTex, XMMatrixTranspose(P * T));	//投影采样矩阵，则可以由相机的投影矩阵和采样矩阵联立获得. 因为我们只需要将坐标变换到相机的观察空间中. 无需真的变换回世界空间. 我们判断一个点是否被其它点挡住，肯定是要在观察空间里！
+
+	mSsao->GetOffsetVectors(ssaoCB.OffsetVectors);	//从Ssao中获取一个点计算遮蔽率时的偏移向量们
+
+	auto blurWeights = mSsao->CalcGaussWeights(2.5f);	//根据权重计算模糊的权重们. 传入2.5f时，我们计算的是长度为11的高斯模糊表
+	ssaoCB.BlurWeights[0] = XMFLOAT4(&blurWeights[0]);	//将权重们取出. 0为最左边的一个权重. 为什么是这三个?
+	ssaoCB.BlurWeights[1] = XMFLOAT4(&blurWeights[4]);	//4对应中间偏左的权重
+	ssaoCB.BlurWeights[2] = XMFLOAT4(&blurWeights[8]);	//8对应的是中间偏右的权重
+
+	ssaoCB.InvRenderTargetSize = XMFLOAT2(1.0f / mSsao->SsaoMapWidth(), 1.0f / mSsao->SsaoMapHeight());	//渲染目标的倒数同样需要用1除
+
+	ssaoCB.OcclusionRadius = 0.5f;	//我们判断是否可能被遮挡时随机采样的最大距离
+	ssaoCB.OcclusionFadeStart = 0.2f;	//低于该距离，我们认为完全遮蔽
+	ssaoCB.OcclusionFadeEnd = 1.0f;	//高于此距离，我们认为无法遮蔽. 在Start到End中，遮蔽程度随着距离变化
+	ssaoCB.SurfaceEpsilon = 0.05f;	//低于此距离，我们认为在同一平面，因此不可能被遮蔽
+
+	auto currSsaoCB = mCurrFrameResource->SsaoCB.get();	//这里获取的是SsaoCB, 而非PassCB
+	currSsaoCB->CopyData(0, ssaoCB);
 }
 
 void SsaoApp::LoadTextures()
