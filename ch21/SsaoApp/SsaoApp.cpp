@@ -156,3 +156,194 @@ private:
 
 	POINT mLastMousePos;	//记录上一次的鼠标位置
 };
+
+SsaoApp::SsaoApp(HINSTANCE hInstance) : D3DApp(hInstance)
+{
+	//我们已然知道场景包围球的中心店和其半径
+	//若要通用性的话，我们需要遍历整个世界空间下所有顶点的坐标，然后计算出包围球
+	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(10.0f * 10.0f + 15.0f * 15.0f);
+}
+
+SsaoApp::~SsaoApp()
+{
+	//若d3dDevice不为空，则我们需要等待命令队列执行完成，从而防止退出时还有未执行完毕、资源也未备好的命令，导致退出时报错
+	if (md3dDevice != nullptr)
+		FlushCommandQueue();
+}
+
+bool SsaoApp::Initialize()
+{
+	if (!D3DApp::Initialize()) return false;
+
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));		//首先将命令列表重置为空，从而为我们的初始化做准备
+
+	mCamera.SetPosition(0.0f, 2.0f, -15.0f);	//设置相机位置. 这里是左手坐标系, 即相机从斜上方向场景中看. Z值并非0，而是-15
+
+	mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);	//我们创建一个2048*2048分辨率的阴影贴图
+
+	mSsao = std::make_unique<Ssao>(md3dDevice.Get(), mCommandList.Get(), mClientWidth, mClientHeight);	//我们创建一个分辨率和当前屏幕分辨率相同的Ssao
+
+	LoadTextures();	//加载纹理
+	BuildRootSignature();	//创建根签名. 从而为后面的资源绑定做准备
+	BuildSsaoRootSignature();	//创建Ssao所需的根签名. 同样为后面的资源绑定做准备
+	BuildDescriptorHeaps();	//创建描述符堆.我们将纹理资源绑定到描述符堆中. 而描述符堆则在根签名中定义
+	BuildShadersAndInputLayout();	//加载shader代码和输入描述布局.
+	BuildShapeGeometry();	//创建几何
+	BuildSkullGeometry();	//创建骷髅头几何
+	BuildMaterials();	//创建材质们. 材质包含了纹理、粗糙度、R0等
+	BuildRenderItems();	//创建渲染项. 渲染项里包含了材质、几何、PRIMITIVE_TYPE、顶点数量等
+	BuildFrameResources();	//创建帧资源. 帧资源包含了渲染项和实际材质
+	BuildPSOs();	//创建流水线状态对象. 流水线状态对象要求我们设置好了根签名、材质、Shader代码、输入描述布局等
+
+	mSsao->SetPSOs(mPSOs["ssao"].Get(), mPSOs["ssaoBlur"].Get());	//为Ssao传入必须的Ssao和SsaoBlur流水线状态对象
+
+	ThrowIfFailed(mCommandList->Close());	//在初始化完成后，开始根据命令列表执行命令队列
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);	
+
+	FlushCommandQueue();	//等待初始化完成
+
+	return true;
+}
+
+void SsaoApp::CreateRtvAndDsvDescriptorHeaps()
+{
+}
+
+void SsaoApp::OnResize()
+{
+}
+
+void SsaoApp::Update(const GameTimer& gt)
+{
+}
+
+void SsaoApp::Draw(const GameTimer& gt)
+{
+}
+
+void SsaoApp::OnMouseDown(WPARAM btnState, int x, int y)
+{
+}
+
+void SsaoApp::OnMouseUp(WPARAM btnState, int x, int y)
+{
+}
+
+void SsaoApp::OnMouseMove(WPARAM btnState, int x, int y)
+{
+}
+
+void SsaoApp::OnKeyboardInput(const GameTimer& gt)
+{
+}
+
+void SsaoApp::AnimateMaterials(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateObjectCBs(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateMaterialBuffer(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateShadowTransform(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateMainPassCB(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateShadowPassCB(const GameTimer& gt)
+{
+}
+
+void SsaoApp::UpdateSsaoCB(const GameTimer& gt)
+{
+}
+
+void SsaoApp::LoadTextures()
+{
+}
+
+void SsaoApp::BuildRootSignature()
+{
+}
+
+void SsaoApp::BuildSsaoRootSignature()
+{
+}
+
+void SsaoApp::BuildDescriptorHeaps()
+{
+}
+
+void SsaoApp::BuildShadersAndInputLayout()
+{
+}
+
+void SsaoApp::BuildShapeGeometry()
+{
+}
+
+void SsaoApp::BuildSkullGeometry()
+{
+}
+
+void SsaoApp::BuildPSOs()
+{
+}
+
+void SsaoApp::BuildFrameResources()
+{
+}
+
+void SsaoApp::BuildMaterials()
+{
+}
+
+void SsaoApp::BuildRenderItems()
+{
+}
+
+void SsaoApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+{
+}
+
+void SsaoApp::DrawSceneToShadowMap()
+{
+}
+
+void SsaoApp::DrawNormalsAndDepth()
+{
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetCpuSrv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_GPU_DESCRIPTOR_HANDLE SsaoApp::GetGpuSrv(int index) const
+{
+	return CD3DX12_GPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetDsv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetRtv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> SsaoApp::GetStaticSamplers()
+{
+	return std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7>();
+}
