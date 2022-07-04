@@ -350,18 +350,49 @@ void SsaoApp::Draw(const GameTimer& gt)
 
 void SsaoApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
+
+	SetCapture(mhMainWnd);	//将画面定格为鼠标按下前
 }
 
 void SsaoApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
+	ReleaseCapture();	//重新释放画面
 }
 
 void SsaoApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
+	if ((btnState & MK_LBUTTON) != 0)	//若按下的是鼠标左键
+	{
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));	//根据当前移动的x值，将其转为弧度. 我们假定从当前屏幕移动的范围为-90 ~ 90
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));	//根据当前移动的y值，将其转为弧度. 我们假定从当前屏幕移动的范围同样为-90 ~ 90
+
+		mCamera.Pitch(dy);	//让相机绕着x轴旋转dy
+		mCamera.RotateY(dx);	//让相机绕着y周旋转dx(yaw)
+	}
+
+	mLastMousePos.x = x;	//更新上次按下鼠标的位置
+	mLastMousePos.y = y;
 }
 
 void SsaoApp::OnKeyboardInput(const GameTimer& gt)
 {
+	const float dt = gt.DeltaTime();
+
+	if (GetAsyncKeyState('W') & 0x8000)	//相机的上、下、左、右移动
+		mCamera.Walk(10.0f * dt);
+
+	if (GetAsyncKeyState('S') & 0x8000)
+		mCamera.Walk(-10.0f * dt);
+
+	if (GetAsyncKeyState('A') & 0x8000)
+		mCamera.Strafe(-10.0f * dt);
+
+	if (GetAsyncKeyState('D') & 0x8000)
+		mCamera.Strafe(10.0f * dt);
+
+	mCamera.UpdateViewMatrix();	//在相机位置变化时，更新其观察矩阵
 }
 
 void SsaoApp::AnimateMaterials(const GameTimer& gt)
@@ -370,10 +401,50 @@ void SsaoApp::AnimateMaterials(const GameTimer& gt)
 
 void SsaoApp::UpdateObjectCBs(const GameTimer& gt)
 {
+	auto currObjectCB = mCurrFrameResource->ObjectCB.get();	//获取当前所有的物体
+	for (auto& e : mAllRitems)
+	{
+		if (e->NumFramesDirty > 0)	//我们仅仅更新那些被打上了脏标记(即需要更新的物体)
+		{
+			XMMATRIX world = XMLoadFloat4x4(&e->World);	//获取其世界矩阵
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);	//获取其纹理采样矩阵
+
+			ObjectConstants objConstants;
+			//FIXME
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//我们将世界矩阵的转置矩阵存入objConstants. 在dx的矩阵变换中，矩阵为按行摆放的，然后顶点/向量在左边，这里为什么转置了????
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));	//同样的，存入objConstants的纹理采样矩阵的也是其纹理采样矩阵的转置矩阵
+			objConstants.MaterialIndex = e->Mat->MatCBIndex;	//其材质下标和原本的下标相同
+
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);	//将新的objConstants存入原本对应e的ObjCBIndex的常量缓冲区的位置中
+
+			e->NumFramesDirty--;	//减少其脏标记值。 这里脏标记初始值为gNumFrameResources
+		}
+	}
 }
 
 void SsaoApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
+	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
+	for (auto& e : mMaterials)	//更新材质们
+	{
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0)	//材质也同样只有在需要更新时才计算
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);	//MatTransfomr之前难道是列优先的么?
+
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->DiffuseAlbedo;	//我们记录材质的漫反射颜色、R0、粗糙度、其法线贴图位置、漫反射贴图位置，以及其材质偏移矩阵
+			matData.FresnelR0 = mat->FresnelR0;
+			matData.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
+
+			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);	//同样，将新的材质数据存储doa原本对应e的MatCBIndex的材质缓冲区中的位置
+
+			mat->NumFramesDirty--;
+		}
+	}
 }
 
 void SsaoApp::UpdateShadowTransform(const GameTimer& gt)
