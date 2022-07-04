@@ -455,14 +455,115 @@ void SsaoApp::UpdateMaterialBuffer(const GameTimer& gt)
 
 void SsaoApp::UpdateShadowTransform(const GameTimer& gt)
 {
+	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);	//我们只为主光源(第一个光源)产生阴影
+	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;	//我们让光源生成在天空盒外，且其为平行光. 因此让其在光的方向的基础上，乘以世界包围球的直径
+	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);	//而光源的目标位置则为包围球的中心点
+	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);	//创建一个上向量
+	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);	//以从lightPos看向targetPos，上方向为lightUp，创建左手坐标系下的光线的观察矩阵
+
+	XMStoreFloat3(&mLightPosW, lightPos);	//存储光线的世界位置
+
+	XMFLOAT3 sphereCenterLS;
+	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));	//将包围球的中心点变换到光源的观察空间中. XMVector3TransformCoord为将顶点按照指定矩阵进行变换
+
+	float l = sphereCenterLS.x - mSceneBounds.Radius;	//在光源观察空间下，计算新的包围球. 我们假设了观察空间不会缩放.
+	float b = sphereCenterLS.y - mSceneBounds.Radius;	//l:left, r:right, n:near, f:far, b:bottom, t:top
+	float n = sphereCenterLS.z - mSceneBounds.Radius;
+	float r = sphereCenterLS.x + mSceneBounds.Radius;
+	float t = sphereCenterLS.y + mSceneBounds.Radius;
+	float f = sphereCenterLS.z + mSceneBounds.Radius;
+
+	mLightNearZ = n;	//更新光源的nearZ和farZ
+	mLightFarZ = f;
+	XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);	//根据l,r,b,t,n,f来创建投影的平截头体
+
+	XMMATRIX T{	//创建将NDC空间坐标[-1, 1]变换到纹理采样坐标[0, 1]的矩阵. 这里的矩阵仅仅影响了x,y. 同时，其为行优先, 且由于dx的设计，ndc纵坐标的0点为上方, 而纹理纵坐标的0点为下方
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f,
+	};
+
+	XMMATRIX S = lightView * lightProj * T;	//联立获得从世界空间经过光源的观察、光源投影、NDC到采样后的光源下世界坐标的纹理采样矩阵. 此即为阴影采样矩阵!
+	XMStoreFloat4x4(&mLightView, lightView);	//将光源观察矩阵、光源投影矩阵、阴影变换矩阵分别存入对应位置
+	XMStoreFloat4x4(&mLightProj, lightProj);
+	XMStoreFloat4x4(&mShadowTransform, S);
 }
 
 void SsaoApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	XMMATRIX view = mCamera.GetView();	//从相机中获取当前的观察矩阵和投影矩阵
+	XMMATRIX proj = mCamera.GetProj();
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);	//view和proj叉乘即为观察投影矩阵
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);	//获取view的逆矩阵. determinant用来辅助逆矩阵的运算
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);	//获取投影矩阵的逆矩阵
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);	//获取观察投影矩阵的逆矩阵
+
+	XMMATRIX T{	//同样的，将NDC空间坐标[-1, 1]变换到纹理采样矩阵[0, 1]的矩阵. 仅影响x,y，且为行优先. 由于dx的设计，ndc纵坐标的原点在上方, 而纹理纵坐标的原点为下方
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f
+	};
+
+	XMMATRIX viewProjTex = XMMatrixMultiply(viewProj, T);	//获取观察投影采样矩阵，用于直接获取世界坐标对应的纹理采样坐标
+	XMMATRIX shadowTransform = XMLoadFloat4x4(&mShadowTransform);	//获取光源空间下从世界坐标直接变换到世界坐标对应的阴影图纹理采样坐标的变换矩阵
+
+	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));	//依次将观察、投影、观察投影、逆观察、逆投影、逆观察投影、观察投影采样、阴影采样矩阵存入主帧的常量缓冲区中. 由于DX和hlsl分别为行优先和列优先，因此需要转置
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProjTex, XMMatrixTranspose(viewProjTex));
+	XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();	//获取观察点(即相机位置)
+	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);	//设置渲染目标的大小. 其应当刚好为视口的大小
+	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);	//设置渲染目标大小的倒数
+	mMainPassCB.NearZ = 1.0f;	//设置 主帧的NearZ和FarZ，分别为定值1和1000
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();	//计算总时间和dt
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.4f, 0.4f, 0.6f, 1.0f };	//设置环境光
+	mMainPassCB.Lights[0].Direction = mRotatedLightDirections[0];	//设置三点布光系统中三个光源的方向和光强
+	mMainPassCB.Lights[0].Strength = { 0.4f, 0.4f, 0.5f };	//这里，其对蓝色的贡献比其他的大
+	mMainPassCB.Lights[1].Direction = mRotatedLightDirections[1];
+	mMainPassCB.Lights[1].Strength = { 0.1f, 0.1f, 0.1f };	//辅光的贡献已经很小了
+	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
+	mMainPassCB.Lights[2].Strength = { 0.0f, 0.0f, 0.0f };	//补光的贡献为0
+
+	auto currPassCB = mCurrFrameResource->PassCB.get();	//将我们的帧常量缓冲区中内容拷贝到当前帧的帧常量缓冲区中
+	currPassCB->CopyData(0, mMainPassCB);
 }
 
 void SsaoApp::UpdateShadowPassCB(const GameTimer& gt)
 {
+	XMMATRIX view = XMLoadFloat4x4(&mLightView);	//获取光源的观察矩阵
+	XMMATRIX proj = XMLoadFloat4x4(&mLightProj);	//获取光源的投影矩阵
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);	//同样的，计算观察投影矩阵、逆观察矩阵、逆投影矩阵、逆观察投影矩阵
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	UINT w = mShadowMap->Width();	//获取阴影图的宽高
+	UINT h = mShadowMap->Height();
+
+	XMStoreFloat4x4(&mShadowPassCB.View, XMMatrixTranspose(view));	//同样的，将用于阴影计算的观察、逆观察、投影、逆投影、观察投影、逆观察投影矩阵存入ShadowPass的常量缓冲区中
+	XMStoreFloat4x4(&mShadowPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mShadowPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mShadowPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mShadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mShadowPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	mShadowPassCB.EyePosW = mLightPosW;	//阴影渲染时，观察点为光源点
+	mShadowPassCB.RenderTargetSize = XMFLOAT2((float)w, (float)h);	//该阴影渲染对象的大小为阴影图的大小
+	mShadowPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / w, 1.0f / h);	//其渲染对象的大小的逆倒数同样根据阴影图计算
+	mShadowPassCB.NearZ = mLightNearZ;	//其NearZ和FarZ为光源的NearZ和FarZ
+	mShadowPassCB.FarZ = mLightFarZ;
+
+	auto currPassCB = mCurrFrameResource->PassCB.get();	//同样获取当前帧的常量缓冲区
+	currPassCB->CopyData(1, mShadowPassCB);	//注意这里复制到的下标位置为1，而不是MainPass对应的0!
 }
 
 void SsaoApp::UpdateSsaoCB(const GameTimer& gt)
