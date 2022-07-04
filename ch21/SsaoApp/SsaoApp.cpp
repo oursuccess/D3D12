@@ -274,6 +274,78 @@ void SsaoApp::Update(const GameTimer& gt)
 
 void SsaoApp::Draw(const GameTimer& gt)
 {
+	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;		//获取当前帧的命令分配器
+
+	ThrowIfFailed(cmdListAlloc->Reset());	//重置当前帧的命令分配器
+
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));	//将命令列表重置为以当前帧的命令分配器分配，且初始的流水线状态为Opaque
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };	//获取当前的着色器资源描述符堆
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);	//以当前的着色器资源描述符堆设置命令列表中的描述符堆
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());	//将当前根签名设置为默认根签名
+
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();	//获取当前帧持有的材质缓冲区的资源们
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());	//以材质资源来设置根签名中的第2个位置(该位置为一个着色器资源的根描述符,对应了一个结构化的纹理资源的数组). 需要注意的是我们传入的是一个缓冲区中的位置，而非实际的着色器资源
+
+	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);	//以nullSrv来设置shadowMap帧的根签名中的第3个位置(该位置为描述符表). 需要注意的是，我们不需要传入一个table/array, 也无需传入数组长度， 根签名知道该table中需要多少描述符
+
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//以实际的着色器资源视图来设置根签名的第4个位置(该位置为描述符表)
+
+	DrawSceneToShadowMap();	//将场景绘制到引用图中
+
+	DrawNormalsAndDepth();	//绘制法线和深度图
+
+	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());	//将根签名更改为Ssao
+	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);	//在当前帧中以特定的blur值计算Ssao
+
+	//从现在开始进入main pass
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());	//再次使用当前材质缓冲区的位置重设根签名的第2个元素(着色器资源的根描述符)
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);	//设置视图窗口. 只有1个视图. RS代表Rasterizer Stage, 光栅化阶段. 因为只有这个阶段才正式渲染到视口上
+	mCommandList->RSSetScissorRects(1, &mScissorRect);	//设置裁剪矩形
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), 
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));	//将当前的后台缓冲区设置为渲染对象
+
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);	//以浅绿色、没有裁剪矩形的状态重置后台缓冲区视图
+
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());	//我们设置输出-装配阶段的渲染目标和深度/模板视图资源.深度/模板视图由GPU使用, 而在这之前我们即可计算得出
+
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//同样的，以实际的着色器资源视图来设置根签名的第4个位置(描述符表)
+
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());	//以当前帧的帧常量缓冲区作为根描述符
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//开始准备绑定天空盒. 首先需要获取天空盒的描述符
+	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);	//该描述符的位置应当在GPU的描述符起始位置的基础上向后移动mSkyHeapIndex * mCbvSrvUavDescriptorSize
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);	//以天空盒纹理来设置根签名的第3个位置(该位置为一个描述符表，里面有6个Srv)
+
+	mCommandList->SetPipelineState(mPSOs["opaque"].Get());	//依次绘制Opaque，Debug，Sky。 首先将流水线状态设置为opaque
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);	//绘制. 后面个的两个类似
+
+	mCommandList->SetPipelineState(mPSOs["debug"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+
+	mCommandList->SetPipelineState(mPSOs["sky"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));	//将后台缓冲区从渲染对象修改为准备好显示的状态
+
+	ThrowIfFailed(mCommandList->Close());	//将命令列表关闭，并准备根据此创建命令队列
+
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);	//根据命令列表创建命令队列
+
+	ThrowIfFailed(mSwapChain->Present(0, 0));	//交换当前的前台和后台缓冲区
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+	mCurrFrameResource->Fence = ++mCurrentFence;	//设置新的Fence值. 用来保证CPU不会覆盖GPU尚未处理的帧资源
+	mCommandQueue->Signal(mFence.Get(), mCurrentFence);	//通知队列，当完成后将Fence值设为mCurrentFence
 }
 
 void SsaoApp::OnMouseDown(WPARAM btnState, int x, int y)
