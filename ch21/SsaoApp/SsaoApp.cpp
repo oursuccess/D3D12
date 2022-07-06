@@ -744,10 +744,113 @@ void SsaoApp::BuildSsaoRootSignature()
 
 void SsaoApp::BuildDescriptorHeaps()
 {
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};	//创建SRV描述符堆的描述
+	srvHeapDesc.NumDescriptors = 18;	//其中的描述符数量为18
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;	//其类型为SRV, 不过CBV、SRV、UAV是同一类型
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;	//其对于shader是可见的
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));	//根据描述来在mSrvDescriptorHeap位置创建描述符堆
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor{ mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart() };	//获取CPU侧的描述符开始位置
+
+	std::vector<ComPtr<ID3D12Resource>> tex2DList{	//获取之前已经Load的纹理们，并根据其在堆中创建对应的srv
+		mTextures["bricksDiffuseMap"]->Resource,
+		mTextures["bricksNormalMap"]->Resource,
+		mTextures["tileDiffuseMap"]->Resource,
+		mTextures["tileNormalMap"]->Resource,
+		mTextures["defaultDiffuseMap"]->Resource,
+		mTextures["defaultNormalMap"]->Resource,
+	};
+
+	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};	//创建srv的描述
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	//我们获取时，不需要变更rgba通道的顺序
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//其维度为2D
+	srvDesc.Texture2D.MostDetailedMip = 0;	//其mip从0开始
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;	//其mip的最小可达值为0
+
+	for (UINT i = 0; i < (UINT)tex2DList.size(); ++i)
+	{
+		srvDesc.Format = tex2DList[i]->GetDesc().Format;	//依次设置srcDesc的类型，Mip层级数量
+		srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
+		md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);	//根据srvDesc的说明，利用pResource来在当前的句柄处创建资源
+
+		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);	//然后当前句柄下移
+	}
+
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;	//现在开始准备创建天空贴图, 首先将其维度变为Cube
+	srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;	//因为已经变成了TextureCube，因此我们指定Mip层级数量和最小的LOD时，就需要在TextureCube中设置
+	srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+	srvDesc.Format = skyCubeMap->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);	//根据skyCubeMap资源和srvDesc的描述，在现在的句柄处创建srv
+
+	mSkyTexHeapIndex = (UINT)tex2DList.size();	//天空盒纹理就在2D纹理资源的后面，因此其下标即为2D资源的数量
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;	//我们让阴影贴图纹理跟在天空盒纹理的后面，因此其再加个1
+	mSsaoHeapIndexStart = mShadowMapHeapIndex + 1;	//我们让Ssao的位置再跟在阴影贴图的后面
+	//FIXME
+	mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;	//Ssao共需要5个srv. 其中有两个遮蔽率贴图，一个法线贴图，一个深度贴图，一个随机采样贴图. 其中start+3对应的是深度图(为什么深度图在这里被认为是Ambient了?)
+	mNullCubeSrvIndex = mSsaoHeapIndexStart + 5;	//ssao共需要5个srv, 在这后面我们来创建空的立方体纹理
+	mNullTexSrvIndex1 = mNullCubeSrvIndex + 1;	//在空的立方体纹理之后，我们再预留两个tex
+	mNullTexSrvIndex2 = mNullTexSrvIndex1 + 1;
+
+	auto nullSrv = GetCpuSrv(mNullCubeSrvIndex);	//获取空srv对应的位置，并在其中创建空的着色器资源视图
+	mNullSrv = GetGpuSrv(mNullCubeSrvIndex);
+
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//在nullSrv对应的位置创建空的着色器资源视图
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);	//然后向后位移，并创建剩下的空着色器资源视图. 现在这个是Cube(参看上面的赋值. 这是为了占位
+
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//将srvDesc重新改为为2D的纹理
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//且将格式改为R8G8B8A8_UNORM
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;	//因为是空的，因此只需要有一张图就行
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//创建一个2D的nullSrv
+
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//又创建了一个2D的nullSrv
+
+	mShadowMap->BuildDescriptors(GetCpuSrv(mShadowMapHeapIndex),
+		GetGpuSrv(mShadowMapHeapIndex), GetDsv(1));	//然后，我们让ShadowMap创建自己的描述符. 其使用了我们在这里创建的CPU、GPU端着色器资源与深度视图
+
+	mSsao->BuildDescriptors(mDepthStencilBuffer.Get(), GetCpuSrv(mSsaoHeapIndexStart),
+		GetGpuSrv(mSsaoHeapIndexStart), GetRtv(SwapChainBufferCount), mCbvSrvUavDescriptorSize,
+		mRtvDescriptorSize);	//然后让Ssao创建自己的描述符. 其同样需要我们传入在SsaoApp中创建的着色器资源视图
 }
 
 void SsaoApp::BuildShadersAndInputLayout()
 {
+	const D3D_SHADER_MACRO alphaTestDefines[]{
+		"ALPHA_TEST", "1", NULL, NULL
+	};	//创建一个宏。 其指明了使用宏数量为1. 宏为ALPHA_TEST
+
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");	//我们依次编译shader们
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["shadowAlphaTestPS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");
+
+	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["drawNormalVS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["drawNormalsPS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["ssaoVS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["ssaoPS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["ssaoBlurVS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["ssaoBlurPS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
+
+	mInputLayout = {	//初始化输入布局描述. 我们共有4个输入, 分别绑定了Position, Normal, TexCoord, Tangent, 这些均为逐顶点数据
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//位置需要3个值
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//法线需要3个值，在Position后面，因此为12
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//uv坐标需要两个值，其在normal后面， 因此为24
+		{"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//切线需要3个值，其跟在TexCoord后面，因此为32
+	};
 }
 
 void SsaoApp::BuildShapeGeometry()
