@@ -603,14 +603,143 @@ void SsaoApp::UpdateSsaoCB(const GameTimer& gt)
 
 void SsaoApp::LoadTextures()
 {
+	std::vector<std::string> texNames{	//设置贴图的名字. 我们需要砖、地板、默认的白色，以及天空盒. 其中天空不需要法线贴图
+		"bricksDiffuseMap",	//diffuse, 自发光
+		"bricksNormalMap",	//normal, 法线
+		"tileDiffuseMap",
+		"tileNormalMap",
+		"defaultDiffuseMap",
+		"defaultNormalMap",
+		"skyCubeMap",
+	};
+
+	std::vector<std::wstring> texFileNames{	//按照上面设置的贴图名字，我们依次设置对应的纹理的路径. 使用的是相对路径
+		L"Textures/bricks2.dds",
+		L"Textures/bricks2_nmap.dds",
+		L"Textures/tile.dds",
+		L"Textures/tile_nmap.dds",
+		L"Textures/white1x1.dds",
+		L"Textures/default_nmap.dds",
+		L"Textures/sunsetcube1024.dds",
+	};
+
+	for (int i = 0; i < (int)texNames.size(); ++i)
+	{
+		auto texMap = std::make_unique<Texture>();	//为每个我们声明的贴图申请一个Texture空间
+		texMap->Name = texNames[i];	//指定该tex的名字和文件名
+		texMap->Filename = texFileNames[i];
+		ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),	//然后，根据该文件名加载DDS贴图
+			mCommandList.Get(), texMap->Filename.c_str(),
+			texMap->Resource, texMap->UploadHeap));
+
+		mTextures[texMap->Name] = std::move(texMap);	//然后，将该Texture存入mTextures中
+	}
 }
 
 void SsaoApp::BuildRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE texTable0;	//声明第一个纹理描述符. 其存储着色器资源视图，描述符数量为3，其基准的shader寄存器为0，绑定空间为0. 即对应t0 - t2.
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE texTable1;	//声明第二个纹理描述符. 其同样存储着色器资源，描述符数量为10. 其基准的shader寄存器刚好在上面的后面，即从3开始. 绑定的空间同样为1. 
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 3, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];	//创建五个根参数
+
+	slotRootParameter[0].InitAsConstantBufferView(0);	//第一个为根描述符, 其为常量缓冲区视图. 对应的寄存器为0, 即b0
+	slotRootParameter[1].InitAsConstantBufferView(1);	//第二个同样为根描述符, 同样为常量缓冲区视图,对应的寄存器为1, 即b1
+	slotRootParameter[2].InitAsShaderResourceView(0, 1);	//第三个同样为根描述符, 但是为着色器资源视图. 起对应的寄存器为空间1的0, 即t0, 但是在space1
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//第四个为描述符表. 其中的描述符为1个. 其可见性为像素着色器
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);	//第五个同样为描述符表, 其中的描述符也是1个
+
+	auto staticSamplers = GetStaticSamplers();	//获取静态采样器们
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);	//根据现在的根参数、静态采样器们创建一个根签名描述. 该根签名还允许输入装配阶段的输入布局描述
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());	//我们根据上面的根签名描述来序列化根签名.并将其序列化到serializedRootSig处 若出错，则将结果保存到errorBlob中
+
+	if (errorBlob != nullptr)	//如果出错, 则errorBlob将不为空, 此时我们将errorBlob中的保存信息打印出来
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(),	//第一个参数指定了GPU设备. 单GPU系统中，我们将参数尚未0即可
+		serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mRootSignature.GetAddressOf())));	//否则，我们根据序列化好的根签名来在mRootSignature处创建根签名
 }
 
 void SsaoApp::BuildSsaoRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE texTable0;	//为ssao创建描述符表. 其为着色器资源视图, 其中的描述符数量为2. 绑定在t0 - t1
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE texTable1;	//创建第二个描述符表, 其同样为着色器资源视图, 其中的描述符数量为1, 绑定在t2
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];	//创建根参数. ssao需要的根参数为4
+
+	slotRootParameter[0].InitAsConstantBufferView(0);	//第一个参数被初始化为根描述符. 其绑定在b0. 在Ssao中，其用于传入ssao所需的常量
+	slotRootParameter[1].InitAsConstants(1, 1);	//第二个参数直接被初始化为根常量们. 其绑定在b1, 而根常量数量为1. 在Ssao中，其用于传入bool值，记录blur时是按行还是按列
+	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//将第三和第四个都初始化为描述符表，其中的描述符范围数量均为1个. 第三个中记录了法线和深度贴图
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);	//第四个描述符表中记录了随机访问向量贴图
+
+	//从现在开始到下面，创建4个采样器
+	const CD3DX12_STATIC_SAMPLER_DESC pointClamp{ 0,	//第一个，绑定在s0上, 其过滤模式为点过滤，同时在u、v、w上都采取截断方式
+		D3D12_FILTER_MIN_MAG_MIP_POINT,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,	//Clamp模式将会在超出[0, 1]范围时，将对应点绘制为最接近的[0, 1]范围对应的颜色
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+	};
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearClamp{ 1,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+	};
+
+	const CD3DX12_STATIC_SAMPLER_DESC depthMapSam{ 2,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,	//Border模式将会在超出[0, 1]范围时，将颜色绘制为指定的颜色
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		0.0f, 0, D3D12_COMPARISON_FUNC_LESS_EQUAL,	//mipmap层级不变，最大各向异性值为0(在LINEAR时该选项无效), 我们需要的是后面的比较方法，因为我们只绘制深度值最小(最接近相机)的顶点
+		D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,	//超出边界的部分被绘制为白色
+	};
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearWrap{ 3,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,	//当超出[0, 1]范围时，我们只取其小数部分
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+	};
+
+	std::array<CD3DX12_STATIC_SAMPLER_DESC, 4> staticSamplers{
+		pointClamp, linearClamp, depthMapSam, linearWrap,
+	};
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,	//我们准备创建ssao所需的根签名。 步骤和创建正常根签名类似. 同样要指定根参数数量与根参数， 静态采样器数量与静态采样器，以及最后的Flag
+		(UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0,
+		serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mSsaoRootSignature.GetAddressOf())));
 }
 
 void SsaoApp::BuildDescriptorHeaps()
