@@ -613,7 +613,7 @@ void SsaoApp::LoadTextures()
 		"skyCubeMap",
 	};
 
-	std::vector<std::wstring> texFileNames{	//按照上面设置的贴图名字，我们依次设置对应的纹理的路径. 使用的是相对路径
+	std::vector<std::wstring> texFilenames{	//按照上面设置的贴图名字，我们依次设置对应的纹理的路径. 使用的是相对路径
 		L"Textures/bricks2.dds",
 		L"Textures/bricks2_nmap.dds",
 		L"Textures/tile.dds",
@@ -627,7 +627,7 @@ void SsaoApp::LoadTextures()
 	{
 		auto texMap = std::make_unique<Texture>();	//为每个我们声明的贴图申请一个Texture空间
 		texMap->Name = texNames[i];	//指定该tex的名字和文件名
-		texMap->Filename = texFileNames[i];
+		texMap->Filename = texFilenames[i];
 		ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),	//然后，根据该文件名加载DDS贴图
 			mCommandList.Get(), texMap->Filename.c_str(),
 			texMap->Resource, texMap->UploadHeap));
