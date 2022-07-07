@@ -855,14 +855,368 @@ void SsaoApp::BuildShadersAndInputLayout()
 
 void SsaoApp::BuildShapeGeometry()
 {
+	GeometryGenerator geoGen;	//创建一个几何创建器
+	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);	//创建一个长宽高各为1，细分为3的立方体
+	GeometryGenerator::MeshData grid = geoGen.CreateBox(20.0f, 20.0f, 60, 40);	//创建一个长款为20，高为60,细分为40的地板
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);	//创建半径为0.5, 曲面细分为20的球. 其有20道环，每道环上有20个顶点
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);	//创建一个底部半径为0.5，顶部半径为0.3，高为3，环20道，每道环上有20个顶点的类圆锥
+	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);	//创建一个覆盖全屏的平面. 我们用其实现后处理效果
+
+	UINT boxVertexOffset = 0;	//我们准备将所有顶点推入同一个顶点缓冲区中。 因此，我们需要记录每个几何的顶点的上下界. 我们的顺序是box-grid-sphere-cylinder-quad
+	UINT gridVertexOffset = (UINT)box.Vertices.size();
+	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
+	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)cylinder.Vertices.size();
+	UINT quadVertexOffset = cylinderVertexOffset + (UINT)quad.Vertices.size();
+
+	UINT boxIndexOffset = 0;	//同样的，我们将索引缓冲区也合并到一起. 顺序和上方一样
+	UINT gridIndexOffset = (UINT)box.Indices32.size();
+	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
+	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+	UINT quadIndexOffset = cylinderIndexOffset + (UINT)sphere.Indices32.size();
+
+	SubmeshGeometry boxSubmesh;	//为了将几何们合并，我们创建每个几何对应的submesh. 之后我们便可以将这些submesh合并为同一个mesh. 
+	boxSubmesh.IndexCount = (UINT)box.Indices32.size();	//每个submesh都需要记录自己的索引数量、索引的起始位置、顶点的偏移位置
+	boxSubmesh.StartIndexLocation = boxIndexOffset;	//之所以要有StartIndexLocation和BaseVertexLocation, 也是因为我们将submesh合并了
+	boxSubmesh.BaseVertexLocation = boxVertexOffset;	
+	
+	SubmeshGeometry gridSubmesh;
+	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
+	gridSubmesh.StartIndexLocation = gridIndexOffset;
+	gridSubmesh.BaseVertexLocation = gridVertexOffset;
+
+	SubmeshGeometry sphereSubmesh;
+	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
+	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
+	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
+
+	SubmeshGeometry cylinderSubmesh;
+	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
+	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
+	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
+
+	SubmeshGeometry quadSubmesh;
+	quadSubmesh.IndexCount = (UINT)quad.Indices32.size();
+	quadSubmesh.StartIndexLocation = quadIndexOffset;
+	quadSubmesh.BaseVertexLocation = quadVertexOffset;
+
+	auto totalVertexCount = quadVertexOffset + (UINT)quad.Vertices.size();	//我们计算一下总计的顶点数量，然后创建对应的顶点缓冲区
+
+	std::vector<Vertex> vertices(totalVertexCount);
+
+	UINT k = 0;	//然后，我们按照我们在计算vertexOffset时offset来一个个推入每个顶点. Vertex需要推入Pos,Normal,TexC和Tangent. 即我们在输入布局描述中声明的部分
+	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)	//顺序依然是box-grid-sphere-cylinder-quad
+	{
+		vertices[k].Pos = box.Vertices[i].Position;
+		vertices[k].Normal = box.Vertices[i].Normal;
+		vertices[k].TexC = box.Vertices[i].TexC;
+		vertices[k].TangentU = box.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = grid.Vertices[i].Position;
+		vertices[k].Normal = grid.Vertices[i].Normal;
+		vertices[k].TexC = grid.Vertices[i].TexC;
+		vertices[k].TangentU = grid.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = sphere.Vertices[i].Position;
+		vertices[k].Normal = sphere.Vertices[i].Normal;
+		vertices[k].TexC = sphere.Vertices[i].TexC;
+		vertices[k].TangentU = sphere.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = cylinder.Vertices[i].Position;
+		vertices[k].Normal = cylinder.Vertices[i].Normal;
+		vertices[k].TexC = cylinder.Vertices[i].TexC;
+		vertices[k].TangentU = cylinder.Vertices[i].TangentU;
+	}
+
+    for(int i = 0; i < quad.Vertices.size(); ++i, ++k)
+    {
+        vertices[k].Pos = quad.Vertices[i].Position;
+        vertices[k].Normal = quad.Vertices[i].Normal;
+        vertices[k].TexC = quad.Vertices[i].TexC;
+        vertices[k].TangentU = quad.Vertices[i].TangentU;
+    }
+
+	std::vector<std::uint16_t> indices;	//我们同样将索引缓冲区合并. 顺序和前面的一样
+	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
+	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
+	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
+	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+	indices.insert(indices.end(), std::begin(quad.GetIndices16()), std::end(quad.GetIndices16()));
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);		//我们在合并后，计算顶点和索引缓冲区的总大小. 从而准备为其分配空间
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();	//创建Mesh资源
+	geo->Name = "sphereGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));	//为Mesh创建顶点缓冲区，其大小为vbByteSize
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);	//将实际的顶点复制到我们创建的顶点缓冲区中
+	
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));	//对Mesh的索引缓冲区同样如此. 我们设置其大小，并从实际的索引进行拷贝
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),	
+		vertices.data(), vbByteSize, geo->VertexBufferUploader);	//根据CPU中的缓存，将其推入到GPU中，而我们推入GPU时需要的设备、命令列表、推入的内存位置与其大小，以及推入时的上传缓冲区均通过函数传入
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		indices.data(), ibByteSize, geo->IndexBufferUploader);	//同样的，将索引缓冲区同样推入GPU中. 然后该方法返回的即为我们推入GPU后的GPU处的句柄
+
+	geo->VertexByteStride = sizeof(Vertex);	//我们记录一下每个顶点的大小，以及整个顶点缓冲区的大小
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;	//索引只需要R16, 因为我们创建的是uint_16_t
+	geo->IndexBufferByteSize = ibByteSize;	//同样的，整个索引缓冲区的大小也要记录一下
+
+	geo->DrawArgs["box"] = boxSubmesh;	//我们将每个submesh储存入我们创建的mesh的DrawArgs中
+	geo->DrawArgs["grid"] = gridSubmesh;
+	geo->DrawArgs["sphere"] = sphereSubmesh;
+	geo->DrawArgs["cylinder"] = cylinderSubmesh;
+	geo->DrawArgs["quad"] = quadSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);	//然后，我们将该mesh记录到Geometries中
 }
 
 void SsaoApp::BuildSkullGeometry()
 {
+	std::ifstream fin("Models/skull.txt");	//在这里，我们根据文件读取并生成骷髅几何
+
+    if (!fin)
+    {
+        MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+        return;
+    }
+
+    UINT vcount = 0;
+    UINT tcount = 0;
+    std::string ignore;
+
+    fin >> ignore >> vcount;	//其首行中记录了顶点数量
+    fin >> ignore >> tcount;	//然后记录了索引数量
+    fin >> ignore >> ignore >> ignore >> ignore;
+
+    XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+    XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+
+    XMVECTOR vMin = XMLoadFloat3(&vMinf3);
+    XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
+
+    std::vector<Vertex> vertices(vcount);
+    for (UINT i = 0; i < vcount; ++i)
+    {
+        fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;	//然后我们逐个顶点读取其顶点和法线
+        fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+
+        vertices[i].TexC = { 0.0f, 0.0f };	//我们将骷髅的uv纹理设为{0, 0}. 因为我们用的就是个纯白纹理
+
+        XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);	//获取顶点
+
+        XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);	//获取法线
+
+        XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);	//我们将上方向定义为(0, 1, 0)
+        if (fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f)	//若法线方向不是恰好为正上/下方，则我们让切线为up和N的叉乘即可
+        {
+            XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
+            XMStoreFloat3(&vertices[i].TangentU, T);
+        }
+        else
+        {
+            up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);	//否则，我们将此时的上方向改为z轴正向，然后让切线方向为Nxup
+            XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
+            XMStoreFloat3(&vertices[i].TangentU, T);
+        }
+
+
+        vMin = XMVectorMin(vMin, P);	//vMin和vMax用于计算最终的包围盒
+        vMax = XMVectorMax(vMax, P);
+    }
+
+    BoundingBox bounds;
+    XMStoreFloat3(&bounds.Center, 0.5f*(vMin + vMax));	//包围盒的中心为vMin和vMax和的一半
+    XMStoreFloat3(&bounds.Extents, 0.5f*(vMax - vMin));	//包围盒的半径为(vMax-vMin)的一半. 或者vMax - bounds.Center
+
+    fin >> ignore;
+    fin >> ignore;
+    fin >> ignore;
+
+    std::vector<std::int32_t> indices(3 * tcount);	//然后我们读取索引
+    for (UINT i = 0; i < tcount; ++i)
+    {
+        fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+    }
+
+    fin.close();
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);	//在读取并处理过顶点和索引后，我们创建骷髅对应的mesh
+
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "skullGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));	//同样的，先创建CPU的缓冲区，然后将数据复制到缓冲区中
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),	//然后，我们使用上传缓冲区进行GPU中缓冲区的创建
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(Vertex);	//同样的，设置Vertex大小、Vertex缓冲区、Index缓冲区的大小，并设置Index格式
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R32_UINT;	//这里格式是R32. 因为顶点数量可能超过16位能表示的上限
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;	//因为没有合并，因此索引偏移、顶点偏移均为0
+    submesh.BaseVertexLocation = 0;
+    submesh.Bounds = bounds;
+
+    geo->DrawArgs["skull"] = submesh;
+
+    mGeometries[geo->Name] = std::move(geo);
 }
 
 void SsaoApp::BuildPSOs()
 {
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC basePsoDesc;	//创建流水线状态对象描述
+
+	ZeroMemory(&basePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));	//首先将该区域清空
+	basePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };	//设置该PSO描述的输入布局描述
+	basePsoDesc.pRootSignature = mRootSignature.Get();	//指定该PSO描述符的根签名位置
+	basePsoDesc.VS = {	//指定该PSO描述符的VS和PS, 我们需要将其转为BYTE*, 并指定其大小
+		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+		mShaders["shadowVS"]->GetBufferSize()
+	};
+	basePsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+		mShaders["shadowOpaquePS"]->GetBufferSize()
+	};
+	basePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);	//指定为默认的栅格化方式. 即顺时针为正面
+	basePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);	//将混合模式同样设置为默认
+	basePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);	//将深度/模板状态同样设置为默认状态
+	basePsoDesc.SampleMask = UINT_MAX;	//其掩码为0xffffffff
+	basePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;	//默认的拓扑为三角
+	basePsoDesc.NumRenderTargets = 1;	//渲染目标为1
+	basePsoDesc.RTVFormats[0] = mBackBufferFormat;	//其渲染目标的状态默认为R8G8B8A8
+	basePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;	//默认的mass状态要根据是否设置了Msaa而定
+	basePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	basePsoDesc.DSVFormat = mDepthStencilFormat;	//其默认的深度/模板缓冲区格式为D24_S8
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc = basePsoDesc;	//创建OpaquePSO
+	opaquePsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_EQUAL;	//我们只绘制和当前深度缓冲区记录的深度相同的顶点. 这是因为我们在之前已经绘制了深度
+	opaquePsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	//不进行深度的写入
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = basePsoDesc;	//创建阴影图的PSO
+	smapPsoDesc.RasterizerState.DepthBias = 100000;	//其阴影偏移为100000. 表示其默认深度极高
+	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;	//标识我们可以设置的最低深度
+	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+	smapPsoDesc.pRootSignature = mRootSignature.Get();
+	smapPsoDesc.VS = {
+		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+		mShaders["shadowVS"]->GetBufferSize()
+	};
+	smapPsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+		mShaders["shadowOpaquePS"]->GetBufferSize()
+	};
+	smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;	//深度图不需要渲染目标. 我们只需要渲染深度
+	smapPsoDesc.NumRenderTargets = 0;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = basePsoDesc;
+	debugPsoDesc.pRootSignature = mRootSignature.Get();
+	debugPsoDesc.VS = {
+		reinterpret_cast<BYTE*>(mShaders["debugVS"]->GetBufferPointer()),
+		mShaders["debugVS"]->GetBufferSize()
+	};
+	debugPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["debugPS"]->GetBufferPointer()),
+		mShaders["debugPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC drawNormalsPsoDesc = basePsoDesc;
+	drawNormalsPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["drawNormalsVS"]->GetBufferPointer()),
+		mShaders["drawNormalsVS"]->GetBufferSize()
+	};
+	drawNormalsPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["drawNormalsPS"]->GetBufferPointer()),
+		mShaders["drawNormalsPS"]->GetBufferSize()
+	};
+	drawNormalsPsoDesc.RTVFormats[0] = Ssao::NormalMapFormat;
+	drawNormalsPsoDesc.SampleDesc.Count = 1;
+	drawNormalsPsoDesc.SampleDesc.Quality = 0;
+	drawNormalsPsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawNormalsPsoDesc, IID_PPV_ARGS(&mPSOs["drawNormals"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoPsoDesc = basePsoDesc;
+	ssaoPsoDesc.InputLayout = { nullptr, 0 };
+	ssaoPsoDesc.pRootSignature = mSsaoRootSignature.Get();
+	ssaoPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoVS"]->GetBufferPointer()),
+		mShaders["ssaoVS"]->GetBufferSize()
+	};
+	ssaoPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoPS"]->GetBufferPointer()),
+		mShaders["ssaoPS"]->GetBufferSize()
+	};
+	ssaoPsoDesc.DepthStencilState.DepthEnable = false;
+	ssaoPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	ssaoPsoDesc.RTVFormats[0] = Ssao::AmbientMapFormat;
+	ssaoPsoDesc.SampleDesc.Count = 1;
+	ssaoPsoDesc.SampleDesc.Quality = 0;
+	ssaoPsoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&ssaoPsoDesc, IID_PPV_ARGS(&mPSOs["ssao"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoBlurPsoDesc = ssaoPsoDesc;
+	ssaoBlurPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoBlurVS"]->GetBufferPointer()),
+		mShaders["ssaoBlurVS"]->GetBufferSize()
+	};
+	ssaoBlurPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoBlurPS"]->GetBufferPointer()),
+		mShaders["ssaoBlurPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&ssaoBlurPsoDesc, IID_PPV_ARGS(&mPSOs["ssaoBlur"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = basePsoDesc;
+
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	skyPsoDesc.pRootSignature = mRootSignature.Get();
+	skyPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+		mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
 }
 
 void SsaoApp::BuildFrameResources()
