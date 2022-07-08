@@ -318,7 +318,7 @@ void SsaoApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//同样的，以实际的着色器资源视图来设置根签名的第4个位置(描述符表)
 
 	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());	//以当前帧的帧常量缓冲区作为根描述符
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());	//以当前帧的帧常量缓冲区作为根描述符. 因为我们可能在绘制阴影的时候切换了帧常量缓冲区
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//开始准备绑定天空盒. 首先需要获取天空盒的描述符
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);	//该描述符的位置应当在GPU的描述符起始位置的基础上向后移动mSkyHeapIndex * mCbvSrvUavDescriptorSize
@@ -1221,49 +1221,375 @@ void SsaoApp::BuildPSOs()
 
 void SsaoApp::BuildFrameResources()
 {
+	for (int i = 0; i < gNumFrameResources; ++i)
+	{
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+			2, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));	//每有一个帧资源，我们就创建一个对应的帧资源。 帧资源需要传入设备、pass数量、物体数量和材质数量，从而为其准备对应的缓冲区
+	}
 }
 
 void SsaoApp::BuildMaterials()
 {
+	auto bricks0 = std::make_unique<Material>();	//开始创建材质
+	bricks0->Name = "bricks0";
+	bricks0->MatCBIndex = 0;	//该材质在材质缓冲区中的偏移量为0
+	bricks0->DiffuseSrvHeapIndex = 0;	//该材质的漫反射贴图在着色器资源堆中的偏移量为0
+	bricks0->NormalSrvHeapIndex = 1;	//该材质的法线贴图在着色器资源堆中的偏移量为1. 法线也是SRV，因此和Diffuse共用一个堆
+	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);	//材质的默认漫反射颜色为ffffffff
+	bricks0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);	//材质的R0. R0影响了高光反射. R0越高，默认的颜色越黑，但是反射越强. 或者说，R0越高越像金属
+	bricks0->Roughness = 0.3f;	//材质的粗糙度.
+
+	auto tile0 = std::make_unique<Material>();	//下同
+    tile0->Name = "tile0";
+    tile0->MatCBIndex = 2;
+    tile0->DiffuseSrvHeapIndex = 2;
+    tile0->NormalSrvHeapIndex = 3;
+    tile0->DiffuseAlbedo = XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
+    tile0->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+    tile0->Roughness = 0.1f;
+
+    auto mirror0 = std::make_unique<Material>();
+    mirror0->Name = "mirror0";
+    mirror0->MatCBIndex = 3;
+    mirror0->DiffuseSrvHeapIndex = 4;
+    mirror0->NormalSrvHeapIndex = 5;
+    mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+    mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
+    mirror0->Roughness = 0.1f;
+
+    auto skullMat = std::make_unique<Material>();
+    skullMat->Name = "skullMat";
+    skullMat->MatCBIndex = 3;
+    skullMat->DiffuseSrvHeapIndex = 4;
+    skullMat->NormalSrvHeapIndex = 5;
+    skullMat->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+    skullMat->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
+    skullMat->Roughness = 0.2f;
+
+    auto sky = std::make_unique<Material>();
+    sky->Name = "sky";
+    sky->MatCBIndex = 4;
+    sky->DiffuseSrvHeapIndex = 6;
+    sky->NormalSrvHeapIndex = 7;
+    sky->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    sky->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+    sky->Roughness = 1.0f;
+
+    mMaterials["bricks0"] = std::move(bricks0);	//然后我们将每个材质存入hash表中
+    mMaterials["tile0"] = std::move(tile0);
+    mMaterials["mirror0"] = std::move(mirror0);
+    mMaterials["skullMat"] = std::move(skullMat);
+    mMaterials["sky"] = std::move(sky);
+
 }
 
 void SsaoApp::BuildRenderItems()
 {
+	auto skyRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));	//我们让天空变为5000倍大小
+	skyRitem->TexTransform = MathHelper::Identity4x4();	//其纹理采样为标准的(1, 1)
+	skyRitem->ObjCBIndex = 0;	//其对应的物体在缓冲区中的偏移为1. 在这时候我们才指定的物体偏移
+	skyRitem->Mat = mMaterials["sky"].get();	//获取对应的材质, 其材质为天空
+	skyRitem->Geo = mGeometries["shapeGeo"].get();	//其几何为球.但是由于我们已经将基础的形状合并了，因此我们事实上是通过IndexCount等参数来区分的
+	skyRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;	//其默认拓扑为三角列表
+	skyRitem->IndexCount = skyRitem->Geo->DrawArgs["sphere"].IndexCount;	//获取其索引数量
+	skyRitem->StartIndexLocation = skyRitem->Geo->DrawArgs["sphere"].StartIndexLocation;	//指定其在Geo中的首索引, 我们从该索引开始索引IndexCount个顶点
+	skyRitem->BaseVertexLocation = skyRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;	//我们为每个索引指定的顶点的偏移加上BaseVertexLocation, 因为顶点也合并了
+
+	mRitemLayer[(int)RenderLayer::Sky].push_back(skyRitem.get());	//我们将天空推入其对应的层级中
+	mAllRitems.push_back(std::move(skyRitem));	//然后将天空转移到所有渲染项列表里
+
+	auto quadRitem = std::make_unique<RenderItem>();	//下同. 我们一次推入全屏后处理、骷髅头下面的箱子、骷髅头和地面
+    quadRitem->World = MathHelper::Identity4x4();
+    quadRitem->TexTransform = MathHelper::Identity4x4();
+    quadRitem->ObjCBIndex = 1;
+    quadRitem->Mat = mMaterials["bricks0"].get();
+    quadRitem->Geo = mGeometries["shapeGeo"].get();
+    quadRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    quadRitem->IndexCount = quadRitem->Geo->DrawArgs["quad"].IndexCount;
+    quadRitem->StartIndexLocation = quadRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+    quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+    mRitemLayer[(int)RenderLayer::Debug].push_back(quadRitem.get());
+    mAllRitems.push_back(std::move(quadRitem));
+    
+	auto boxRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 1.0f, 2.0f)*XMMatrixTranslation(0.0f, 0.5f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
+	boxRitem->ObjCBIndex = 2;
+	boxRitem->Mat = mMaterials["bricks0"].get();
+	boxRitem->Geo = mGeometries["shapeGeo"].get();
+	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
+	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
+	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
+	mAllRitems.push_back(std::move(boxRitem));
+
+    auto skullRitem = std::make_unique<RenderItem>();
+    XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+    skullRitem->TexTransform = MathHelper::Identity4x4();
+    skullRitem->ObjCBIndex = 3;
+    skullRitem->Mat = mMaterials["skullMat"].get();
+    skullRitem->Geo = mGeometries["skullGeo"].get();
+    skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+    skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+    skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+	mAllRitems.push_back(std::move(skullRitem));
+
+    auto gridRitem = std::make_unique<RenderItem>();
+    gridRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
+	gridRitem->ObjCBIndex = 4;
+	gridRitem->Mat = mMaterials["tile0"].get();
+	gridRitem->Geo = mGeometries["shapeGeo"].get();
+	gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
+    gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+    gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+	mAllRitems.push_back(std::move(gridRitem));
+
+	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
+	UINT objCBIndex = 5;	//之后我们准备推入圆锥和圆锥上的球。 我们每次推入左右两边的各1个锥子和各1个球. 即每次循环推入4个. 共循环5次, 推入20个即可
+	for(int i = 0; i < 5; ++i)
+	{
+		auto leftCylRitem = std::make_unique<RenderItem>();
+		auto rightCylRitem = std::make_unique<RenderItem>();
+		auto leftSphereRitem = std::make_unique<RenderItem>();
+		auto rightSphereRitem = std::make_unique<RenderItem>();
+
+		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i*5.0f);	//左边的锥子在x的-5,z的-10 + i*5处
+		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i*5.0f);	//而右边的锥子则在x的5处，z与左边的锥子相同
+
+		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i*5.0f);	//球和对应边的锥子的高差了2
+		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i*5.0f);
+
+		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
+		XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
+		leftCylRitem->ObjCBIndex = objCBIndex++;
+		leftCylRitem->Mat = mMaterials["bricks0"].get();
+		leftCylRitem->Geo = mGeometries["shapeGeo"].get();
+		leftCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
+		leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
+		leftCylRitem->BaseVertexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
+
+		XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
+		XMStoreFloat4x4(&rightCylRitem->TexTransform, brickTexTransform);
+		rightCylRitem->ObjCBIndex = objCBIndex++;
+		rightCylRitem->Mat = mMaterials["bricks0"].get();
+		rightCylRitem->Geo = mGeometries["shapeGeo"].get();
+		rightCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
+		rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
+		rightCylRitem->BaseVertexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
+
+		XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
+		leftSphereRitem->TexTransform = MathHelper::Identity4x4();
+		leftSphereRitem->ObjCBIndex = objCBIndex++;
+		leftSphereRitem->Mat = mMaterials["mirror0"].get();
+		leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
+		leftSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+		leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+		leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+
+		XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
+		rightSphereRitem->TexTransform = MathHelper::Identity4x4();
+		rightSphereRitem->ObjCBIndex = objCBIndex++;
+		rightSphereRitem->Mat = mMaterials["mirror0"].get();
+		rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
+		rightSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+		rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+
+		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
+		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
+		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftSphereRitem.get());
+		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
+
+		mAllRitems.push_back(std::move(leftCylRitem));
+		mAllRitems.push_back(std::move(rightCylRitem));
+		mAllRitems.push_back(std::move(leftSphereRitem));
+		mAllRitems.push_back(std::move(rightSphereRitem));
+	}
 }
 
 void SsaoApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));	//计算物体所占的空间. 其为ObjectConstants的大小
+
+	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+
+	for (size_t i = 0; i < ritems.size(); ++i)
+	{
+		auto ri = ritems[i];
+
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());	//设置渲染项的顶点缓冲区. 我们只设置一个视图. IA为输入装配阶段
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());	//设置渲染项的索引缓冲区
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);	//设置渲染项的拓扑
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;	//根据渲染项指定的缓冲区偏移获得该渲染项对应的换乘功能区地址
+
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);	//设置根描述符
+
+		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);	//我们根据指定的索引来绘制对象. 每次仅绘制1个示例
+	}
 }
 
 void SsaoApp::DrawSceneToShadowMap()
 {
+	mCommandList->RSSetViewports(1, &mShadowMap->Viewport());	//设置渲染视口为阴影贴图指定的视口. RS为栅格化阶段
+	mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());	//将裁剪矩形同样设置为阴影图指定的矩形
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));	//将阴影图的资源从只读设置为写入深度
+
+	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+		1.0f, 0, 0, nullptr);	//清空阴影图的DSV的深度和模版信息, 将深度清空为1，模板清空为0
+
+	mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv());	//我们将输出合并阶段的渲染目标设为阴影图的DSV
+
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));	//我们计算帧常量的大小
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;	//阴影渲染所需的帧常量为第二个帧常量, 因此我们在初始位置(正常情况下的帧常量的基础上向后偏移
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);	//我们设置第二个描述符为我们对应阴影的帧常量
+
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());	//我们将PSO设置为阴影的绘制. 其只计算深度，不会实际输出到后台缓冲区
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);	//我们绘制所有的Opaque(注意由于PSO，因此我们只是计算了深度)
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));	//我们再将阴影资源从深度写入改为只读
 }
 
 void SsaoApp::DrawNormalsAndDepth()
 {
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	auto normalMap = mSsao->NormalMap();
+	auto normalMapRtv = mSsao->NormalMapRtv();
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+	float clearValue[] = { 0.0f, 0.0f, 1.0f, 0.0f };
+	mCommandList->ClearRenderTargetView(normalMapRtv, clearValue, 0, nullptr);	//清空法线渲染目标.其值为z1，其它均为0
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+		1.0f, 0, 0, nullptr);	//清空深度模板视图. 深度清空为1, 模板值清空为0
+
+	mCommandList->OMSetRenderTargets(1, &normalMapRtv, true, &DepthStencilView());
+
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+	mCommandList->SetPipelineState(mPSOs["drawNormals"].Get());
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetCpuSrv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto srv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
 }
 
 CD3DX12_GPU_DESCRIPTOR_HANDLE SsaoApp::GetGpuSrv(int index) const
 {
-	return CD3DX12_GPU_DESCRIPTOR_HANDLE();
+	auto srv = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetDsv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto dsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+	dsv.Offset(index, mDsvDescriptorSize);
+	return dsv;
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetRtv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto rtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	rtv.Offset(index, mRtvDescriptorSize);
+	return rtv;
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> SsaoApp::GetStaticSamplers()
 {
-	return std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7>();
+		const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+		0, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+		1, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+		2, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+		3, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+		4, // shaderRegister
+		D3D12_FILTER_ANISOTROPIC, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressW
+		0.0f,                             // mipLODBias
+		8);                               // maxAnisotropy
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+		5, // shaderRegister
+		D3D12_FILTER_ANISOTROPIC, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressW
+		0.0f,                              // mipLODBias
+		8);                                // maxAnisotropy
+
+    const CD3DX12_STATIC_SAMPLER_DESC shadow(
+        6, // shaderRegister
+        D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, // filter
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressU
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressV
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressW
+        0.0f,                               // mipLODBias
+        16,                                 // maxAnisotropy
+        D3D12_COMPARISON_FUNC_LESS_EQUAL,
+        D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK);
+
+	return { 
+		pointWrap, pointClamp,
+		linearWrap, linearClamp, 
+		anisotropicWrap, anisotropicClamp,
+        shadow 
+    };
 }
