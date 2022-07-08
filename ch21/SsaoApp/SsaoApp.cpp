@@ -1096,12 +1096,12 @@ void SsaoApp::BuildPSOs()
 	basePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };	//设置该PSO描述的输入布局描述
 	basePsoDesc.pRootSignature = mRootSignature.Get();	//指定该PSO描述符的根签名位置
 	basePsoDesc.VS = {	//指定该PSO描述符的VS和PS, 我们需要将其转为BYTE*, 并指定其大小
-		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
-		mShaders["shadowVS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
 	};
 	basePsoDesc.PS = {
-		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
-		mShaders["shadowOpaquePS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
 	};
 	basePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);	//指定为默认的栅格化方式. 即顺时针为正面
 	basePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);	//将混合模式同样设置为默认
