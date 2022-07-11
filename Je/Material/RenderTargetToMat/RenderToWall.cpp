@@ -690,6 +690,9 @@ void RenderToWallApp::BuildShadersAndInputLayout()
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
+
+	mShaders["renderToWallVS"] = d3dUtil::CompileShader(L"Shaders\\RenderToWall.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["renderToWallPS"] = d3dUtil::CompileShader(L"Shaders\\RenderToWall.hlsl", nullptr, "PS", "ps_5_0");
 	
     mInputLayout =
     {
@@ -1030,6 +1033,21 @@ void RenderToWallApp::BuildPSOs()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = transparentPsoDesc;
 	shadowPsoDesc.DepthStencilState = shadowDSS;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
+
+
+	//PSO for RenderToWall
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC renderToWallDesc = opaquePsoDesc;
+	renderToWallDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["renderToWallVS"]->GetBufferPointer()),
+		mShaders["renderToWallVS"]->GetBufferSize()
+	};
+	renderToWallDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["renderToWallPS"]->GetBufferPointer()),
+		mShaders["renderToWallPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&renderToWallDesc, IID_PPV_ARGS(&mPSOs["renderToWall"])));
 }
 
 void RenderToWallApp::BuildFrameResources()
@@ -1116,10 +1134,23 @@ void RenderToWallApp::BuildRenderItems()
 	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
 
+	auto rightWallsRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&rightWallsRitem->World, XMMatrixScaling(5.0f, 5.0f, 1.0f) * XMMatrixTranslation(5.0f, 0.0f, 15.0f));
+	rightWallsRitem->TexTransform = MathHelper::Identity4x4();
+	rightWallsRitem->ObjCBIndex = 2;
+	rightWallsRitem->Mat = mMaterials["bricks"].get();
+	rightWallsRitem->Geo = mGeometries["roomGeo"].get();
+	rightWallsRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	rightWallsRitem->IndexCount = rightWallsRitem->Geo->DrawArgs["mirror"].IndexCount;
+	rightWallsRitem->StartIndexLocation = rightWallsRitem->Geo->DrawArgs["mirror"].StartIndexLocation;
+	rightWallsRitem->BaseVertexLocation = rightWallsRitem->Geo->DrawArgs["mirror"].BaseVertexLocation;
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(rightWallsRitem.get());
+
+
 	auto skullRitem = std::make_unique<RenderItem>();
 	skullRitem->World = MathHelper::Identity4x4();
 	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 2;
+	skullRitem->ObjCBIndex = 3;
 	skullRitem->Mat = mMaterials["skullMat"].get();
 	skullRitem->Geo = mGeometries["skullGeo"].get();
 	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1132,14 +1163,14 @@ void RenderToWallApp::BuildRenderItems()
 	// Reflected skull will have different world matrix, so it needs to be its own render item.
 	auto reflectedSkullRitem = std::make_unique<RenderItem>();
 	*reflectedSkullRitem = *skullRitem;
-	reflectedSkullRitem->ObjCBIndex = 3;
+	reflectedSkullRitem->ObjCBIndex = 4;
 	mReflectedSkullRitem = reflectedSkullRitem.get();
 	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedSkullRitem.get());
 
 	// Shadowed skull will have different world matrix, so it needs to be its own render item.
 	auto shadowedSkullRitem = std::make_unique<RenderItem>();
 	*shadowedSkullRitem = *skullRitem;
-	shadowedSkullRitem->ObjCBIndex = 4;
+	shadowedSkullRitem->ObjCBIndex = 5;
 	shadowedSkullRitem->Mat = mMaterials["shadowMat"].get();
 	mShadowedSkullRitem = shadowedSkullRitem.get();
 	mRitemLayer[(int)RenderLayer::Shadow].push_back(shadowedSkullRitem.get());
@@ -1147,7 +1178,7 @@ void RenderToWallApp::BuildRenderItems()
 	auto mirrorRitem = std::make_unique<RenderItem>();
 	mirrorRitem->World = MathHelper::Identity4x4();
 	mirrorRitem->TexTransform = MathHelper::Identity4x4();
-	mirrorRitem->ObjCBIndex = 5;
+	mirrorRitem->ObjCBIndex = 6;
 	mirrorRitem->Mat = mMaterials["icemirror"].get();
 	mirrorRitem->Geo = mGeometries["roomGeo"].get();
 	mirrorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1159,6 +1190,7 @@ void RenderToWallApp::BuildRenderItems()
 
 	mAllRitems.push_back(std::move(floorRitem));
 	mAllRitems.push_back(std::move(wallsRitem));
+	mAllRitems.push_back(std::move(rightWallsRitem));
 	mAllRitems.push_back(std::move(skullRitem));
 	mAllRitems.push_back(std::move(reflectedSkullRitem));
 	mAllRitems.push_back(std::move(shadowedSkullRitem));
