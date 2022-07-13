@@ -78,15 +78,45 @@ cbuffer cbPass : register(b1) //每帧的常量缓冲区，绑定到b1上
 //将一个对法线图的采样转换到世界空间中的采样. (默认的采样为在NDC空间中)
 float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, float3 tangentW)
 {
-    float3 normalT = 2.0f * normalMapSample - 1.0f; //将NDC空间中的[0, 1]转换到投影空间中的[-1, 1]
+    float3 normalT = 2.0f * normalMapSample - 1.0f; //将纹理采样空间中的[0, 1]转换到NDC空间中的[-1, 1]
 
-    float3 N = unitNormalW;
-    float3 T = normalize(tangentW - dot(tangentW, N) * N);
-    float3 B = cross(N, T);
+    float3 N = unitNormalW; //法线本来就是世界法线, 因此该坐标即为法线所在坐标轴在世界空间中的坐标
+    float3 T = normalize(tangentW - dot(tangentW, N) * N);  //T为切线所在坐标轴在世界空间中的坐标
+    float3 B = cross(N, T); //副切线为N叉乘T
 
-    float3x3 TBN = float3x3(T, B, N);
+    float3x3 TBN = float3x3(T, B, N);   //将TBN横排联立，得到从投影空间到世界空间的变换矩阵, 因为这里的TBN分别为世界空间中对应轴在投影空间中的坐标表示(参见Unity Shader入门精要4.6)
 
-    float3 bumpedNormalW = mul(normalT, TBN);
+    float3 bumpedNormalW = mul(normalT, TBN);   //让投影空间中的[-1, 1]转换为世界空间中(我们让TBN三个坐标轴分别横排，即得到从投影空间变换到世界空间的变换矩阵)
 
     return bumpedNormalW;
+}
+
+//对阴影要进行PCF采样. 我们定义SMAP_SIZE = 2048.0f, SMAP_DX = (1.0f / SMAP_SIZE)
+float CalcShadowFactor(float4 shadowPosH)
+{
+    shadowPosH.xyz /= shadowPosH.w; //进行投影转换,变换到[-1, 1]的NDC空间中
+
+    float depth = shadowPosH.z; //计算在NDC空间中的深度值
+
+    uint width, height, numMips;
+    gShadowMap.GetDimensions(0, width, height, numMips);    //获取对应层级的阴影图的宽、高、Mip值
+
+    float dx = 1.0f / (float) width;
+
+    float percentLit = 0.0f;
+    const float2 offsets[9] =   //定义9个采样偏移
+    {
+        float2(-dx, -dx), float2(0.0f, -dx), float2(dx, -dx),
+        float2(-dx, 0.0f), float2(0.0f, 0.0f), float2(dx, 0.0f),
+        float2(-dx, dx), float2(0.0f, dx), float2(dx, dx),
+    };
+
+    [unroll]
+    for (int i = 0; i < 9; ++i) //对这9个位置进行依次采样. 得出平均的阴影值
+    {
+        percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow, shadowPosH.xy + offsets[i], depth).r;
+    }
+
+    return percentLit / 9.0f;
+
 }
