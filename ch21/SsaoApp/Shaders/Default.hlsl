@@ -9,7 +9,7 @@
 #endif
 
 #ifndef NUM_SPOT_LIGHTS
-    #define NUM_SPOT_LIGHTS
+    #define NUM_SPOT_LIGHTS 0
 #endif
 
 #include "Common.hlsl"
@@ -97,7 +97,7 @@ float4 PS(VertexOut pin) : SV_Target    //我们声明返回的float4为对应�
     float4 litColor = ambient + directLight;    //最终颜色为环境光 + 光照颜色
 
     //我们还要加上对环境的高光反射
-    float3 r = reflect(-toEyeW, bumpedNormalW); //折射光方向为根据观察向量，在法线方向上的对称向量
+    float3 r = reflect(-toEyeW, bumpedNormalW); //折射光方向为根据观察向量，在法线方向上的对称向量. 注意这里是-toEyeW
     float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);    //我们根据折射光方向，在环境光贴图上采样，得到其反射
     float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r); //得到fresnel
     litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;    //我们再让最后的颜色加上反射
