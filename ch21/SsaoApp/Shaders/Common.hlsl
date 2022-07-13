@@ -75,7 +75,7 @@ cbuffer cbPass : register(b1) //每帧的常量缓冲区，绑定到b1上
     Light gLights[MaxLights];
 };
 
-//将一个对法线图的采样转换到世界空间中的采样. (默认的采样为在NDC空间中)
+//将一个对法线图的采样转换到世界空间中的实际法线. (默认的采样为在NDC空间中)
 float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, float3 tangentW)
 {
     float3 normalT = 2.0f * normalMapSample - 1.0f; //将纹理采样空间中的[0, 1]转换到NDC空间中的[-1, 1]
@@ -114,9 +114,9 @@ float CalcShadowFactor(float4 shadowPosH)
     [unroll]
     for (int i = 0; i < 9; ++i) //对这9个位置进行依次采样. 得出平均的阴影值
     {
-        percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow, shadowPosH.xy + offsets[i], depth).r;
+        percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow, shadowPosH.xy + offsets[i], depth).r;   //判断depth是否比周围顶点的深度值更小, 若更小则说明其比周围物体更靠近相机, 即不会被当前物体阻挡(可以被透过). 为什么这里只计量了.r? 
     }
 
-    return percentLit / 9.0f;
+    return percentLit / 9.0f;   //不被遮挡的越多，则该值越大
 
 }

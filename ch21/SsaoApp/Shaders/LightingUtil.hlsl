@@ -116,7 +116,7 @@ float4 ComputeLighting(Light gLights[MaxLights], Material mat, float3 pos, float
 
 #if (NUM_DIR_LIGHTS > 0)
     for (i = 0; i < NUM_DIR_LIGHTS; ++i)
-        res += shadowFactor[i] * ComputeDirectionalLight(gLights[i], mat, normal, toEye);   //我们只有平行光才计算阴影, 不同的光源针对同一个材质，阴影参数可能是不同的，要看其不同的遮蔽率
+        res += shadowFactor[i] * ComputeDirectionalLight(gLights[i], mat, normal, toEye);   //我们只有平行光才计算阴影, 不同的光源针对同一个材质，阴影参数可能是不同的，要看其不同的遮蔽率. 遮蔽率越低, shadowFactor越大
 #endif
 
 #if (NUM_POINT_LIGHTS > 0)
