@@ -157,6 +157,27 @@ private:
 	POINT mLastMousePos;	//记录上一次的鼠标位置
 };
 
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)	//Win平台下的入口函数
+{
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);	//若启用了Debug模式，则开启内存和堆检测
+#endif
+
+	try		//防止报错
+	{
+		SsaoApp theApp(hInstance);
+		if (!theApp.Initialize())
+			return 0;
+
+		return theApp.Run();
+	}
+	catch (DxException& e)
+	{
+		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+		return 0;
+	}
+}
+
 SsaoApp::SsaoApp(HINSTANCE hInstance) : D3DApp(hInstance)
 {
 	//我们已然知道场景包围球的中心店和其半径
@@ -857,7 +878,7 @@ void SsaoApp::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;	//创建一个几何创建器
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);	//创建一个长宽高各为1，细分为3的立方体
-	GeometryGenerator::MeshData grid = geoGen.CreateBox(20.0f, 20.0f, 60, 40);	//创建一个长款为20，高为60,细分为40的地板
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);	//创建一个长为20，宽为30，高为60,细分为40的地板
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);	//创建半径为0.5, 曲面细分为20的球. 其有20道环，每道环上有20个顶点
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);	//创建一个底部半径为0.5，顶部半径为0.3，高为3，环20道，每道环上有20个顶点的类圆锥
 	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);	//创建一个覆盖全屏的平面. 我们用其实现后处理效果
@@ -865,14 +886,14 @@ void SsaoApp::BuildShapeGeometry()
 	UINT boxVertexOffset = 0;	//我们准备将所有顶点推入同一个顶点缓冲区中。 因此，我们需要记录每个几何的顶点的上下界. 我们的顺序是box-grid-sphere-cylinder-quad
 	UINT gridVertexOffset = (UINT)box.Vertices.size();
 	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
-	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)cylinder.Vertices.size();
-	UINT quadVertexOffset = cylinderVertexOffset + (UINT)quad.Vertices.size();
+	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+	UINT quadVertexOffset = cylinderVertexOffset + (UINT)cylinder.Vertices.size();
 
 	UINT boxIndexOffset = 0;	//同样的，我们将索引缓冲区也合并到一起. 顺序和上方一样
 	UINT gridIndexOffset = (UINT)box.Indices32.size();
 	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
 	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
-	UINT quadIndexOffset = cylinderIndexOffset + (UINT)sphere.Indices32.size();
+	UINT quadIndexOffset = cylinderIndexOffset + (UINT)cylinder.Indices32.size();
 
 	SubmeshGeometry boxSubmesh;	//为了将几何们合并，我们创建每个几何对应的submesh. 之后我们便可以将这些submesh合并为同一个mesh. 
 	boxSubmesh.IndexCount = (UINT)box.Indices32.size();	//每个submesh都需要记录自己的索引数量、索引的起始位置、顶点的偏移位置
@@ -955,7 +976,7 @@ void SsaoApp::BuildShapeGeometry()
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();	//创建Mesh资源
-	geo->Name = "sphereGeo";
+	geo->Name = "shapeGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));	//为Mesh创建顶点缓冲区，其大小为vbByteSize
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);	//将实际的顶点复制到我们创建的顶点缓冲区中
