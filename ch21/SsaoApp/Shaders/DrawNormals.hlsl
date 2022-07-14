@@ -48,7 +48,7 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-float4 PS(VertexOut pin) : SV_Target
+float4 PS(VertexOut pin) : SV_Target    //我们在这里返回的是法线!!!
 {
     MaterialData matData = gMaterialData[gMaterialIndex];
     float4 diffuseAlbedo = matData.DiffuseMapIndex;
