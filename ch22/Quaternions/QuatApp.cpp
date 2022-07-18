@@ -75,3 +75,132 @@ private:
 private:
 	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 };
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) 
+{
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+	try 
+	{
+		QuatApp theApp(hInstance);
+		if (!theApp.Initialize()) return 0;
+		return theApp.Run();
+	}
+	catch (DxException& e)
+	{
+		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+		return 0;
+	}
+}
+
+QuatApp::QuatApp(HINSTANCE hInstance)
+{
+}
+
+QuatApp::~QuatApp()
+{
+}
+
+bool QuatApp::Initialize()
+{
+	return false;
+}
+
+void QuatApp::OnResize()
+{
+}
+
+void QuatApp::Update(const GameTimer& gt)
+{
+}
+
+void QuatApp::Draw(const GameTimer& gt)
+{
+}
+
+void QuatApp::OnMouseDown(WPARAM btnState, int x, int y)
+{
+}
+
+void QuatApp::OnMouseUp(WPARAM btnState, int x, int y)
+{
+}
+
+void QuatApp::OnMouseMove(WPARAM btnState, int x, int y)
+{
+}
+
+void QuatApp::OnKeyboardInput(const GameTimer& gt)
+{
+}
+
+void QuatApp::AniamateMaterials(const GameTimer& gt)
+{
+}
+
+void QuatApp::UpdateObjectCBs(const GameTimer& gt)
+{
+}
+
+void QuatApp::UpdateMaterialBuffer(const GameTimer& gt)
+{
+}
+
+void QuatApp::UpdateMainPassCB(const GameTimer& gt)
+{
+}
+
+void QuatApp::DefineSkullAniamtion()
+{
+}
+
+void QuatApp::LoadTextures()
+{
+}
+
+void QuatApp::BuildRootSignature()
+{
+}
+
+void QuatApp::BuildDescriptorHeaps()
+{
+}
+
+void QuatApp::BuildShadersAndInputLayout()
+{
+}
+
+void QuatApp::BuildShapeGeometry()
+{
+}
+
+void QuatApp::BuildSkullGeometry()
+{
+}
+
+void QuatApp::BuildPSOs()
+{
+}
+
+void QuatApp::BuildFrameResources()
+{
+}
+
+void QuatApp::BuildMaterials()
+{
+}
+
+void QuatApp::BuildRenderItems()
+{
+}
+
+void QuatApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+{
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> QuatApp::GetStaticSamplers()
+{
+	return std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6>();
+}
