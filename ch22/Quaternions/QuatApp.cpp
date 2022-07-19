@@ -387,9 +387,41 @@ void QuatApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+//FIXME: 22章重头戏
 void QuatApp::DefineSkullAnimation()
 {
+	XMVECTOR q0 = XMQuaternionRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(30.0f));	//绕着y轴顺时针旋转30度
+	XMVECTOR q1 = XMQuaternionRotationAxis(XMVectorSet(1.0f, 1.0f, 2.0f, 0.0f), XMConvertToRadians(45.0f));	//绕着一个斜向轴旋转45度
+	XMVECTOR q2 = XMQuaternionRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(-30.0f));	//绕着y轴逆时针旋转30度
+	XMVECTOR q3 = XMQuaternionRotationAxis(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMConvertToRadians(70.0f));	//绕着x轴顺时针旋转70度
+
+	mSkullAnimation.Keyframes.resize(5);
+	mSkullAnimation.Keyframes[0].TimePos = 0.0f;	//第0秒
+	mSkullAnimation.Keyframes[0].Translation = XMFLOAT3(-7.0f, 0.0f, 0.0f);	//其位移为x轴-7
+	mSkullAnimation.Keyframes[0].Scale = XMFLOAT3(0.25f, 0.25f, 0.25f);	//其尺寸为0.25
+	XMStoreFloat4(&mSkullAnimation.Keyframes[0].RotationQuat, q0);
+
+	mSkullAnimation.Keyframes[1].TimePos = 2.0f;	//第2秒
+	mSkullAnimation.Keyframes[1].Translation = XMFLOAT3(0.0f, 2.0f, 10.0f);	//其位移为y的2.0f, z的10.0f
+	mSkullAnimation.Keyframes[1].Scale = XMFLOAT3(0.5f, 0.5f, 0.5f);	//其尺寸变为0.5
+	XMStoreFloat4(&mSkullAnimation.Keyframes[1].RotationQuat, q1);	//其绕着一个斜向轴旋转45度
+
+	mSkullAnimation.Keyframes[2].TimePos = 4.0f;	//第4秒
+	mSkullAnimation.Keyframes[2].Translation = XMFLOAT3(7.0f, 0.0f, 0.0f);	//现在x轴为7了
+	mSkullAnimation.Keyframes[2].Scale = XMFLOAT3(0.25f, 0.25f, 0.25f);	//其尺寸变为0.25
+	XMStoreFloat4(&mSkullAnimation.Keyframes[2].RotationQuat, q2);
+
+	mSkullAnimation.Keyframes[3].TimePos = 6.0f;
+	mSkullAnimation.Keyframes[3].Translation = XMFLOAT3(0.0f, 1.0f, -10.0f);	//其现在和第2秒的差不多相对, 但是y少了1
+	mSkullAnimation.Keyframes[3].Scale = XMFLOAT3(0.5f, 0.25f, 0.25f);
+	XMStoreFloat4(&mSkullAnimation.Keyframes[3].RotationQuat, q3);
+
+	mSkullAnimation.Keyframes[4].TimePos = 8.0f;	//第0秒
+	mSkullAnimation.Keyframes[4].Translation = XMFLOAT3(-7.0f, 0.0f, 0.0f);	//其位移为x轴-7
+	mSkullAnimation.Keyframes[4].Scale = XMFLOAT3(0.25f, 0.25f, 0.25f);	//其尺寸为0.25
+	XMStoreFloat4(&mSkullAnimation.Keyframes[4].RotationQuat, q0);
 }
+
 
 void QuatApp::LoadTextures()
 {
