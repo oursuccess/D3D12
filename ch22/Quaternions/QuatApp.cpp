@@ -205,22 +205,99 @@ void QuatApp::Update(const GameTimer& gt)
 
 void QuatApp::Draw(const GameTimer& gt)
 {
+	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;	//每个帧资源都有自己的命令分配器，来分配自己当前帧的命令
+
+	ThrowIfFailed(cmdListAlloc->Reset());	//首先我们将命令分配器重置
+
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));	//然后我们将命令列表重置为使用当前命令分配器，且默认的PSO为opaque
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);	//我们设置视口和裁剪矩形
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将当前后台缓冲区的状态从展示改为渲染对象
+
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);	//将后台缓冲区视图重置为浅蓝色，且清理整个视图
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);	//我们将深度/模板试图清理为深度1(无限远), 模板0, 同样的我们清除整个视图
+
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());	//我们设置输出合并阶段的渲染对象为当前的后台缓冲区，而将深度/模板渲染到深度/模板视图中
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };	//我们根据Srv描述符的大小来设置命令列表中的描述符堆
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());	//设置根签名
+
+	auto passCB = mCurrFrameResource->PassCB->Resource();	//获取当前帧的Pass常量缓冲区
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());	//将Pass常量缓冲区绑定到根签名中的1的位置, 其为根描述符
+
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());	//将当前帧的材质缓冲区绑定到根签名中2的位置，其为根描述符
+
+	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//将Srv描述符堆绑定到根签名中3的位置，其为描述符表
+
+	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);	//绘制所有的不透明对象. 在本章例程中，只有不透明对象
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));	//在绘制命令完成后，我们将后台缓冲区重新设置为展示状态
+
+	ThrowIfFailed(mCommandList->Close());	//然后关闭命令列表并执行命令队列
+
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	ThrowIfFailed(mSwapChain->Present(0, 0));	//交换前台和后台缓冲区
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+	mCurrFrameResource->Fence = ++mCurrentFence;	//我们将当前帧的围栏值更新为mCurrentFence(这里增加了mCurrentFence)
+
+	mCommandQueue->Signal(mFence.Get(), mCurrentFence);	//通知命令队列，当命令全部执行完成后将Fence的值设置为mCurrentFence
 }
 
 void QuatApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
+
+	SetCapture(mhMainWnd);	//在按下鼠标左键移动时，固定屏幕
 }
 
 void QuatApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
+	ReleaseCapture();
 }
 
 void QuatApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
+	if ((btnState & MK_LBUTTON) != 0)
+	{
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+
+		mCamera.Pitch(dy);	//pitch: 绕x旋转. yaw: 绕y旋转, roll: 绕z旋转
+		mCamera.RotateY(dx);
+	}
+
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
 }
 
 void QuatApp::OnKeyboardInput(const GameTimer& gt)
 {
+	const float dt = gt.DeltaTime();
+
+	if (GetAsyncKeyState('W') & 0x8000) 
+		mCamera.Walk(10.0f * dt);
+
+	if (GetAsyncKeyState('S') & 0x8000)
+		mCamera.Walk(-10.0f * dt);
+
+	if (GetAsyncKeyState('A') & 0x8000)
+		mCamera.Strafe(-10.0f * dt);
+
+	if (GetAsyncKeyState('D') & 0x8000)
+		mCamera.Strafe(10.0f * dt);
+
+	mCamera.UpdateViewMatrix();
 }
 
 void QuatApp::AnimateMaterials(const GameTimer& gt)
@@ -229,14 +306,85 @@ void QuatApp::AnimateMaterials(const GameTimer& gt)
 
 void QuatApp::UpdateObjectCBs(const GameTimer& gt)
 {
+	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+	for (auto& e : mAllRitems)
+	{
+		if (e->NumFramesDirty > 0)
+		{
+			XMMATRIX world = XMLoadFloat4x4(&e->World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//之所以要转置，是因为dx中是行优先，但是hlsl中是列优先
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+			objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);	//更新currObjectCB中索引为objCBIndex的数据，更新为objConstants
+
+			e->NumFramesDirty--;
+		}
+	}
 }
 
 void QuatApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
+	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
+	for (auto& e : mMaterials)
+	{
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0)
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matData.FresnelR0 = mat->FresnelR0;
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+
+			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+
+			mat->NumFramesDirty--;
+		}
+	}
 }
 
 void QuatApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	XMMATRIX view = mCamera.GetView();
+	XMMATRIX proj = mCamera.GetProj();
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();
+	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
+	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+
+	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	auto currPassCB = mCurrFrameResource->PassCB.get();
+	currPassCB->CopyData(0, mMainPassCB);
 }
 
 void QuatApp::DefineSkullAnimation()
