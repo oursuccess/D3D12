@@ -57,7 +57,7 @@ private:
 	void UpdateMaterialBuffer(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
-	void DefineSkullAniamtion();	//定义骷髅的动画
+	void DefineSkullAnimation();	//定义骷髅的动画
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
@@ -90,6 +90,8 @@ private:
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;	//流水线状态对象们. 为什么有的是ComPtr, 有的是unique_ptr?
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;	//输入布局描述们
+
+	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
 	std::vector<RenderItem*> mOpaqueRitems;
 
@@ -127,7 +129,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 
 QuatApp::QuatApp(HINSTANCE hInstance) : D3DApp(hInstance)
 {
-	DefineSkullAniamtion();	//在初始化时构建骷髅动画
+	DefineSkullAnimation();	//在初始化时构建骷髅动画
 }
 
 QuatApp::~QuatApp()
@@ -195,7 +197,7 @@ void QuatApp::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
-	AnimateMaterials(gt);
+	AnimateMaterials(gt);	//然后开始更新材质、常量缓冲区等
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
 	UpdateMainPassCB(gt);
@@ -237,7 +239,7 @@ void QuatApp::UpdateMainPassCB(const GameTimer& gt)
 {
 }
 
-void QuatApp::DefineSkullAniamtion()
+void QuatApp::DefineSkullAnimation()
 {
 }
 
