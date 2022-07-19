@@ -144,7 +144,7 @@ bool QuatApp::Initialize()
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));	//先将命令列表清空. 因为D3DApp中可能也用到了命令列表
 
-	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);	//获取描述符堆中类型为Cbv/Srv/Uav的描述符的大小
+	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);	//获取描述符堆中类型为Cbv/Srv/Uav的描述符的大小. 然后将之赋值给CbvSrv!, 注意后面没有Uav
 
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);	//设置相机位置. 我们将其设置到高度为2，屏幕近处15的地方
 
