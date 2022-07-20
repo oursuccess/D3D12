@@ -416,15 +416,31 @@ void QuatApp::DefineSkullAnimation()
 	mSkullAnimation.Keyframes[3].Scale = XMFLOAT3(0.5f, 0.25f, 0.25f);
 	XMStoreFloat4(&mSkullAnimation.Keyframes[3].RotationQuat, q3);
 
-	mSkullAnimation.Keyframes[4].TimePos = 8.0f;	//第0秒
+	mSkullAnimation.Keyframes[4].TimePos = 8.0f;	//第8秒。 我们通过这种方式实现动画的完全循环播放
 	mSkullAnimation.Keyframes[4].Translation = XMFLOAT3(-7.0f, 0.0f, 0.0f);	//其位移为x轴-7
 	mSkullAnimation.Keyframes[4].Scale = XMFLOAT3(0.25f, 0.25f, 0.25f);	//其尺寸为0.25
 	XMStoreFloat4(&mSkullAnimation.Keyframes[4].RotationQuat, q0);
 }
 
 
-void QuatApp::LoadTextures()
+void QuatApp::LoadTextures()	//这里原例程逐个创建了资源. 为了通用性，我们改用循环
 {
+	std::unordered_map<std::string, std::wstring> textureResources{
+		{"bricksTex", L"Textures/bricks2.dds"},
+		{"stoneTex", L"Textures/stone.dds"},
+		{"tileTex", L"Textures/tile.dds"},
+		{"crateTex", L"Textures/WoodCrate01.dds"},
+		{"defaultTex", L"Textures/white1x1.dds"},
+	};
+
+	for (const auto& [texName, fileName] : textureResources) 
+	{
+		auto tex = std::make_unique<Texture>();
+		tex->Name = texName;
+		tex->Filename = fileName;
+		ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(), mCommandList.Get(), fileName.c_str(), tex->Resource, tex->UploadHeap));
+		mTextures[texName] = std::move(tex);
+	}
 }
 
 void QuatApp::BuildRootSignature()
