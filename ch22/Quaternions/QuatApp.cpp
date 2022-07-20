@@ -505,22 +505,287 @@ void QuatApp::BuildDescriptorHeaps()
 
 void QuatApp::BuildShadersAndInputLayout()
 {
+	const D3D_SHADER_MACRO alphaTestDefines[] = {
+		"ALPHA_TEST", "1", NULL, NULL
+	};	//定义一下宏, 我们的宏里定义了ALPHA_TEST这一个宏
+
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");	//读取Default.hlsl文件中的VS方法，使用vs_5_1标准, 不使用宏，将其编译为shader，并存入mShaders, 键值为standardVS
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+
+	mInputLayout = {	//输入布局描述. 我们在输入-合并阶段传入顶点的变量有POSITION, NORMAL, TEXCOORD. 这些变量在standardVS中使用. 这些变量被传入了顶点缓冲区中!!!
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
 }
 
-void QuatApp::BuildShapeGeometry()
+void QuatApp::BuildShapeGeometry()	//直接复制粘贴
 {
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+
+	//
+	// We are concatenating all the geometry into one big vertex/index buffer.  So
+	// define the regions in the buffer each submesh covers.
+	//
+
+	// Cache the vertex offsets to each object in the concatenated vertex buffer.
+	UINT boxVertexOffset = 0;
+	UINT gridVertexOffset = (UINT)box.Vertices.size();
+	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
+	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+
+	// Cache the starting index for each object in the concatenated index buffer.
+	UINT boxIndexOffset = 0;
+	UINT gridIndexOffset = (UINT)box.Indices32.size();
+	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
+	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+
+	SubmeshGeometry boxSubmesh;
+	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+	boxSubmesh.StartIndexLocation = boxIndexOffset;
+	boxSubmesh.BaseVertexLocation = boxVertexOffset;
+
+	SubmeshGeometry gridSubmesh;
+	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
+	gridSubmesh.StartIndexLocation = gridIndexOffset;
+	gridSubmesh.BaseVertexLocation = gridVertexOffset;
+
+	SubmeshGeometry sphereSubmesh;
+	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
+	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
+	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
+
+	SubmeshGeometry cylinderSubmesh;
+	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
+	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
+	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
+
+	//
+	// Extract the vertex elements we are interested in and pack the
+	// vertices of all the meshes into one vertex buffer.
+	//
+
+	auto totalVertexCount =
+		box.Vertices.size() +
+		grid.Vertices.size() +
+		sphere.Vertices.size() +
+		cylinder.Vertices.size();
+
+	std::vector<Vertex> vertices(totalVertexCount);
+
+	UINT k = 0;
+	for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = box.Vertices[i].Position;
+		vertices[k].Normal = box.Vertices[i].Normal;
+		vertices[k].TexC = box.Vertices[i].TexC;
+	}
+
+	for(size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = grid.Vertices[i].Position;
+		vertices[k].Normal = grid.Vertices[i].Normal;
+		vertices[k].TexC = grid.Vertices[i].TexC;
+	}
+
+	for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = sphere.Vertices[i].Position;
+		vertices[k].Normal = sphere.Vertices[i].Normal;
+		vertices[k].TexC = sphere.Vertices[i].TexC;
+	}
+
+	for(size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = cylinder.Vertices[i].Position;
+		vertices[k].Normal = cylinder.Vertices[i].Normal;
+		vertices[k].TexC = cylinder.Vertices[i].TexC;
+	}
+
+	std::vector<std::uint16_t> indices;
+	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
+	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
+	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
+	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "shapeGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	geo->DrawArgs["box"] = boxSubmesh;
+	geo->DrawArgs["grid"] = gridSubmesh;
+	geo->DrawArgs["sphere"] = sphereSubmesh;
+	geo->DrawArgs["cylinder"] = cylinderSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
-void QuatApp::BuildSkullGeometry()
+void QuatApp::BuildSkullGeometry()	//复制粘贴
 {
+	std::ifstream fin("Models/skull.txt");
+
+    if(!fin)
+    {
+        MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+        return;
+    }
+
+    UINT vcount = 0;
+    UINT tcount = 0;
+    std::string ignore;
+
+    fin >> ignore >> vcount;
+    fin >> ignore >> tcount;
+    fin >> ignore >> ignore >> ignore >> ignore;
+
+    XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+    XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+
+    XMVECTOR vMin = XMLoadFloat3(&vMinf3);
+    XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
+
+    std::vector<Vertex> vertices(vcount);
+    for(UINT i = 0; i < vcount; ++i)
+    {
+        fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+        fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+
+        XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+
+        // Project point onto unit sphere and generate spherical texture coordinates.
+        XMFLOAT3 spherePos;
+        XMStoreFloat3(&spherePos, XMVector3Normalize(P));
+
+        float theta = atan2f(spherePos.z, spherePos.x);
+
+        // Put in [0, 2pi].
+        if(theta < 0.0f)
+            theta += XM_2PI;
+
+        float phi = acosf(spherePos.y);
+
+        float u = theta / (2.0f*XM_PI);
+        float v = phi / XM_PI;
+
+        vertices[i].TexC = { u, v };
+
+        vMin = XMVectorMin(vMin, P);
+        vMax = XMVectorMax(vMax, P);
+    }
+
+    BoundingBox bounds;
+    XMStoreFloat3(&bounds.Center, 0.5f*(vMin + vMax));
+    XMStoreFloat3(&bounds.Extents, 0.5f*(vMax - vMin));
+
+    fin >> ignore;
+    fin >> ignore;
+    fin >> ignore;
+
+    std::vector<std::int32_t> indices(3 * tcount);
+    for(UINT i = 0; i < tcount; ++i)
+    {
+        fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+    }
+
+    fin.close();
+
+    //
+    // Pack the indices of all the meshes into one index buffer.
+    //
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "skullGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+    submesh.Bounds = bounds;
+
+    geo->DrawArgs["skull"] = submesh;
+
+    mGeometries[geo->Name] = std::move(geo);
 }
 
 void QuatApp::BuildPSOs()
 {
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;	//创建一个流水线状态描述
+
+	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));	//清空流水线状态描述
+	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };	//其输入布局描述为我们在上面构建的输入布局描述
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();	//其根签名同样在前面定义. 其中有4个根参数, 6个静态采样器
+	opaquePsoDesc.VS = {
+		reinterpret_cast<BYTE*> (mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
+	};
+	opaquePsoDesc.PS = {
+		reinterpret_cast<BYTE*> (mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
+	};
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);	//其光栅化状态为默认的即可
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);	//其混合状态同样为默认的即可
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);	//其深度/模板状态同样为默认的即可
+	opaquePsoDesc.SampleMask = UINT_MAX;	//采样遮罩为最大. 表示均为1. 我们不遮罩任何一个通道
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;	//其基础拓扑结构为三角形
+	opaquePsoDesc.NumRenderTargets = 1;	//其渲染对象为1
+	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;	//其渲染对象的格式为我们定义的后台缓冲区格式
+	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;	//其采样数量, 在打开了Msaa时为4, 否则为1
+	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;	//若打开了Msaa, 则质量为Msaa的质量-1; 否则为0(最大)
+	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));	//在设备上创建用于不透明物体的流水线状态对象
 }
 
 void QuatApp::BuildFrameResources()
 {
+	for (int i = 0; i < gNumFrameResources; ++i)	//每有一个帧资源，我们就推入一个
+	{
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1,
+			(UINT)mAllRitems.size(), (UINT)mMaterials.size()));
+	}
 }
 
 void QuatApp::BuildMaterials()
