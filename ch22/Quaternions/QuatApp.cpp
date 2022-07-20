@@ -445,10 +445,62 @@ void QuatApp::LoadTextures()	//这里原例程逐个创建了资源. 为了通�
 
 void QuatApp::BuildRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE texTable;
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 0);	//初始化该描述符表. 其类型为SRV, 其中有5个元素，从描述符堆的偏移0处开始, 绑定的空间为0. 其用于存储我们的贴图. 对应t0
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];	//创建一个有4个参数的根参数
+
+	slotRootParameter[0].InitAsConstantBufferView(0);	//我们将首元素初始化为根描述符. 其中为常量缓冲区，绑定在空间0的偏移为0的位置，对应b0. 在实际应用中，我们将物体的常量缓冲区绑定于此
+	slotRootParameter[1].InitAsConstantBufferView(1);	//我们将下标1初始化为根描述符，其中为常量缓冲区，绑定在空间0的偏移为1的位置，对应b1. 在实际应用中，我们将Pass的常量缓冲区绑定于此
+	slotRootParameter[2].InitAsShaderResourceView(0, 1);	//我们将下标2初始化为根描述符, 其中为着色器资源视图, 绑定在空间1的偏移为0的位置, 对应(t0, space1). 在实际应用中，我们将材质数据绑定于此. 为什么命名是数据，我们却要将其绑定为SRV?	--FIXME:
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);	//我们将下标3初始化为描述符表, 其仅有一个描述符,中为我们在上面声明的包含了5个SRV的描述符, 绑定在t0. 在实际应用中, 我们将贴图数据绑定于此. 之所以这里用描述符表, 是因为SRV不能直接作为根描述符绑定
+
+	auto staticSamplers = GetStaticSamplers();
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, (UINT)staticSamplers.size(),
+		staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);	//根据指定的根描述符、静态采样器创建根签名描述. 我们将该根签名描述设置为允许输入阶段的组合，以及输入布局描述
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());	//尝试根据根签名描述创建一个序列化的根签名. 若成功，填充serializedRootSig, 否则填充errorBlob
+
+	if (errorBlob != nullptr)
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mRootSignature.GetAddressOf())));	//根据序列化的根签名将根签名实际绑定到设备上, 并以mRootSignature作为其句柄.
 }
 
 void QuatApp::BuildDescriptorHeaps()
 {
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};	//创建描述符堆描述
+	srvHeapDesc.NumDescriptors = 5;	//该堆中的描述符数量为5
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;	//该堆中的类型为CBV/SRV/UAV
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;	//该堆的Flag为允许Shader的可见性
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));	//尝试根据描述符堆描述在mSrvDescriptorHeap处创建描述符堆
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());	//先获取该描述符堆的起始位置，准备一个个一次创建描述符
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};	//创建一个默认的着色器资源视图描述
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	//其采样顺序不变, 依然为argb
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//其格式均为Texture2D. 这在有天空盒的情况下是无法生效的
+	srvDesc.Texture2D.MostDetailedMip = 0;	//其最细节的Mip层级为0
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;	//我们允许的最低采样Mip层级为0.0f
+
+	//这里的材质需要严格有序, 因此我们必须使用数组
+	auto textureNames = std::vector<std::string>{
+		"bricksTex", "stoneTex", "tileTex", "crateTex", "defaultTex",
+	};
+	for (const auto& name : textureNames)
+	{
+		auto tex = mTextures[name]->Resource;	//获取对应名称的材质
+		srvDesc.Format = tex->GetDesc().Format;	//我们根据材质来设置纹理的格式、Mip层级数量
+		srvDesc.Texture2D.MipLevels = tex->GetDesc().MipLevels;
+		md3dDevice->CreateShaderResourceView(tex.Get(), &srvDesc, hDescriptor);	//根据纹理和着色器描述，在当前的描述符句柄上构建ShaderResourceView
+		hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	}
 }
 
 void QuatApp::BuildShadersAndInputLayout()
