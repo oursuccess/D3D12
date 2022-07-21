@@ -28,7 +28,8 @@ struct MaterialData
 
 Texture2D gDiffuseMap[5] : register(t0);    //漫反射贴图. 我们将其绑定到t0上
 
-StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);    //材质数据们, 我们将其绑定到space1的t0上. 之索引为什么要将其绑定到t(对应ShaderResourceView) 是因为我们需要对其进行索引?
+//StructuredBuffer: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sm5-object-structuredbuffer
+StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);    //材质数据们, 我们将其绑定到space1的t0上. 之索引为什么要将其绑定到t(对应ShaderResourceView), 是因为该类型就是需要绑定到SRV格式上的!
 
 SamplerState gsamPointWrap  : register(s0);
 SamplerState gsamPointClamp : register(s1);
@@ -78,7 +79,7 @@ struct VertexIn //VertexIn在VertexBuffer中定义
 struct VertexOut
 {
     float4 PosH : SV_Position;  //系统值变量, 我们必须在光栅化前传入该值, 用来表示其在投影时的坐标变换
-    float3 PosW : POSITION; //后面的这三个还需要约定语义表示其意义吗?
+    float3 PosW : POSITION; //后面的这三个也需要约定语义. 我们在VS/PS等着色器中定义的结构体都是需要约定语义的!
     float3 NormalW : NORMAL;
     float2 TexC : TEXCOORD;
 };
