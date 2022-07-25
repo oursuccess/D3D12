@@ -34,6 +34,7 @@ struct VertexOut
     float3 NormalW : NORMAL;
 	float3 TangentW : TANGENT;
 	float2 TexC    : TEXCOORD;
+    float4 ProjectorPosH : POSITION2;   //quiz2001
 };
 
 VertexOut VS(VertexIn vin)
@@ -61,6 +62,8 @@ VertexOut VS(VertexIn vin)
 
     // Generate projective tex-coords to project shadow map onto scene.
     vout.ShadowPosH = mul(posW, gShadowTransform);
+
+    vout.ProjectorPosH = mul(posW, gProjectorTransform);    //Quiz2001
 	
     return vout;
 }
@@ -116,9 +119,16 @@ float4 PS(VertexOut pin) : SV_Target
     float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
     float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
     litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
-	
+
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
+
+    //litColor = pin.ProjectorPosH - 16.0f;
+
+    //Quiz2001. 添加投影机. 我们对投影纹理进行采样之后, 将其与原本的颜色相加
+    pin.ProjectorPosH.xyz /= pin.ProjectorPosH.w;
+    float4 projectorMapSample = gTextureMaps[gProjectorMapIndex].Sample(gsamLinearClamp, pin.ProjectorPosH.xy);
+    litColor = projectorMapSample;
 
     return litColor;
 }

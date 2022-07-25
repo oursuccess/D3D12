@@ -134,11 +134,11 @@
     <ClCompile Include="..\..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\d3d12book-master\Common\MathHelper.cpp" />
-    <ClCompile Include="..\Shadows\FrameResource.cpp" />
-    <ClCompile Include="..\Shadows\ShadowMap.cpp" />
+    <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="Quiz01.cpp">
       <ConformanceMode Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ConformanceMode>
     </ClCompile>
+    <ClCompile Include="ShadowMap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\d3d12book-master\Common\Camera.h" />
@@ -150,8 +150,8 @@
     <ClInclude Include="..\..\d3d12book-master\Common\GeometryGenerator.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\..\d3d12book-master\Common\UploadBuffer.h" />
-    <ClInclude Include="..\Shadows\FrameResource.h" />
-    <ClInclude Include="..\Shadows\ShadowMap.h" />
+    <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="ShadowMap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

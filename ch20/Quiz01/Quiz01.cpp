@@ -79,6 +79,9 @@ private:
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
     void UpdateShadowTransform(const GameTimer& gt);
+#pragma region Quiz2001
+    void UpdateProjectorTransform(const GameTimer& gt);
+#pragma endregion
 	void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
 
@@ -127,6 +130,13 @@ private:
     //ch20. 添加阴影图所用的立方体和贴图纹理偏移
     UINT mNullCubeSrvIndex = 0;
     UINT mNullTexSrvIndex = 0;
+
+#pragma region Quiz2001
+    UINT mProjectorMapIndex = 0;
+    Light mProjectorLight;
+
+    XMFLOAT4X4 mProjectorTransform = MathHelper::Identity4x4();
+#pragma endregion
 
     //ch20. 阴影图的着色器资源视图
     CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
@@ -193,6 +203,19 @@ ShadowMapApp::ShadowMapApp(HINSTANCE hInstance)
     // position and compute the bounding sphere.
     mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
     mSceneBounds.Radius = sqrtf(10.0f*10.0f + 15.0f*15.0f);
+
+#pragma region Quiz2001
+    //记录投影机的光源, 我们先假定其为一个平行光
+    /*
+    mProjectorLight.Direction = { 0.0f, -3.0f, 0.0f };    //从上向正下方直接投影
+    mProjectorLight.Strength = { 1.0f, 1.0f, 1.0f };
+    */
+    //记录投影机的光源. 我们再假定其为一个点光源
+    mProjectorLight.Position = { 0.0f, 2.0f, 0.0f };
+    mProjectorLight.FalloffStart = 1.0f;
+    mProjectorLight.FalloffEnd = 3.0f;
+    mProjectorLight.Strength = { 1.0f, 1.0f, 1.0f };
+#pragma endregion
 }
 
 ShadowMapApp::~ShadowMapApp()
@@ -305,6 +328,10 @@ void ShadowMapApp::Update(const GameTimer& gt)
 	UpdateMaterialBuffer(gt);
     //更新阴影的变换矩阵
     UpdateShadowTransform(gt);
+#pragma region Quiz2001
+    //更新投影机的变换矩阵
+    UpdateProjectorTransform(gt);
+#pragma endregion
 	UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
 }
@@ -369,6 +396,7 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
     mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 
+    //这里可以看到, 先画了阴影, 才开始绘制!  因此, 我们要实现投影机效果, 在这里(要修改opaque的shader)进行对投影机的采样即可
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
@@ -554,6 +582,23 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
     XMStoreFloat4x4(&mShadowTransform, S);
 }
 
+void ShadowMapApp::UpdateProjectorTransform(const GameTimer& gt)
+{
+    XMMATRIX lightProj = XMMatrixPerspectiveFovLH(1, 1, 1, 10);
+
+    // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+    //计算从NDC空间转到纹理空间的变换矩阵
+    XMMATRIX T(
+        0.5f, 0.0f, 0.0f, 0.0f,
+        0.0f, -0.5f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.0f, 1.0f);
+
+    //光照 * 光照投影矩阵 = NDC下的坐标
+    XMMATRIX P = lightProj*T;
+    XMStoreFloat4x4(&mProjectorTransform, P);
+}
+
 void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = mCamera.GetView();
@@ -587,6 +632,13 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
 	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+#pragma region Quiz2001
+    //记录投影机投影的问题里的偏移
+    mMainPassCB.ProjectorMapIndex = mProjectorMapIndex;
+    mMainPassCB.Lights[3] = mProjectorLight;
+    XMMATRIX projectorTransform = XMLoadFloat4x4(&mProjectorTransform);
+    XMStoreFloat4x4(&mMainPassCB.ProjectorTransform, XMMatrixTranspose(projectorTransform));
+#pragma endregion
  
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -632,7 +684,11 @@ void ShadowMapApp::LoadTextures()
 		"tileNormalMap",
 		"defaultDiffuseMap",
 		"defaultNormalMap",
-		"skyCubeMap"
+		"skyCubeMap",
+#pragma region Quiz2001
+        //添加我们想要投影的纹理
+        "iceMap",
+#pragma endregion
 	};
 	
     std::vector<std::wstring> texFilenames =
@@ -643,7 +699,10 @@ void ShadowMapApp::LoadTextures()
         L"Textures/tile_nmap.dds",
         L"Textures/white1x1.dds",
         L"Textures/default_nmap.dds",
-        L"Textures/desertcube1024.dds"
+        L"Textures/desertcube1024.dds",
+#pragma region Quiz2001
+        L"Textures/ice.dds",
+#pragma endregion
     };
 	
 	for(int i = 0; i < (int)texNames.size(); ++i)
@@ -665,7 +724,10 @@ void ShadowMapApp::BuildRootSignature()
 	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+#pragma region Quiz2001
+	//texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 11, 2, 0);  //我们现在额外传了一张要投影的纹理图
+#pragma endregion
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -727,7 +789,10 @@ void ShadowMapApp::BuildDescriptorHeaps()
 		mTextures["tileDiffuseMap"]->Resource,
 		mTextures["tileNormalMap"]->Resource,
 		mTextures["defaultDiffuseMap"]->Resource,
-		mTextures["defaultNormalMap"]->Resource
+		mTextures["defaultNormalMap"]->Resource,
+#pragma region Quiz2001
+		mTextures["iceMap"]->Resource,
+#pragma endregion
 	};
 	
 	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
@@ -760,6 +825,10 @@ void ShadowMapApp::BuildDescriptorHeaps()
 
     mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
     mNullTexSrvIndex = mNullCubeSrvIndex + 1;
+
+#pragma region Quiz2001
+    mProjectorMapIndex = (UINT)tex2DList.size() - 1;
+#pragma endregion
 
     auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
     auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();

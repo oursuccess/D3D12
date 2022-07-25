@@ -70,8 +70,10 @@ cbuffer cbPass : register(b1)
     float4x4 gViewProj;
     float4x4 gInvViewProj;
     float4x4 gShadowTransform;
+    float4x4 gProjectorTransform;   //quiz2001
     float3 gEyePosW;
-    float cbPerObjectPad1;
+    //float cbPerObjectPad1;
+    uint gProjectorMapIndex;    //quiz2001
     float2 gRenderTargetSize;
     float2 gInvRenderTargetSize;
     float gNearZ;
