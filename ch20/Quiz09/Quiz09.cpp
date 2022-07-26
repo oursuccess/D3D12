@@ -1114,7 +1114,11 @@ void ShadowMapApp::BuildPSOs()
     // PSO for shadow map pass.
     //
     D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = opaquePsoDesc;
-    smapPsoDesc.RasterizerState.DepthBias = 100000;
+#pragma region Quiz2009
+    //将DepthBias修改到很小, 来观察毛刺
+    //smapPsoDesc.RasterizerState.DepthBias = 100000;
+    smapPsoDesc.RasterizerState.DepthBias = 0;
+#pragma endregion
     smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
     smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
     smapPsoDesc.pRootSignature = mRootSignature.Get();
