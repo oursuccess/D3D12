@@ -131,10 +131,9 @@ float4 PS(VertexOut pin) : SV_Target
     float spotFactor = pow(max(ndotl, 0.0f), projector.SpotPower);
 
     float4 projectorMapSample = gTextureMaps[gProjectorMapIndex].Sample(gsamLinearBorder, pin.ProjectorPosH.xy);
-    /*
+
     if (ndotl <= 0.0f || spotFactor <= 0.01f || projectorMapSample.r < 0.1f)
         return litColor;
-*/
 
     litColor = projectorMapSample * spotFactor;
     //litColor = float4(spotFactor, projector.SpotPower / 128.0f, 0.0f, 1.0f);

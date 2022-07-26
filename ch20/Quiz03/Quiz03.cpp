@@ -218,7 +218,7 @@ ShadowMapApp::ShadowMapApp(HINSTANCE hInstance)
     mProjectorLight.FalloffStart = 1.0f;
     mProjectorLight.FalloffEnd = 3.0f;
     mProjectorLight.Strength = { 1.0f, 1.0f, 1.0f };
-    mProjectorLight.SpotPower = 64.0f;
+    mProjectorLight.SpotPower = 16.0f;
 #pragma endregion
 }
 
