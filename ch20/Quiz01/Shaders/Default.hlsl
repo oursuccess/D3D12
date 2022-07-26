@@ -127,7 +127,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     //Quiz2001. 添加投影机. 我们对投影纹理进行采样之后, 将其与原本的颜色相加
     pin.ProjectorPosH.xyz /= pin.ProjectorPosH.w;
-    float4 projectorMapSample = gTextureMaps[gProjectorMapIndex].Sample(gsamLinearClamp, pin.ProjectorPosH.xy);
+    float4 projectorMapSample = gTextureMaps[gProjectorMapIndex].Sample(gsamLinearWrap, pin.ProjectorPosH.xy);
     litColor = projectorMapSample;
 
     return litColor;

@@ -584,7 +584,30 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 
 void ShadowMapApp::UpdateProjectorTransform(const GameTimer& gt)
 {
-    XMMATRIX lightProj = XMMatrixPerspectiveFovLH(1, 1, 1, 10);
+    auto posF3 = mProjectorLight.Position;
+    auto targetF3 = XMFLOAT3{ 0.0f, posF3.y - 1.0f, 0.0f };
+    auto upF3 = XMFLOAT3{ 0.0f, 0.0f, +1.0f };
+
+    auto pos = XMLoadFloat3(&posF3);
+    auto target = XMVector3Normalize(XMLoadFloat3(&targetF3));
+    auto up = XMVector3Normalize(XMLoadFloat3(&upF3));
+    auto right = XMVector3Cross(up, target);
+
+    XMFLOAT3 rightF3;
+    XMStoreFloat3(&rightF3, right);
+    XMStoreFloat3(&upF3, up);
+    XMStoreFloat3(&targetF3, target);
+
+    float x = -XMVectorGetX(XMVector3Dot(pos, right));
+    float y = -XMVectorGetX(XMVector3Dot(pos, up));
+    float z = -XMVectorGetX(XMVector3Dot(pos, target));
+
+    XMMATRIX lightProj = {
+        rightF3.x, upF3.x, targetF3.x, 0.0f,
+        rightF3.y, upF3.y, targetF3.y, 0.0f,
+        rightF3.z, upF3.z, targetF3.z, 0.0f,
+        x,         y,      z,          1.0f,
+    };
 
     // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
     //计算从NDC空间转到纹理空间的变换矩阵
