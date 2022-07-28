@@ -1056,7 +1056,7 @@ void DynamicCubeMap::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
-		//ch1802, 这儿从1变成7了?
+		//ch1802, 这儿从1变成7了? 是因为这里需要这么多(每个CubeFaceCamera都需要一个独立的pass, 每个pass中的资源是不同的)
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
             7, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
     }
