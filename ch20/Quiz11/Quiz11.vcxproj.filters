@@ -45,7 +45,7 @@
     <ClCompile Include="ShadowMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CubeRenderTarget.cpp">
+    <ClCompile Include="CubeShadowMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -83,7 +83,7 @@
     <ClInclude Include="ShadowMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CubeRenderTarget.h">
+    <ClInclude Include="CubeShadowMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

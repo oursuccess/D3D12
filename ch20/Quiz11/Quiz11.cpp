@@ -4,7 +4,7 @@
 #include "../../QuizCommonHeader.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
-#include "CubeRenderTarget.h"
+#include "CubeShadowMap.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -105,9 +105,6 @@ private:
 
     //添加绘制到点光源生成的立方体阴影贴图的方法
     void DrawSceneToShadowCubeMaps();
-
-    //添加构建立方体阴影图的方法
-    void BuildCubeDepthStencil();
 #pragma endregion
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
@@ -156,13 +153,13 @@ private:
     PassConstants mShadowFaceCB;
 
     //添加用于阴影的立方体图
-    std::unique_ptr<CubeRenderTarget> mPointLightShadowCubeMap;
+    std::unique_ptr<CubeShadowMap> mCubeShadowMap;
 
     //用于点光源阴影的深度/模板缓冲区. 其为CubeMap
     ComPtr<ID3D12Resource> mCubeDepthStencilBuffer;
 
     //记录用于点光源阴影的DSV的偏移起始量
-    UINT mShadowCubeMapOffset = 1;
+    UINT mCubeShadowMapHeapIndex = 0;
 
     //添加一个点光源
     Light mPointLight;
@@ -254,7 +251,7 @@ bool ShadowMapApp::Initialize()
     //构建点光源阴影的相机. 其以点光源为中心 
     BuildShadowFaceCamera(x, y, z);
 
-    BuildCubeDepthStencil();
+    mCubeShadowMap = std::make_unique<CubeShadowMap>(md3dDevice.Get(), 2048, 2048);
 #pragma endregion
 
 	LoadTextures();
@@ -291,11 +288,11 @@ void ShadowMapApp::CreateRtvAndDsvDescriptorHeaps()
         &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
     // Add +1 DSV for shadow map.
-    //Add extra +1 dsv for shadow cube map
+    //Add extra +6 dsv for shadow cube map(每个面一个)
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
 #pragma region Quiz2011
     //dsvHeapDesc.NumDescriptors = 2; //原本是2, 现在是8
-    dsvHeapDesc.NumDescriptors = 3; //原本是2, 现在是3
+    dsvHeapDesc.NumDescriptors = 8; //原本是2, 现在是8
 #pragma endregion
     dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -817,6 +814,20 @@ void ShadowMapApp::BuildDescriptorHeaps()
         CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
         CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
         CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+
+#pragma region Quiz2011
+    mCubeShadowMapHeapIndex = mNullTexSrvIndex + 1; //阴影立方体图的索引在最后面
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cubeDsvHandles[6];
+    const int offset = 2;
+    for (int i = 0; i < 6; ++i)
+        cubeDsvHandles[i] = CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, offset + i, mDsvDescriptorSize);
+
+    mCubeShadowMap->BuildDescriptors(
+        CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mCubeShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+        CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mCubeShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+        cubeDsvHandles);
+#pragma endregion
 }
 
 void ShadowMapApp::BuildShadersAndInputLayout()
@@ -1536,12 +1547,6 @@ void ShadowMapApp::DrawSceneToShadowCubeMaps()
     mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
     mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
 
-}
-
-void ShadowMapApp::BuildCubeDepthStencil()
-{
-    D3D12_RESOURCE_DESC depthStencilDesc;
-    depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMapApp::GetStaticSamplers()
