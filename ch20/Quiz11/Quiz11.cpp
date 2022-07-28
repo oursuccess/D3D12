@@ -160,6 +160,9 @@ private:
 
     //添加一个点光源
     Light mPointLight;
+
+    //记录CubeShadowTransform们
+    XMFLOAT4X4 mCubeShadowTransforms[6];
 #pragma endregion
 
     std::unique_ptr<ShadowMap> mShadowMap;
@@ -239,7 +242,7 @@ bool ShadowMapApp::Initialize()
 
 #pragma region Quiz2011
     //设置点光源和以该光源为中心的6个相机
-    auto x = 0.0f, y = 6.0f, z = 10.0f;
+    auto x = 0.0f, y = 6.0f, z = 0.0f;
     mPointLight.Position = XMFLOAT3(x, y, z);
     mPointLight.FalloffStart = 0.1f;
     mPointLight.FalloffEnd = 1000.0f;
@@ -622,6 +625,12 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 #pragma region Quiz2011
     mMainPassCB.Lights[3] = mPointLight;
+
+    for (int i = 0; i < 6; ++i)
+    {
+        auto shadowTransform = XMLoadFloat4x4(&mCubeShadowTransforms[i]);
+        XMStoreFloat4x4(&mMainPassCB.CubeShadowTransforms[i], XMMatrixTranspose(shadowTransform));
+    }
 #pragma endregion
  
 	auto currPassCB = mCurrFrameResource->PassCB.get();
@@ -1492,6 +1501,13 @@ void ShadowMapApp::DrawSceneToShadowMap()
 #pragma region Quiz2011
 void ShadowMapApp::UpdateShadowMapFacePassCBs(const GameTimer& gt)
 {
+    // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+    XMMATRIX T(
+        0.5f, 0.0f, 0.0f, 0.0f,
+        0.0f, -0.5f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.0f, 1.0f);
+
     for (int i = 0; i < 6; ++i)
     {
         PassConstants shadowFacePassCB = mShadowFaceCB;
@@ -1519,6 +1535,9 @@ void ShadowMapApp::UpdateShadowMapFacePassCBs(const GameTimer& gt)
 
         auto currPassCB = mCurrFrameResource->PassCB.get();
         currPassCB->CopyData(i + 2, shadowFacePassCB);  //因为前面有Main和Shadow了, 所以这里从2开始
+
+        auto shadowTransform = viewProj * T;
+        XMStoreFloat4x4(&mCubeShadowTransforms[i], shadowTransform);
     }
 }
 

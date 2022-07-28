@@ -73,6 +73,7 @@ cbuffer cbPass : register(b1)
     float4x4 gViewProj;
     float4x4 gInvViewProj;
     float4x4 gShadowTransform;
+    float4x4 gCubeShadowTransforms[6];
     float3 gEyePosW;
     float cbPerObjectPad1;
     float2 gRenderTargetSize;
@@ -147,34 +148,41 @@ float CalcShadowFactor(float4 shadowPosH)
     return percentLit / 9.0f;
 }
 
-//Quiz2011, PCF for cube shadow mapping
-float CalcCubeShadowFactor(float3 dir)
+//Quiz2011. 获取一个顶点对应于点光源的方向
+float GetFaceIndex(float3 posW)
 {
-    //计算到点光源的距离
-    float len = length(dir) / 1000.0f;
-
-    //获取阴影图的宽高和mip
-    uint width, height, numMips;
-    gCubeShadowMap.GetDimensions(0, width, height, numMips);
-
-    //计算纹素大小
-    float dx = 1.0f / (float) width;
-
-    float percentLit = 0.0f;
-    const float3 offsets[9] =
+    float3 dir = posW - gLights[3].Position;
+    float x = abs(dir.x), y = abs(dir.y), z = abs(dir.z);
+    float _max = max(max(x, y), z);
+    if (_max == x)
     {
-        float3(-dx, -dx, -dx), float3(0.0f, -dx, -dx), float3(dx, -dx, -dx),
-        float3(-dx, 0.0f, dx), float3(0.0f, 0.0f, dx), float3(dx, 0.0f, dx),
-        float3(-dx, +dx, 0.0f), float3(0.0f, +dx, 0.0f), float3(dx, +dx, 0.0f),
-    };
-
-    [unroll]
-    for (int i = 0; i < 9; ++i)
-    {
-        percentLit += gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
+        return dir.x > 0 ? 0 : 1;
     }
+    else if (_max == y)
+    {
+        return dir.y > 0 ? 2 : 3;
+    }
+    else
+    {
+        return dir.z > 0 ? 4 : 5;
+    }
+}
 
-    //return percentLit / 9.0f;
-    return gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
+//Quiz2011, PCF for cube shadow mapping
+float CalcCubeShadowFactor(float3 posW, float4 shadowPosHs[6])
+{
+    float3 dir = posW - gLights[3].Position;
+
+    //找到应当采样的i
+    int i = GetFaceIndex(posW);  //默认先是+x
+
+    float4 shadowPosH = shadowPosHs[i];
+    shadowPosH.xyz /= shadowPosH.w;
+
+    float depth = shadowPosH.z;
+
+    float res = gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, depth);
+
+    return res;
 }
 

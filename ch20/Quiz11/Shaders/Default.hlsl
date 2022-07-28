@@ -34,6 +34,13 @@ struct VertexOut
     float3 NormalW : NORMAL;
 	float3 TangentW : TANGENT;
 	float2 TexC    : TEXCOORD;
+    //从这儿开始全是点光源阴影用的
+    float4 CubeShadowPosH1 : POSITION2;
+    float4 CubeShadowPosH2 : POSITION3;
+    float4 CubeShadowPosH3 : POSITION4;
+    float4 CubeShadowPosH4 : POSITION5;
+    float4 CubeShadowPosH5 : POSITION6;
+    float4 CubeShadowPosH6 : POSITION7;
 };
 
 VertexOut VS(VertexIn vin)
@@ -61,6 +68,14 @@ VertexOut VS(VertexIn vin)
 
     // Generate projective tex-coords to project shadow map onto scene.
     vout.ShadowPosH = mul(posW, gShadowTransform);
+
+    //点光源用
+    vout.CubeShadowPosH1 = mul(posW, gCubeShadowTransforms[0]);
+    vout.CubeShadowPosH2 = mul(posW, gCubeShadowTransforms[1]);
+    vout.CubeShadowPosH3 = mul(posW, gCubeShadowTransforms[2]);
+    vout.CubeShadowPosH4 = mul(posW, gCubeShadowTransforms[3]);
+    vout.CubeShadowPosH5 = mul(posW, gCubeShadowTransforms[4]);
+    vout.CubeShadowPosH6 = mul(posW, gCubeShadowTransforms[5]);
 	
     return vout;
 }
@@ -118,8 +133,12 @@ float4 PS(VertexOut pin) : SV_Target
     litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
 
     //Quiz2011. 添加点光源. 我们直接用点光源来覆盖所有光源的阴影了
-    float3 dir = pin.PosW - gLights[3].Position;
-    float pointShadowFactor = CalcCubeShadowFactor(dir);
+    float4 cubeShadowPosHs[6] =
+    {
+        pin.CubeShadowPosH1, pin.CubeShadowPosH2, pin.CubeShadowPosH3,
+        pin.CubeShadowPosH4, pin.CubeShadowPosH5, pin.CubeShadowPosH6,
+    };
+    float pointShadowFactor = CalcCubeShadowFactor(pin.PosW, cubeShadowPosHs);
     litColor *= pointShadowFactor;
 	
     // Common convention to take alpha from diffuse albedo.
