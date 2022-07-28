@@ -155,9 +155,6 @@ private:
     //添加用于阴影的立方体图
     std::unique_ptr<CubeShadowMap> mCubeShadowMap;
 
-    //用于点光源阴影的深度/模板缓冲区. 其为CubeMap
-    ComPtr<ID3D12Resource> mCubeDepthStencilBuffer;
-
     //记录用于点光源阴影的DSV的偏移起始量
     UINT mCubeShadowMapHeapIndex = 0;
 
@@ -242,9 +239,9 @@ bool ShadowMapApp::Initialize()
 
 #pragma region Quiz2011
     //设置点光源和以该光源为中心的6个相机
-    auto x = 0.0f, y = 16.0f, z = -10.0f;
+    auto x = 0.0f, y = 6.0f, z = 10.0f;
     mPointLight.Position = XMFLOAT3(x, y, z);
-    mPointLight.FalloffStart = 1.0f;
+    mPointLight.FalloffStart = 0.1f;
     mPointLight.FalloffEnd = 1000.0f;
     mPointLight.Strength = XMFLOAT3(1.0f, 0.6f, 0.4f);
 
@@ -808,7 +805,6 @@ void ShadowMapApp::BuildDescriptorHeaps()
     auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
     auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
     auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
-
 
     auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
     mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
@@ -1493,6 +1489,7 @@ void ShadowMapApp::DrawSceneToShadowMap()
         D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
+#pragma region Quiz2011
 void ShadowMapApp::UpdateShadowMapFacePassCBs(const GameTimer& gt)
 {
     for (int i = 0; i < 6; ++i)
@@ -1515,15 +1512,16 @@ void ShadowMapApp::UpdateShadowMapFacePassCBs(const GameTimer& gt)
         XMStoreFloat4x4(&shadowFacePassCB.InvProj, XMMatrixTranspose(invProj));
         XMStoreFloat4x4(&shadowFacePassCB.InvViewProj, XMMatrixTranspose(invViewProj));
         shadowFacePassCB.EyePosW = mPointLightShadowMapCameras[i].GetPosition3f();
-        shadowFacePassCB.RenderTargetSize = XMFLOAT2((float)mCubeShadowMap->Height(), (float)mCubeShadowMap->Width());
-        shadowFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mCubeShadowMap->Height(), 1.0f / mCubeShadowMap->Width());
+        shadowFacePassCB.RenderTargetSize = XMFLOAT2((float)mCubeShadowMap->Width(), (float)mCubeShadowMap->Height());
+        shadowFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mCubeShadowMap->Width(), 1.0f / mCubeShadowMap->Height());
+        shadowFacePassCB.NearZ = mLightNearZ;
+        shadowFacePassCB.FarZ = mLightFarZ;
 
         auto currPassCB = mCurrFrameResource->PassCB.get();
         currPassCB->CopyData(i + 2, shadowFacePassCB);  //因为前面有Main和Shadow了, 所以这里从2开始
     }
 }
 
-#pragma region Quiz2011
 void ShadowMapApp::BuildShadowFaceCamera(float x, float y, float z)
 {
     XMFLOAT3 center(x, y, z);

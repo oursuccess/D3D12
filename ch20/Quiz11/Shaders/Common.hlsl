@@ -151,7 +151,7 @@ float CalcShadowFactor(float4 shadowPosH)
 float CalcCubeShadowFactor(float3 dir)
 {
     //计算到点光源的距离
-    float len = length(dir);
+    float len = length(dir) / 1000.0f;
 
     //获取阴影图的宽高和mip
     uint width, height, numMips;
@@ -174,7 +174,7 @@ float CalcCubeShadowFactor(float3 dir)
         percentLit += gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
     }
 
-    return percentLit / 9.0f;
-    //return gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
+    //return percentLit / 9.0f;
+    return gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
 }
 
