@@ -104,7 +104,7 @@ private:
     void BuildShadowFaceCamera(float x, float y, float z);
 
     //添加绘制到点光源生成的立方体阴影贴图的方法
-    void DrawSceneToShadowCubeMaps();
+    void DrawSceneToCubeShadowMap();
 #pragma endregion
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
@@ -380,6 +380,10 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
     DrawSceneToShadowMap();
+
+#pragma region Quiz2011
+    DrawSceneToCubeShadowMap();
+#pragma endregion
 
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -698,8 +702,12 @@ void ShadowMapApp::BuildRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
 	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
 
+#pragma region Quiz2011
+    CD3DX12_DESCRIPTOR_RANGE texTable2;
+    texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 2);   //我们将其绑定到space2上, 从而减少需要的额外计算(space1已经被使用)
+
     // Root parameter can be a table, root descriptor or root constants.
-    CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[6];    //我们添加一个新的元素，用来指向点光源产生的阴影立方体图. 因此, 其原本为5, 现在变为6
 
 	// Perfomance TIP: Order from most frequent to least frequent.
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -708,13 +716,16 @@ void ShadowMapApp::BuildRootSignature()
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
+    slotRootParameter[5].InitAsDescriptorTable(1, &texTable2, D3D12_SHADER_VISIBILITY_PIXEL);   //其同样仅在像素着色器阶段可见
+
 
 	auto staticSamplers = GetStaticSamplers();
 
     // A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,   //现在其要变为6个元素了. 因此5改为6
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+#pragma endregion
 
     // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -1224,7 +1235,7 @@ void ShadowMapApp::BuildFrameResources()
     for(int i = 0; i < gNumFrameResources; ++i)
     {
 #pragma region Quiz2011
-        //为了绘制点光源的阴影， 我们需要添加6个分别用于绘制对应方向阴影图的pass. 因此这里的passCount从2变为8
+        //为了绘制点光源的阴影， 我们需要添加6个分别用于绘制对应方向阴影图的pass. 因此这里的passCount从2变为8(因为原来就有一个shadow需要的)
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
             8, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
 #pragma endregion
@@ -1542,12 +1553,36 @@ void ShadowMapApp::BuildShadowFaceCamera(float x, float y, float z)
     }
 }
 
-void ShadowMapApp::DrawSceneToShadowCubeMaps()
+#pragma region Quiz2011
+void ShadowMapApp::DrawSceneToCubeShadowMap()
 {
-    mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
-    mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
+    mCommandList->RSSetViewports(1, &mCubeShadowMap->Viewport());
+    mCommandList->RSSetScissorRects(1, &mCubeShadowMap->ScissorRect());
 
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mCubeShadowMap->Resource(), 
+        D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
+    UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
+
+    for (int i = 0; i < 6; ++i)
+    {
+        mCommandList->ClearDepthStencilView(mCubeShadowMap->Dsv(i), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+        mCommandList->OMSetRenderTargets(0, nullptr, false, &mCubeShadowMap->Dsv(i));
+
+        auto passCB = mCurrFrameResource->PassCB->Resource();
+        D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (2 + i) * passCBByteSize;
+        mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
+        DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+    }
+
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mCubeShadowMap->Resource(),
+        D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
+#pragma endregion
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMapApp::GetStaticSamplers()
 {
