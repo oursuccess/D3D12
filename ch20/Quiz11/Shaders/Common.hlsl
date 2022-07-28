@@ -33,13 +33,16 @@ struct MaterialData
 TextureCube gCubeMap : register(t0);
 Texture2D gShadowMap : register(t1);
 
+TextureCube gCubeShadowMap : register(t2);  //Quiz2011. 添加CubeShadowMap. 其跟在Shadow的后面, 因此为t2
+
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
 // in this array can be different sizes and formats, making it more flexible than texture arrays.
-Texture2D gTextureMaps[10] : register(t2);
+Texture2D gTextureMaps[10] : register(t3);  //Quiz2011, 而后面的纹理也就因此变成从t3开始绑定了
 
 // Put in space1, so the texture array does not overlap with these resources.  
 // The texture array will occupy registers t0, t1, ..., t3 in space0. 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
+
 
 
 SamplerState gsamPointWrap        : register(s0);
@@ -142,5 +145,36 @@ float CalcShadowFactor(float4 shadowPosH)
     }
     
     return percentLit / 9.0f;
+}
+
+//Quiz2011, PCF for cube shadow mapping
+float CalcCubeShadowFactor(float3 dir)
+{
+    //计算到点光源的距离
+    float len = length(dir);
+
+    //获取阴影图的宽高和mip
+    uint width, height, numMips;
+    gCubeShadowMap.GetDimensions(0, width, height, numMips);
+
+    //计算纹素大小
+    float dx = 1.0f / (float) width;
+
+    float percentLit = 0.0f;
+    const float3 offsets[9] =
+    {
+        float3(-dx, -dx, -dx), float3(0.0f, -dx, -dx), float3(dx, -dx, -dx),
+        float3(-dx, 0.0f, dx), float3(0.0f, 0.0f, dx), float3(dx, 0.0f, dx),
+        float3(-dx, +dx, 0.0f), float3(0.0f, +dx, 0.0f), float3(dx, +dx, 0.0f),
+    };
+
+    [unroll]
+    for (int i = 0; i < 9; ++i)
+    {
+        percentLit += gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
+    }
+
+    return percentLit / 9.0f;
+    //return gCubeShadowMap.SampleCmpLevelZero(gsamShadow, dir, len).r;
 }
 

@@ -242,10 +242,10 @@ bool ShadowMapApp::Initialize()
 
 #pragma region Quiz2011
     //设置点光源和以该光源为中心的6个相机
-    auto x = 0.0f, y = 6.0f, z = -10.0f;
+    auto x = 0.0f, y = 16.0f, z = -10.0f;
     mPointLight.Position = XMFLOAT3(x, y, z);
     mPointLight.FalloffStart = 1.0f;
-    mPointLight.FalloffEnd = 100.0f;
+    mPointLight.FalloffEnd = 1000.0f;
     mPointLight.Strength = XMFLOAT3(1.0f, 0.6f, 0.4f);
 
     //构建点光源阴影的相机. 其以点光源为中心 
@@ -623,6 +623,9 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
 	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+#pragma region Quiz2011
+    mMainPassCB.Lights[3] = mPointLight;
+#pragma endregion
  
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -696,18 +699,17 @@ void ShadowMapApp::LoadTextures()
 
 void ShadowMapApp::BuildRootSignature()
 {
+#pragma region Quiz2011
 	CD3DX12_DESCRIPTOR_RANGE texTable0;
-	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0, 0);   //我们在后面添加CubeShadowMap的着色器资源视图, 因此这里的2我们改为3
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 3, 0);  //因此，现在第二个表(SRV的表)也就从偏移2改为偏移3了
+#pragma endregion
 
-#pragma region Quiz2011
-    CD3DX12_DESCRIPTOR_RANGE texTable2;
-    texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 2);   //我们将其绑定到space2上, 从而减少需要的额外计算(space1已经被使用)
 
     // Root parameter can be a table, root descriptor or root constants.
-    CD3DX12_ROOT_PARAMETER slotRootParameter[6];    //我们添加一个新的元素，用来指向点光源产生的阴影立方体图. 因此, 其原本为5, 现在变为6
+    CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -716,16 +718,12 @@ void ShadowMapApp::BuildRootSignature()
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
-    slotRootParameter[5].InitAsDescriptorTable(1, &texTable2, D3D12_SHADER_VISIBILITY_PIXEL);   //其同样仅在像素着色器阶段可见
-
-
 	auto staticSamplers = GetStaticSamplers();
 
     // A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,   //现在其要变为6个元素了. 因此5改为6
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,   //现在其要变为6个元素了. 因此5改为6
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-#pragma endregion
 
     // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -800,7 +798,11 @@ void ShadowMapApp::BuildDescriptorHeaps()
 	mSkyTexHeapIndex = (UINT)tex2DList.size();
     mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
 
-    mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
+#pragma region Quiz2011
+    mCubeShadowMapHeapIndex = mShadowMapHeapIndex + 1; //我们将阴影立方体贴图放在阴影贴图的后面. 是因为我们在设置根描述符表时, 将sky-shadow-cubeshadow都绑定在了一个描述符表中
+
+    mNullCubeSrvIndex = mCubeShadowMapHeapIndex + 1;    //因此现在nullCubeSrv也从ShadowMap的后一位变成了CubeShadowMap的后一位了
+#pragma endregion
     mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
     auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -827,7 +829,6 @@ void ShadowMapApp::BuildDescriptorHeaps()
         CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
 
 #pragma region Quiz2011
-    mCubeShadowMapHeapIndex = mNullTexSrvIndex + 1; //阴影立方体图的索引在最后面
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE cubeDsvHandles[6];
     const int offset = 2;
@@ -1514,18 +1515,18 @@ void ShadowMapApp::UpdateShadowMapFacePassCBs(const GameTimer& gt)
         XMStoreFloat4x4(&shadowFacePassCB.InvProj, XMMatrixTranspose(invProj));
         XMStoreFloat4x4(&shadowFacePassCB.InvViewProj, XMMatrixTranspose(invViewProj));
         shadowFacePassCB.EyePosW = mPointLightShadowMapCameras[i].GetPosition3f();
-        shadowFacePassCB.RenderTargetSize = XMFLOAT2((float)mShadowMap->Height(), (float)mShadowMap->Width());
-        shadowFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mShadowMap->Height(), 1.0f / mShadowMap->Width());
+        shadowFacePassCB.RenderTargetSize = XMFLOAT2((float)mCubeShadowMap->Height(), (float)mCubeShadowMap->Width());
+        shadowFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mCubeShadowMap->Height(), 1.0f / mCubeShadowMap->Width());
 
         auto currPassCB = mCurrFrameResource->PassCB.get();
         currPassCB->CopyData(i + 2, shadowFacePassCB);  //因为前面有Main和Shadow了, 所以这里从2开始
     }
 }
 
+#pragma region Quiz2011
 void ShadowMapApp::BuildShadowFaceCamera(float x, float y, float z)
 {
     XMFLOAT3 center(x, y, z);
-    XMFLOAT3 worldUp(0.0f, 1.0f, 0.0f);
 
     XMFLOAT3 targets[6] = {
         XMFLOAT3(x + 1.0f, y, z),   //+x
@@ -1553,7 +1554,6 @@ void ShadowMapApp::BuildShadowFaceCamera(float x, float y, float z)
     }
 }
 
-#pragma region Quiz2011
 void ShadowMapApp::DrawSceneToCubeShadowMap()
 {
     mCommandList->RSSetViewports(1, &mCubeShadowMap->Viewport());

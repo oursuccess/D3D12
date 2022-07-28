@@ -116,6 +116,11 @@ float4 PS(VertexOut pin) : SV_Target
     float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
     float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
     litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
+
+    //Quiz2011. 添加点光源. 我们直接用点光源来覆盖所有光源的阴影了
+    float3 dir = pin.PosW - gLights[3].Position;
+    float pointShadowFactor = CalcCubeShadowFactor(dir);
+    litColor *= pointShadowFactor;
 	
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
