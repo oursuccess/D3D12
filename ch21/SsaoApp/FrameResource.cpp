@@ -7,8 +7,8 @@ FrameResource::FrameResource(ID3D12Device* device, UINT passCount, UINT objectCo
 
 	PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);
 	SsaoCB = std::make_unique<UploadBuffer<SsaoConstants>>(device, 1, true);	//环境光遮蔽需要的常量只需要1份
-	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, true);
-	ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, passCount, true);
+	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);
+	ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);
 }
 
 FrameResource::~FrameResource()
