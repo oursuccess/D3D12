@@ -234,8 +234,7 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 
 	cmdList->SetComputeRootDescriptorTable(4, mhAmbientMap0GpuUav);
 
-	UINT numGroupsX = (UINT)mViewport.Width / 256.0f;
-	cmdList->Dispatch(numGroupsX, mViewport.Height, 1);
+	cmdList->Dispatch(ceilf(mViewport.Width / 256.0f), mViewport.Height, 1);
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));	//在运算后, 我们将遮蔽图0修改为只读状态
@@ -328,6 +327,8 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 	cmdList->SetComputeRootDescriptorTable(2, mhNormalMapGpuSrv);
 	cmdList->SetComputeRootDescriptorTable(3, inputSrv);
+
+	//cmdList->Dispatch(ceilf(mViewport.Width / 256.0f), mViewport.Height, 1);
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));
