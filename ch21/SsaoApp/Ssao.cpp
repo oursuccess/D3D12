@@ -223,12 +223,14 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 		output = mAmbientMap1.Get();
 		inputSrv = mhAmbientMap0GpuSrv;
 		outputRtv = mhAmbientMap1CpuRtv;
+		cmdList->SetGraphicsRoot32BitConstant(1, 1, 0);	//通知GPU我们是按行还是按列. 1为行, 0为列
 	}
 	else //否则，我们使用ambient0进行存储，并且使用AmbientMap1的GpuSrv作为输入，将其输出到AmbientMap0中。 从这里，我们可以看出，我们要先进行横向模糊，再纵向模糊。 因为初始时我们只渲染了AmbientMap0, 最后又把数据写回到了AbmientMap0
 	{
 		output = mAmbientMap0.Get();
 		inputSrv = mhAmbientMap1GpuSrv;
 		outputRtv = mhAmbientMap0CpuRtv;
+		cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
 	}
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
