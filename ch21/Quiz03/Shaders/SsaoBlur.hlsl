@@ -123,7 +123,7 @@ float4 PS(VertexOut pin) : SV_Target
 
 RWTexture2D<float4> gOutput : register(u0);
 
-[numthreads(N, 1, 1)]
+[numthreads(1, 1, 1)]
 void CS(int3 groupThreadID : SV_GroupThreadID, int3 disptachThreadID : SV_DispatchThreadID)
 {
     float blurWeights[12] = //将blurWeights重新解包. 其本来就是一个数组
@@ -135,7 +135,7 @@ void CS(int3 groupThreadID : SV_GroupThreadID, int3 disptachThreadID : SV_Dispat
     
     float2 texOffset = gHorizontalBlur ? float2(gInvRenderTargetSize.x, 0.0f) : float2(0.0f, gInvRenderTargetSize.y);
 
-    float2 texC = disptachThreadID.xy / (float) N;
+    float2 texC = disptachThreadID.xy * gInvRenderTargetSize;
     float4 color = blurWeights[gBlurRadius] * gInputMap.SampleLevel(gsamPointClamp, texC, 0.0); //根据中心点的混合, 得到最初的颜色
     float4 totalWeight = blurWeights[gBlurRadius];  //准备计算总权重
 

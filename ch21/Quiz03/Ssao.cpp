@@ -234,7 +234,8 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 
 	cmdList->SetComputeRootDescriptorTable(4, mhAmbientMap0GpuUav);
 
-	cmdList->Dispatch(ceilf(mViewport.Width / 256.0f), mViewport.Height, 1);
+	//cmdList->Dispatch(ceilf(mViewport.Width / 256.0f), mViewport.Height, 1);
+	cmdList->Dispatch(mViewport.Width, mViewport.Height, 1);
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));	//在运算后, 我们将遮蔽图0修改为只读状态
@@ -307,19 +308,19 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 	*/
 	ID3D12Resource* output = nullptr;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE outputUav;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE outputUav;
 	if (horzBlur) 
 	{
 		output = mAmbientMap1.Get();
-		inputSrv = mhAmbientMap1GpuSrv;
-		outputUav = mhAmbientMap1CpuUav;
+		inputSrv = mhAmbientMap0GpuSrv;
+		outputUav = mhAmbientMap1GpuUav;
 		cmdList->SetComputeRoot32BitConstant(1, 1, 0);
 	}
 	else
 	{
 		output = mAmbientMap0.Get();
-		inputSrv = mhAmbientMap0GpuSrv;
-		outputUav = mhAmbientMap1CpuUav;
+		inputSrv = mhAmbientMap1GpuSrv;
+		outputUav = mhAmbientMap0GpuUav;
 		cmdList->SetComputeRoot32BitConstant(1, 0, 0);
 	}
 
@@ -327,8 +328,10 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 	cmdList->SetComputeRootDescriptorTable(2, mhNormalMapGpuSrv);
 	cmdList->SetComputeRootDescriptorTable(3, inputSrv);
+	cmdList->SetComputeRootDescriptorTable(4, outputUav);
 
 	//cmdList->Dispatch(ceilf(mViewport.Width / 256.0f), mViewport.Height, 1);
+	cmdList->Dispatch(mViewport.Width, mViewport.Height, 1);
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));

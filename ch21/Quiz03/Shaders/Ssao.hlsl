@@ -141,15 +141,16 @@ float4 PS(VertexOut pin) : SV_Target
 
 RWTexture2D<float4> gOutput : register(u0);
 
-[numthreads(N, 1, 1)]
+[numthreads(1, 1, 1)]
 void CS(int3 dispatchThreadID : SV_DispatchThreadID)
 {
-    float2 texC = dispatchThreadID.xy / (float) N;
+    float2 texC = dispatchThreadID.xy * gInvRenderTargetSize;
     float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, texC, 0.0f).xyz);    //当前像素对应的法线
     float pz = gDepthMap.SampleLevel(gsamDepthMap, texC, 0.0f).xyz;  //当前像素对应的深度
+
     pz = NdcDepthToViewDepth(pz);   //我们将深度从深度图中转换到观察空间中
 
-    float4 posH = float4(2.0f * dispatchThreadID.x / N - 1.0f, 1.0f - 2.0f * dispatchThreadID.y / N, 0.0f, 1.0f);   //当前像素对应的投影空间坐标. 每个线程处理了一个像素, 我们以(0, 0)处理左上角, (255, 255)处理右下角
+    float4 posH = float4(2.0f * texC.x - 1.0f, 1.0f - 2.0f * texC.y, 0.0f, 1.0f);   //当前像素对应的投影空间坐标. 每个线程处理了一个像素, 我们以(0, 0)处理左上角, (255, 255)处理右下角
     float4 posV = mul(posH, gInvProj);  //将坐标从投影空间转换回观察空间
     posV.xyz = posV.xyz / posV.w;   //除以非线性部分, 如此才是真正转换到了观察空间
 
