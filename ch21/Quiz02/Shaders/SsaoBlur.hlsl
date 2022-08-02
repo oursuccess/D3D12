@@ -80,6 +80,8 @@ float NdcDepthToViewDepth(float z_ndc)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    //我们将边缘检测模糊替换为高斯模糊. 参见UnityShader入门精要, ch12.04
+    /* 
     float blurWeights[12] = //将blurWeights重新解包. 其本来就是一个数组
     {
         gBlurWeights[0].x, gBlurWeights[0].y, gBlurWeights[0].z, gBlurWeights[0].w,
@@ -116,4 +118,16 @@ float4 PS(VertexOut pin) : SV_Target
     }
 
     return color / totalWeight; //返回归一化后的颜色
+    */
+    float3 weights = { 0.4026f, 0.2442f, 0.0545f };
+    float4 col = gInputMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f) * weights.x; //得到初始的颜色
+
+    float2 texOffset = gHorizontalBlur ? float2(gInvRenderTargetSize.x, 0.0f) : float2(0.0f, gInvRenderTargetSize.y);   //根据当前模糊的方向, 我们求出tex每次的偏移量
+    //然后，我们和周围的像素混合
+    col += gInputMap.SampleLevel(gsamPointClamp, pin.TexC + texOffset, 0.0f) * weights.y;
+    col += gInputMap.SampleLevel(gsamPointClamp, pin.TexC - texOffset, 0.0f) * weights.y;
+    col += gInputMap.SampleLevel(gsamPointClamp, pin.TexC - texOffset * 2.0f, 0.0f) * weights.z;
+    col += gInputMap.SampleLevel(gsamPointClamp, pin.TexC - texOffset * 2.0f, 0.0f) * weights.z;
+
+    return col;
 }

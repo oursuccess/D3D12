@@ -380,7 +380,3 @@ void Ssao::BuildOffsetVectors() //为了防止随机生成的向量分布不随�
 		XMStoreFloat4(&mOffsets[i], v);
 	}
 }
-
-void Ssao::CaclGaussWeights(float sigma)
-{
-}

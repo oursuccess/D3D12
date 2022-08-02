@@ -57,8 +57,6 @@ private:
 
 	void BuildOffsetVectors();	//构建计算遮蔽率时对当前点周围进行偏移的采样方向
 
-	void CaclGaussWeights(float sigma);
-
 private:
 	ID3D12Device* md3dDevice;
 
