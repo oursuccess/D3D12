@@ -117,3 +117,48 @@ float4 PS(VertexOut pin) : SV_Target
 
     return color / totalWeight; //返回归一化后的颜色
 }
+
+//Quiz2103, 添加一个CS方法
+#define N 256   //遮蔽率图的分辨率
+
+RWTexture2D<float4> gOutput : register(u0);
+
+[numthreads(N, 1, 1)]
+void CS(int3 groupThreadID : SV_GroupThreadID, int3 disptachThreadID : SV_DispatchThreadID)
+{
+    float blurWeights[12] = //将blurWeights重新解包. 其本来就是一个数组
+    {
+        gBlurWeights[0].x, gBlurWeights[0].y, gBlurWeights[0].z, gBlurWeights[0].w,
+        gBlurWeights[1].x, gBlurWeights[1].y, gBlurWeights[1].z, gBlurWeights[1].w,
+        gBlurWeights[2].x, gBlurWeights[2].y, gBlurWeights[2].z, gBlurWeights[2].w,
+    };
+    
+    float2 texOffset = gHorizontalBlur ? float2(gInvRenderTargetSize.x, 0.0f) : float2(0.0f, gInvRenderTargetSize.y);
+
+    float2 texC = disptachThreadID.xy / (float) N;
+    float4 color = blurWeights[gBlurRadius] * gInputMap.SampleLevel(gsamPointClamp, texC, 0.0); //根据中心点的混合, 得到最初的颜色
+    float4 totalWeight = blurWeights[gBlurRadius];  //准备计算总权重
+
+    float3 centerNormal = gNormalMap.SampleLevel(gsamPointClamp, texC, 0.0f).xyz;
+    float centerDepth = NdcDepthToViewDepth(gDepthMap.SampleLevel(gsamDepthMap, texC, 0.0f).r);
+
+    for (float i = -gBlurRadius; i <= gBlurRadius; ++i)
+    {
+        if (i == 0)
+            continue;
+
+        float2 tex = texC + i * texOffset;
+
+        float3 neighborNormal = gNormalMap.SampleLevel(gsamPointClamp, tex, 0.0f).xyz;
+        float neighborDepth = NdcDepthToViewDepth(gDepthMap.SampleLevel(gsamDepthMap, tex, 0.0f).r);
+
+        if (dot(neighborNormal, centerNormal) >= 0.8f && abs(neighborDepth - centerDepth) <= 0.2f)
+        {
+            float weight = blurWeights[i * gBlurRadius];
+            color += weight * gInputMap.SampleLevel(gsamPointClamp, tex, 0.0f);
+            totalWeight += weight;
+        }
+    }
+
+    gOutput[disptachThreadID.xy] = color / totalWeight;
+}

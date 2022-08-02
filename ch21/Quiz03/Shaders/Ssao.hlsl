@@ -135,3 +135,51 @@ float4 PS(VertexOut pin) : SV_Target
 
     return saturate(pow(access, 6.0f)); //通过幂次，我们可以让SSAO采样结果对比度更高，从而让其更有戏剧性
 }
+
+//Quiz2103, 添加一个CS方法
+#define N 256   //这是我们遮蔽图的分辨率
+
+RWTexture2D<float4> gOutput : register(u0);
+
+[numthreads(N, 1, 1)]
+void CS(int3 dispatchThreadID : SV_DispatchThreadID)
+{
+    float2 texC = dispatchThreadID.xy / (float) N;
+    float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, texC, 0.0f).xyz);    //当前像素对应的法线
+    float pz = gDepthMap.SampleLevel(gsamDepthMap, texC, 0.0f).xyz;  //当前像素对应的深度
+    pz = NdcDepthToViewDepth(pz);   //我们将深度从深度图中转换到观察空间中
+
+    float4 posH = float4(2.0f * dispatchThreadID.x / N - 1.0f, 1.0f - 2.0f * dispatchThreadID.y / N, 0.0f, 1.0f);   //当前像素对应的投影空间坐标. 每个线程处理了一个像素, 我们以(0, 0)处理左上角, (255, 255)处理右下角
+    float4 posV = mul(posH, gInvProj);  //将坐标从投影空间转换回观察空间
+    posV.xyz = posV.xyz / posV.w;   //除以非线性部分, 如此才是真正转换到了观察空间
+
+    float3 p = (pz / posV.z) * posV;    //根据相似三角形原理, 求出p对应的实际向量
+
+    float3 randVec = 2.0f * gRandomVecMap.SampleLevel(gsamLinearWrap, 4.0f * texC, 0.0f).rgb - 1.0f; //获取在该方向上的采样向量，并将之从[0, 1]变换到[-1, 1]
+
+    float occlusionSum = 0.0f;
+
+    for (int i = 0; i < gSampleCount; ++i)  //进行采样
+    {
+        float3 offset = reflect(gOffsetVectors[i].xyz, randVec);    //通过reflect方法和手动配置的14个偏移向量, 计算每个实际的偏移值
+        float flip = sign(dot(offset, n));  //我们判断方向, 如果该偏移后的向量远离了相机, 则我们在下面让其反向
+        float3 q = p + flip * gOcclusionRadius * offset;    //获取观察空间中的q. 因为p是观察空间中的
+        float4 projQ = mul(float4(q, 1.0f), gProjTex);  //对q进行投影, 求出q的ndc空间坐标
+        projQ /= projQ.w;
+
+        float rz = gDepthMap.SampleLevel(gsamDepthMap, projQ.xy, 0.0f).r;
+        rz = NdcDepthToViewDepth(rz);
+        float3 r = (rz / q.z) * q;  //和上面的一样，再次计算出q方向上的深度值，然后找到该方向上最接近相机的点
+        float distZ = p.z - r.z;    //求出p和r的深度差
+        float dp = max(dot(n, normalize(r - p)), 0.0f); //使用dp计量r和p的法线方向的重合程度. 重合程度越高, 遮蔽率越高
+        float occlusion = dp * OcclusionFunction(distZ);
+
+        occlusionSum += occlusion;
+    }
+
+    occlusionSum /= gSampleCount;
+
+    float access = 1.0f - occlusionSum; //根据遮蔽率计算出可达性
+
+    gOutput[dispatchThreadID.xy] = saturate(pow(access, 6.0f)); //通过幂次，我们让SSAO采样结果的对比度更高, 从而更具有戏剧性
+}
