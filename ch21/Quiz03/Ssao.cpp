@@ -186,11 +186,11 @@ void Ssao::OnResize(UINT newWidth, UINT newHeight)	//当分辨率变化时，同
 
 void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+#pragma region Quiz2103
+	/*
 	cmdList->RSSetViewports(1, &mViewport);	//将命令列表的视口与裁剪矩阵设为ssao所需
 	cmdList->RSSetScissorRects(1, &mScissorRect);	//1表示我们只有一个裁剪矩阵
 
-#pragma region Quiz2103
-	/*
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(), 
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//将遮蔽率图指向的资源的状态从只读改为渲染对象
 
@@ -223,10 +223,11 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));	//将遮蔽图指向的资源的状态从只读改为随机访问
 
-	cmdList->SetPipelineState(mSsaoPso);
+	cmdList->SetPipelineState(mSsaoPso);	//先设置流水线状态, 才能绑定根常量!!!
 
 	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();	//我们从当前帧资源中获取ssao所需的常量缓冲区的地址，并在命令行列表中将其绑定到寄存器的编号0开始
 	cmdList->SetComputeRootConstantBufferView(0, ssaoCBAddress);
+
 	cmdList->SetComputeRoot32BitConstant(1, 0, 0);
 	cmdList->SetComputeRootDescriptorTable(2, mhNormalMapGpuSrv);	//绑定法线贴图和随机向量采样贴图
 	cmdList->SetComputeRootDescriptorTable(3, mhRandomVectorMapGpuSrv);

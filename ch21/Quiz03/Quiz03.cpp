@@ -318,7 +318,10 @@ void SsaoApp::Draw(const GameTimer& gt)
 
 	DrawNormalsAndDepth();	//绘制法线和深度图
 
-	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());	//将根签名更改为Ssao
+#pragma region Quiz2103
+	//现在我们设置的是计算着色器的根签名! 而不是渲染的!
+	mCommandList->SetComputeRootSignature(mSsaoRootSignature.Get());	//将根签名更改为Ssao
+#pragma endregion
 	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);	//在当前帧中以特定的blur值计算Ssao
 
 	//从现在开始进入main pass
@@ -739,17 +742,17 @@ void SsaoApp::BuildSsaoRootSignature()
 	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
 
 #pragma region Quiz2103
-	CD3DX12_DESCRIPTOR_RANGE texTable2;	//我们创建第三个描述符表, 其为UAV视图, 其中的描述符数量为1, 绑定在u0上
-	texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0);
+	CD3DX12_DESCRIPTOR_RANGE uavTable;	//我们创建第三个描述符表, 其为UAV视图, 其中的描述符数量为1, 绑定在u0上
+	uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0);
 
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];	//创建根参数. ssao需要的根参数为4 --> 我们添加了一个Uav,因此变为5
 
 	slotRootParameter[0].InitAsConstantBufferView(0);	//第一个参数被初始化为根描述符. 其绑定在b0. 在Ssao中，其用于传入ssao所需的常量
 	slotRootParameter[1].InitAsConstants(1, 1);	//第二个参数直接被初始化为根常量们. 其绑定在b1, 而根常量数量为1. 在Ssao中，其用于传入bool值，记录blur时是按行还是按列
-	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//将第三和第四个都初始化为描述符表，其中的描述符范围数量均为1个. 第三个中记录了法线和深度贴图
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);	//第四个描述符表中记录了随机访问向量贴图
+	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0);	//将第三和第四个都初始化为描述符表，其中的描述符范围数量均为1个. 第三个中记录了法线和深度贴图
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1);	//第四个描述符表中记录了随机访问向量贴图
 
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable2);	//我们将Uav绑定到根签名参数上的第5个位置
+	slotRootParameter[4].InitAsDescriptorTable(1, &uavTable);	//我们将Uav绑定到根签名参数上的第5个位置
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,	//我们准备创建ssao所需的根签名。 步骤和创建正常根签名类似. 同样要指定根参数数量与根参数， 静态采样器数量与静态采样器，以及最后的Flag --> 这里同样改为5
 		(UINT)staticSamplers.size(), staticSamplers.data(),
