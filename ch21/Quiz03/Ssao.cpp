@@ -98,8 +98,18 @@ void Ssao::BuildDescriptors(ID3D12Resource* depthStencilBuffer, CD3DX12_CPU_DESC
 	mhRandomVectorMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 
 	mhNormalMapCpuRtv = hCpuRtv;
+#pragma region Quiz2103
+	/*	我们将遮蔽率图的Rtv移除, 改为Uav
 	mhAmbientMap0CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 	mhAmbientMap1CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
+	*/
+
+	//我们额外增加随机采样图的Uav. 其在Srv的后面
+	mhAmbientMap0CpuUav = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+	mhAmbientMap1CpuUav = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+	mhAmbientMap0GpuUav = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+	mhAmbientMap1GpuUav = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+#pragma endregion
 
 	RebuildDescriptors(depthStencilBuffer);	//实际进行重建描述符
 }
@@ -132,9 +142,20 @@ void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)	//进行描述
 	rtvDesc.Texture2D.PlaneSlice = 0;	//指定我们在渲染到该渲染目标的时候，渲染到的下标
 	md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);	//根据rtvDesc创建实际的法线纹理描述符, 其资源我们指定在mNormalMap中
 
+	/*
 	rtvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);	//然后我们创建遮蔽图渲染对象视图. 其同样有两个
 	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
+	*/
+
+#pragma region Quiz2103
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+	uavDesc.Format = AmbientMapFormat;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	uavDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateUnorderedAccessView(mAmbientMap0.Get(), nullptr, &uavDesc, mhAmbientMap0CpuUav);
+	md3dDevice->CreateUnorderedAccessView(mAmbientMap1.Get(), nullptr, &uavDesc, mhAmbientMap1CpuUav);
+#pragma endregion
 }
 
 void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso)	//记录流水线状态对象
@@ -168,6 +189,8 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 	cmdList->RSSetViewports(1, &mViewport);	//将命令列表的视口与裁剪矩阵设为ssao所需
 	cmdList->RSSetScissorRects(1, &mScissorRect);	//1表示我们只有一个裁剪矩阵
 
+#pragma region Quiz2103
+	/*
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(), 
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//将遮蔽率图指向的资源的状态从只读改为渲染对象
 
@@ -194,6 +217,28 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//在绘制调用后，我们可以将遮蔽图0修改为只读状态了
+	*/
+
+	//我们将Rtv修改为Uav, 作为计算着色器的输出
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));	//将遮蔽图指向的资源的状态从只读改为随机访问
+
+	cmdList->SetPipelineState(mSsaoPso);
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();	//我们从当前帧资源中获取ssao所需的常量缓冲区的地址，并在命令行列表中将其绑定到寄存器的编号0开始
+	cmdList->SetComputeRootConstantBufferView(0, ssaoCBAddress);
+	cmdList->SetComputeRoot32BitConstant(1, 0, 0);
+	cmdList->SetComputeRootDescriptorTable(2, mhNormalMapGpuSrv);	//绑定法线贴图和随机向量采样贴图
+	cmdList->SetComputeRootDescriptorTable(3, mhRandomVectorMapGpuSrv);
+
+	cmdList->SetComputeRootDescriptorTable(4, mhAmbientMap0GpuUav);
+
+	UINT numGroupsX = (UINT)mViewport.Width / 256.0f;
+	cmdList->Dispatch(numGroupsX, mViewport.Height, 1);
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));	//在运算后, 我们将遮蔽图0修改为只读状态
+#pragma endregion
 
 	BlurAmbientMap(cmdList, currFrame, blurCount);	//开始模糊，从而减少毛刺现象
 }
@@ -203,7 +248,10 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* cur
 	cmdList->SetPipelineState(mBlurPso);	//将流水线状态改为blur
 
 	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
-	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//设置模糊所需要的常量缓冲区视图
+#pragma region Quiz2103
+	//cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//设置模糊所需要的常量缓冲区视图
+	cmdList->SetComputeRootConstantBufferView(0, ssaoCBAddress);	//设置模糊所需要的常量缓冲区视图
+#pragma endregion
 
 	for (int i = 0; i < blurCount; ++i)
 	{
@@ -214,6 +262,8 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* cur
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 {
+#pragma region Quiz2103
+	/*
 	ID3D12Resource* output = nullptr;	//定义我们的输入、输出对象，以及过程中所需要的资源
 	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtv;
@@ -254,6 +304,33 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//然后将渲染目标的状态再变回Generic Read
+	*/
+	ID3D12Resource* output = nullptr;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE outputUav;
+	if (horzBlur) 
+	{
+		output = mAmbientMap1.Get();
+		inputSrv = mhAmbientMap1GpuSrv;
+		outputUav = mhAmbientMap1CpuUav;
+		cmdList->SetComputeRoot32BitConstant(1, 1, 0);
+	}
+	else
+	{
+		output = mAmbientMap0.Get();
+		inputSrv = mhAmbientMap0GpuSrv;
+		outputUav = mhAmbientMap1CpuUav;
+		cmdList->SetComputeRoot32BitConstant(1, 0, 0);
+	}
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+	cmdList->SetComputeRootDescriptorTable(2, mhNormalMapGpuSrv);
+	cmdList->SetComputeRootDescriptorTable(3, inputSrv);
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));
+#pragma endregion
 }
 
 void Ssao::BuildResources()
@@ -285,12 +362,23 @@ void Ssao::BuildResources()
 	texDesc.Height = mRenderTargetHeight / 2;
 	texDesc.Format = AmbientMapFormat;
 
+#pragma region Quiz2103
+	/*
 	float ambientClearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };	//指定遮蔽率图的clear操作的值. 我们只使用了R16, 但是依然需要传入rgba四个通道
 	optClear = CD3DX12_CLEAR_VALUE(AmbientMapFormat, ambientClearColor);
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap0)));	//由于有两个，因此我们需要创建两次
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_GENERIC_READ, &optClear, IID_PPV_ARGS(&mAmbientMap1)));
+	*/
+
+	//我们将Flag修改为允许随机访问
+	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mAmbientMap0)));
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mAmbientMap1)));
+#pragma endregion
 }
 
 void Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList)

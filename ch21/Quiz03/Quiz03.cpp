@@ -696,19 +696,6 @@ void SsaoApp::BuildRootSignature()
 
 void SsaoApp::BuildSsaoRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE texTable0;	//为ssao创建描述符表. 其为着色器资源视图, 其中的描述符数量为2. 绑定在t0 - t1
-	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
-
-	CD3DX12_DESCRIPTOR_RANGE texTable1;	//创建第二个描述符表, 其同样为着色器资源视图, 其中的描述符数量为1, 绑定在t2
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
-
-	CD3DX12_ROOT_PARAMETER slotRootParameter[4];	//创建根参数. ssao需要的根参数为4
-
-	slotRootParameter[0].InitAsConstantBufferView(0);	//第一个参数被初始化为根描述符. 其绑定在b0. 在Ssao中，其用于传入ssao所需的常量
-	slotRootParameter[1].InitAsConstants(1, 1);	//第二个参数直接被初始化为根常量们. 其绑定在b1, 而根常量数量为1. 在Ssao中，其用于传入bool值，记录blur时是按行还是按列
-	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//将第三和第四个都初始化为描述符表，其中的描述符范围数量均为1个. 第三个中记录了法线和深度贴图
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);	//第四个描述符表中记录了随机访问向量贴图
-
 	//从现在开始到下面，创建4个采样器
 	const CD3DX12_STATIC_SAMPLER_DESC pointClamp{ 0,	//第一个，绑定在s0上, 其过滤模式为点过滤，同时在u、v、w上都采取截断方式
 		D3D12_FILTER_MIN_MAG_MIP_POINT,
@@ -744,9 +731,30 @@ void SsaoApp::BuildSsaoRootSignature()
 		pointClamp, linearClamp, depthMapSam, linearWrap,
 	};
 
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,	//我们准备创建ssao所需的根签名。 步骤和创建正常根签名类似. 同样要指定根参数数量与根参数， 静态采样器数量与静态采样器，以及最后的Flag
+
+	CD3DX12_DESCRIPTOR_RANGE texTable0;	//为ssao创建描述符表. 其为着色器资源视图, 其中的描述符数量为2. 绑定在t0 - t1
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE texTable1;	//创建第二个描述符表, 其同样为着色器资源视图, 其中的描述符数量为1, 绑定在t2
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
+
+#pragma region Quiz2103
+	CD3DX12_DESCRIPTOR_RANGE texTable2;	//我们创建第三个描述符表, 其为UAV视图, 其中的描述符数量为1, 绑定在u0上
+	texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];	//创建根参数. ssao需要的根参数为4 --> 我们添加了一个Uav,因此变为5
+
+	slotRootParameter[0].InitAsConstantBufferView(0);	//第一个参数被初始化为根描述符. 其绑定在b0. 在Ssao中，其用于传入ssao所需的常量
+	slotRootParameter[1].InitAsConstants(1, 1);	//第二个参数直接被初始化为根常量们. 其绑定在b1, 而根常量数量为1. 在Ssao中，其用于传入bool值，记录blur时是按行还是按列
+	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//将第三和第四个都初始化为描述符表，其中的描述符范围数量均为1个. 第三个中记录了法线和深度贴图
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);	//第四个描述符表中记录了随机访问向量贴图
+
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable2);	//我们将Uav绑定到根签名参数上的第5个位置
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,	//我们准备创建ssao所需的根签名。 步骤和创建正常根签名类似. 同样要指定根参数数量与根参数， 静态采样器数量与静态采样器，以及最后的Flag --> 这里同样改为5
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+#pragma endregion
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -809,9 +817,11 @@ void SsaoApp::BuildDescriptorHeaps()
 	mSkyTexHeapIndex = (UINT)tex2DList.size();	//天空盒纹理就在2D纹理资源的后面，因此其下标即为2D资源的数量
 	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;	//我们让阴影贴图纹理跟在天空盒纹理的后面，因此其再加个1
 	mSsaoHeapIndexStart = mShadowMapHeapIndex + 1;	//我们让Ssao的位置再跟在阴影贴图的后面
-	//FIXME
+#pragma region Quiz2103
 	mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;	//Ssao共需要5个srv. 其中有两个遮蔽率贴图，一个法线贴图，一个深度贴图，一个随机采样贴图. 其中start+3对应的是深度图(为什么深度图在这里被认为是Ambient了?)
-	mNullCubeSrvIndex = mSsaoHeapIndexStart + 5;	//ssao共需要5个srv, 在这后面我们来创建空的立方体纹理
+	//现在SSAO需要5个Srv和2个UAV了, 因此, Null要在原本的+5的基础上变为+7
+	mNullCubeSrvIndex = mSsaoHeapIndexStart + 7;	//ssao共需要5个srv和2个uav, 在这后面我们来创建空的立方体纹理
+#pragma endregion
 	mNullTexSrvIndex1 = mNullCubeSrvIndex + 1;	//在空的立方体纹理之后，我们再预留两个tex
 	mNullTexSrvIndex2 = mNullTexSrvIndex1 + 1;
 
@@ -858,11 +868,17 @@ void SsaoApp::BuildShadersAndInputLayout()
 	mShaders["drawNormalsVS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["drawNormalsPS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "PS", "ps_5_1");
 
+#pragma region Quiz2103
+	/*
 	mShaders["ssaoVS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["ssaoPS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "PS", "ps_5_1");
 
 	mShaders["ssaoBlurVS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["ssaoBlurPS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "PS", "ps_5_1");
+	*/
+	mShaders["ssaoCS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "CS", "cs_5_1");
+	mShaders["ssaoBlurCS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "CS", "cs_5_1");
+#pragma endregion
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
@@ -1188,6 +1204,9 @@ void SsaoApp::BuildPSOs()
 	drawNormalsPsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawNormalsPsoDesc, IID_PPV_ARGS(&mPSOs["drawNormals"])));
 
+#pragma region Quiz2103
+	//我们修改Ssao相关的根签名, 将其改为使用计算着色器
+	/*
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoPsoDesc = basePsoDesc;
 	ssaoPsoDesc.InputLayout = { nullptr, 0 };
 	ssaoPsoDesc.pRootSignature = mSsaoRootSignature.Get();
@@ -1221,6 +1240,26 @@ void SsaoApp::BuildPSOs()
 		mShaders["ssaoBlurPS"]->GetBufferSize()
 	};
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&ssaoBlurPsoDesc, IID_PPV_ARGS(&mPSOs["ssaoBlur"])));
+	*/
+	D3D12_COMPUTE_PIPELINE_STATE_DESC ssaoPsoDesc = {};
+	ssaoPsoDesc.pRootSignature = mSsaoRootSignature.Get();
+	ssaoPsoDesc.CS = {
+		reinterpret_cast<BYTE*>(mShaders["ssaoCS"]->GetBufferPointer()),
+		mShaders["ssaoCS"]->GetBufferSize()
+	};
+	ssaoPsoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&ssaoPsoDesc, IID_PPV_ARGS(&mPSOs["ssao"])));
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC ssaoBlurPsoDesc = {};
+	ssaoBlurPsoDesc.pRootSignature = mSsaoRootSignature.Get();
+	ssaoBlurPsoDesc.CS = {
+		reinterpret_cast<BYTE*>(mShaders["ssaoBlurCS"]->GetBufferPointer()),
+		mShaders["ssaoBlurCS"]->GetBufferSize()
+	};
+	ssaoBlurPsoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&ssaoBlurPsoDesc, IID_PPV_ARGS(&mPSOs["ssaoBlur"])));
+
+#pragma endregion
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = basePsoDesc;
 

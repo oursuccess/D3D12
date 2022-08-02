@@ -84,11 +84,21 @@ private:
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuSrv;
     CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap0GpuSrv;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuRtv;
+#pragma region Quiz2103
+	//我们需要将AmibentMap的Rtv替换为Uav.
+    //CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuRtv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuUav;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap0GpuUav;
+#pragma endregion
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuSrv;
     CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap1GpuSrv;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuRtv;
+#pragma region Quiz2103
+	//我们需要将AmibentMap的Rtv替换为Uav.
+    //CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuRtv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuUav;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap1GpuUav;
+#pragma endregion
 
 	UINT mRenderTargetWidth;	//作为渲染对象的贴图的宽和高
 	UINT mRenderTargetHeight;
