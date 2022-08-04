@@ -142,13 +142,13 @@ void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)	//进行描述
 	rtvDesc.Texture2D.PlaneSlice = 0;	//指定我们在渲染到该渲染目标的时候，渲染到的下标
 	md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);	//根据rtvDesc创建实际的法线纹理描述符, 其资源我们指定在mNormalMap中
 
+#pragma region Quiz2103
 	/*
 	rtvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);	//然后我们创建遮蔽图渲染对象视图. 其同样有两个
 	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
 	*/
 
-#pragma region Quiz2103
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.Format = AmbientMapFormat;
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
