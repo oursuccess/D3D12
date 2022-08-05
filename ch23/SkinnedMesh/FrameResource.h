@@ -27,6 +27,7 @@ struct PassConstants	//Pass常量. 每个Pass对应了一个相机. 在该常量
 	DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 ViewProjTex = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 ShadowTransform = MathHelper::Identity4x4();
 	DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
 	float cbPerObjectPad1 = 0.0f;
@@ -47,7 +48,7 @@ struct SsaoConstants	//Ssao常量. Ssao中记录了投影矩阵及其逆矩阵�
 	DirectX::XMFLOAT4X4 Proj;
 	DirectX::XMFLOAT4X4 InvProj;
 	DirectX::XMFLOAT4X4 ProjTex;
-	DirectX::XMFLOAT4 OffsetVector[14];
+	DirectX::XMFLOAT4 OffsetVectors[14];
 
 	DirectX::XMFLOAT4 BlurWeights[3];
 	
@@ -94,7 +95,7 @@ struct SkinnedVertex	//蒙皮的顶点. 蒙皮的顶点在正常顶点的基础�
 class FrameResource	//帧资源. 真正的, 需要作为每帧的资源被提交到GPU的资源的列表
 {
 public:
-	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT skinnedObjectCount, UINT materialCount);
+	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT skinnedObjectCount, UINT materialCount);	//我们首先创建根资源. 一个根资源中储存了当前帧需要的所有资源: Pass常量, 物体常量, 蒙皮常量, Ssao常量, 材质常量
 	FrameResource(const FrameResource& rhs) = delete;
 	FrameResource& operator=(const FrameResource& rhs) = delete;
 	~FrameResource();
