@@ -169,10 +169,51 @@ void Ssao::OnResize(UINT newWidth, UINT newHeight)
 
 void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+	cmdList->RSSetViewports(1, &mViewport);	//设置视口和裁剪矩阵. RS: Rasterizer
+	cmdList->RSSetScissorRects(1, &mScissorRect);
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将AmibentMap设为渲染对象
+
+	float clearValue[]{ 1.0f, 1.0f, 1.0f, 1.0f };	//设置AmbientMap的清空值(全遮挡, 尽管我们只用了R16)
+	cmdList->ClearRenderTargetView(mhAmbientMap0CpuRtv, clearValue, 0, nullptr);	//其没有输出窗口
+
+	cmdList->OMSetRenderTargets(1, &mhAmbientMap0CpuRtv, true, nullptr);	//我们设置输出目标为AmbientMap0CpuRtv. OM:Output-Merger
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();	//我们获取ssao的资源在GPU的位置
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//我们将Ssao的FrameConstants设为根描述符, 其绑定到根参数0的位置
+	cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);	//我们将Ssao的根参数1设为0
+
+	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);	//我们将根参数2设置为我们的法线贴图的Srv, 在法线图后面紧跟着的就是Depth和RandomVector. 由于是绑定到GPU, 因此自然要是GpuSrv
+	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv);	//尽管RandomVectorMap就在Srv后面, 但是我们依然分开来传递
+
+	cmdList->SetPipelineState(mSsaoPso);	//更换流水线状态为SsaoPso
+
+	cmdList->IASetVertexBuffers(0, 0, nullptr);	//我们不需要绑定顶点和索引
+	cmdList->IASetIndexBuffer(nullptr);	//IA: Input-Assembler
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	//我们将默认拓扑设置为三角列表
+	cmdList->DrawInstanced(6, 1, 0, 0);	//我们绘制一个有6个顶点的instance(其6个顶点的位置也是不重要的, 我们只需要顶点的ID, 其对应的uv坐标我们定义在了hlsl中!)
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//我们将AmbientMap0再重新设置为只读
+
+	BlurAmbientMap(cmdList, currFrame, blurCount);	//开始模糊
 }
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+	cmdList->SetPipelineState(mBlurPso);	//将PSO设置为Blur
+
+	/*
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//再次设置了一遍PassConstants. 但是这里理论上来说是不需要的. 因为在调用Blur的位置我们早就设置过了
+	*/
+
+	for (int i = 0; i < blurCount; ++i)
+	{
+		BlurAmbientMap(cmdList, true);
+		BlurAmbientMap(cmdList, false);	//注意了, 我们是先横向模糊一次，然后纵向模糊一次!!!
+	}
 }
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
