@@ -33,7 +33,7 @@ public:
 	CD3DX12_GPU_DESCRIPTOR_HANDLE AmbientMapSrv() const;	//当我们获取遮蔽率图作为着色器资源时, 同样的, 我们一定将其指明为了GPU侧的资源
 
 	void BuildDescriptors(ID3D12Resource* depthStencilBuffer, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv, UINT cbvSrvUavDescriptorSize, UINT srvDescriptorSize);	//创建描述符们. 我们需要CPU侧的Srv和Rtv, GPU侧的Srv, 以及资源的起始位置, 每个资源的大小
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv, UINT cbvSrvUavDescriptorSize, UINT rtvDescriptorSize);	//创建描述符们. 我们需要CPU侧的Srv和Rtv, GPU侧的Srv, 以及资源的起始位置, 每个资源的大小
 
 	void RebuildDescriptors(ID3D12Resource* depthStencilBuffer);	//重建描述符
 
