@@ -38,7 +38,7 @@ std::vector<float> Ssao::CalcGaussWeights(float sigma)
 	assert(blurRadius <= MaxBlurRadius);
 
 	std::vector<float> weights;
-	weights.resize(2 * blurRadius * 1);
+	weights.resize(2 * blurRadius + 1);	//重设空间大小
 
 	float weightSum = 0.0f;
 
