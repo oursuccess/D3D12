@@ -108,7 +108,7 @@ void Ssao::BuildDescriptors(ID3D12Resource* depthStencilBuffer, CD3DX12_CPU_DESC
 
 void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)
 {
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;	//先创建srv用的, 可以看到我们在BuildDescriptors方法中指定的顺序, 依序创建即可.
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};	//先创建srv用的, 可以看到我们在BuildDescriptors方法中指定的顺序, 依序创建即可. 这个={}不能删除! 这是初始化
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//我们创建的srv, 视图纬度统一为Texture2D
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	//其采样顺序为默认熟悉怒
 	srvDesc.Texture2D.MipLevels = 1;	//其没有mip(miplevel为0)
@@ -128,7 +128,7 @@ void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)
 	md3dDevice->CreateShaderResourceView(mRandomVectorMap.Get(), &srvDesc, mhRandomVectorMapCpuSrv);
 
 	//然后创建rtv用的描述符, rtv有三个, 同样可以按照顺序来
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;	//其视图维度同样为Texture2D
 	rtvDesc.Texture2D.MipSlice = 0;	//其mip切片为0
 	rtvDesc.Texture2D.PlaneSlice = 0;	//其plane切片同样为0
