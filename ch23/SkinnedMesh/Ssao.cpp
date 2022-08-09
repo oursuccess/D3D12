@@ -185,7 +185,7 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 	cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);	//我们将Ssao的根参数1设为0
 
 	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);	//我们将根参数2设置为我们的法线贴图的Srv, 在法线图后面紧跟着的就是Depth和RandomVector. 由于是绑定到GPU, 因此自然要是GpuSrv
-	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv);	//尽管RandomVectorMap就在Srv后面, 但是我们依然分开来传递
+	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv);	//尽管RandomVectorMap就在Srv后面, 但是我们依然分开来传递, 以为根参数3对应的srv在模糊过程中是会替换的!
 
 	cmdList->SetPipelineState(mSsaoPso);	//更换流水线状态为SsaoPso
 
@@ -202,12 +202,7 @@ void Ssao::ComputeSsao(ID3D12GraphicsCommandList* cmdList, FrameResource* currFr
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
-	cmdList->SetPipelineState(mBlurPso);	//将PSO设置为Blur
-
-	/*
-	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
-	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);	//再次设置了一遍PassConstants. 但是这里理论上来说是不需要的. 因为在调用Blur的位置我们早就设置过了
-	*/
+	cmdList->SetPipelineState(mBlurPso);	//将PSO设置为Blur. 我们移除了后面的设置根参数0的代码
 
 	for (int i = 0; i < blurCount; ++i)
 	{
@@ -218,6 +213,27 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* cur
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 {
+	//我们需要根据是否为hozBlur而选择output与srv, rtv, 当横向模糊时, 我们使用AmbientMap0作为资源, 而输出到AmbientMap1中; 否则我们以1作为输入, 输出到0
+	ID3D12Resource* output = horzBlur ? mAmbientMap1.Get() : mAmbientMap0.Get();
+	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv = horzBlur ? mhAmbientMap0GpuSrv : mhAmbientMap1GpuSrv;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtv = horzBlur ? mhAmbientMap1CpuRtv : mhAmbientMap0CpuRtv;
+	//我们还需要通知shader当前是横向还是纵向, 我们以1(true作为横向, 以0(false)作为纵向
+	cmdList->SetGraphicsRoot32BitConstant(1, horzBlur, 0);	//该根常量被绑定到根参数1, 其值为1/0, 其在根参数1中的偏移为0
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将输出修改为RenderTarget. 我们这里修改的是资源而非描述符! 因为描述符根本就不需要被写入
+
+	float clearValue[4]{ 1.0f, 1.0f, 1.0f, 1.0f };	//准备重置outputRtv的数据
+	cmdList->ClearRenderTargetView(outputRtv, clearValue, 0, nullptr);	//重置, 这里是根据描述符重置的! 不然我们不知道资源的布局!
+
+	cmdList->OMSetRenderTargets(1, &outputRtv, true, nullptr);	//我们将输出渲染对象视图绑定为渲染对象. 这里要传入&
+
+	cmdList->SetGraphicsRootDescriptorTable(3, inputSrv);	//对应于根参数2的NormalMap参数绑定我们删除了, 因为其理论上来说不需要重复设置(如果dx能够记录的话)
+
+	cmdList->DrawInstanced(6, 1, 0, 0);	//我们还需要再次将顶点与索引缓冲区设置为nullptr吗? 事实证明是不需要的
+
+	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//我们将输出修改为只读
 }
 
 void Ssao::BuildResources()
