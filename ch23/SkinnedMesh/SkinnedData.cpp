@@ -47,7 +47,7 @@ void BoneAnimation::Interpolate(float t, DirectX::XMFLOAT4X4& M) const
 	{
 		for (UINT i = 0; i < Keyframes.size() - 1; ++i)
 		{
-			if (t >= Keyframes[i].TimePos && t <= Keyframes[i].TimePos)
+			if (t >= Keyframes[i].TimePos && t <= Keyframes[i+1].TimePos)
 			{
 				Keyframe begin = Keyframes[i], end = Keyframes[i + 1];	//我们找到了我们需要插值的两帧
 
