@@ -188,3 +188,161 @@ private:
 
 	POINT mLastMousePos;
 };
+
+SkinnedMeshApp::SkinnedMeshApp(HINSTANCE hInstance)
+{
+}
+
+SkinnedMeshApp::~SkinnedMeshApp()
+{
+}
+
+bool SkinnedMeshApp::Initialize()
+{
+	return false;
+}
+
+void SkinnedMeshApp::CreateRtvAndDsvDescriptorHeaps()
+{
+}
+
+void SkinnedMeshApp::OnResize()
+{
+}
+
+void SkinnedMeshApp::Update(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::Draw(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::OnMouseDown(WPARAM btnState, int x, int y)
+{
+}
+
+void SkinnedMeshApp::OnMouseUp(WPARAM btnState, int x, int y)
+{
+}
+
+void SkinnedMeshApp::OnMouseMove(WPARAM btnState, int x, int y)
+{
+}
+
+void SkinnedMeshApp::OnKeyboardInput(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::AnimateMaterials(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateObjectCBs(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateSkinnedCBs(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateMaterialBuffer(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateShadowTransform(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateMainPassCB(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateShadowPassCB(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::UpdateSsaoCB(const GameTimer& gt)
+{
+}
+
+void SkinnedMeshApp::LoadTextures()
+{
+}
+
+void SkinnedMeshApp::BuildRootSignature()
+{
+}
+
+void SkinnedMeshApp::BuildSsaoRootSignature()
+{
+}
+
+void SkinnedMeshApp::BuildDescriptorHeaps()
+{
+}
+
+void SkinnedMeshApp::BuildShadersAndInputLayout()
+{
+}
+
+void SkinnedMeshApp::BuildShapeGeometry()
+{
+}
+
+void SkinnedMeshApp::LoadSkinnedModel()
+{
+}
+
+void SkinnedMeshApp::BuildPSOs()
+{
+}
+
+void SkinnedMeshApp::BuildFrameResources()
+{
+}
+
+void SkinnedMeshApp::BuildMaterials()
+{
+}
+
+void SkinnedMeshApp::BuildRenderItems()
+{
+}
+
+void SkinnedMeshApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+{
+}
+
+void SkinnedMeshApp::DrawSceneToShadowMap()
+{
+}
+
+void SkinnedMeshApp::DrawNormalsAndDepth()
+{
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetCpuSrv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_GPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetGpuSrv(int index) const
+{
+	return CD3DX12_GPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetDsv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetRtv(int index) const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> SkinnedMeshApp::GetStaticSamplers()
+{
+	return std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7>();
+}
