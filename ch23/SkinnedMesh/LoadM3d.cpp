@@ -106,6 +106,7 @@ void M3DLoader::ReadMaterials(std::ifstream& fin, UINT numMaterials, std::vector
 	std::string normalMapName;	//我们还在本章中加入了材质是否需要透明度测试, 材质类型
 
 	/*
+	* Material首行有一个********Materials********, 需要读掉, 后面每个部分都一样, 不再重复描述
 	* Material部分每个Material的格式:
 	* Name: soldier_head	//材质名
 	* Diffse: 1 1 1			//漫反射
@@ -129,6 +130,20 @@ void M3DLoader::ReadMaterials(std::ifstream& fin, UINT numMaterials, std::vector
 
 void M3DLoader::ReadSubsetTable(std::ifstream& fin, UINT numSubsets, std::vector<Subset>& subsets)
 {
+	std::string ignore;
+	subsets.resize(numSubsets);	//submesh与材质是按照顺序严格一一对应的(我们区分submesh的标准就是其用的材质不同!!!)
+
+	/*
+	* subsets每个部分的格式:
+	* SubsetID: 0 VertexStart: 0 VertexCount: 3915 FaceStart: 0 FaceCount 7230	//Face指的就是三角面
+	*/
+
+	fin >> ignore;
+	for (auto& subset : subsets)
+	{
+		fin >> ignore >> subset.Id >> ignore >> subset.VertexStart >> ignore >> subset.VertexCount >> 
+			ignore >> subset.FaceStart >> ignore >> subset.FaceCount;
+	}
 }
 
 void M3DLoader::ReadVertices(std::ifstream& fin, UINT numVertices, std::vector<Vertex>& vertices)
