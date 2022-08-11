@@ -245,10 +245,49 @@ void M3DLoader::ReadAnimationClips(std::ifstream& fin, UINT numBones, UINT numAn
 {
 	std::string ignore;
 	fin >> ignore;	//继续传统
+
+	/*
+	 * AnimationClips的格式[表示中间为可变数值]
+	 * AnimationClip [AnimName]	//一个片段包含了很多个骨骼的变化, 共有numAnimationClips个动画片段
+	 * {
+	 *		Bone[X] #Keyframes [N]	//记录骨骼, 与该骨骼中在该动画片段中关键帧数量
+	 *		{
+	 *			Time: [t] Pos: [x, y, z] Scale: [sx, sy, sz] Quat: [q1, q2, q3, q4]	//共计N条
+	 *		}
+	 * }
+	*/
+	std::string clipName;
+	for (UINT clipIndex = 0; clipIndex < numAnimationClips; ++clipIndex)
+	{
+		fin >> ignore >> clipName >> ignore;	//第二个ignore为{
+
+		AnimationClip clip;	//创建动画片段
+		clip.BoneAnimations.resize(numBones);	//这里有一个非常简单粗暴的假设: 所有的bone都参与到每个动画片段中了
+		for (UINT boneIndex = 0; boneIndex < numBones; ++boneIndex)	//这里还假设了Bone一定是按照顺序被组织的
+		{
+			ReadBoneKeyframes(fin, numBones, clip.BoneAnimations[boneIndex]);
+		}
+		fin >> ignore;	//动画片段最终的}
+
+		animations[clipName] = clip;	//将动画片段记录到hash中
+	}
 }
 
 void M3DLoader::ReadBoneKeyframes(std::ifstream& fin, UINT numBones, BoneAnimation& boneAnimation)
 {
 	std::string ignore;
-	fin >> ignore;	//继续传统
+
+	//Keyframe的格式参见ReadAnimationClips中的注释
+	UINT numKeyframes = 0;
+	fin >> ignore >> ignore >> numKeyframes >> ignore;	//第一个为Bone[X], 第二个为#keyframes, 第三个ignore为{
+
+	boneAnimation.Keyframes.resize(numKeyframes);
+	for (auto& keyframe : boneAnimation.Keyframes)
+	{
+		fin >> ignore >> keyframe.TimePos >> ignore >> keyframe.Translation.x >> keyframe.Translation.y >> keyframe.Translation.z >>
+			ignore >> keyframe.Scale.x >> keyframe.Scale.y >> keyframe.Scale.z >>
+			ignore >> keyframe.RotationQuat.x >> keyframe.RotationQuat.y >> keyframe.RotationQuat.z >> keyframe.RotationQuat.w;
+	}
+
+	fin >> ignore;	//最后读掉}
 }
