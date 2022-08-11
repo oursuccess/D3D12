@@ -57,7 +57,7 @@ private:
 	void ReadSkinnedVertices(std::ifstream& fin, UINT numVertices, std::vector<SkinnedVertex>& vertices);	//读取蒙皮顶点
 	void ReadTriangles(std::ifstream& fin, UINT numTriangles, std::vector<USHORT>& indices);	//读取顶点索引
 	void ReadBoneOffsets(std::ifstream& fin, UINT numBones, std::vector<DirectX::XMFLOAT4X4>& boneOffsets);	//读取模型空间到骨骼局部空间的变换矩阵
-	void ReadBoneHierarchy(std::ifstream& fin, UINT numBonese, std::vector<int>& boneIndexToParentIndex);	//读取每个骨骼的父节点(的索引)
+	void ReadBoneHierarchy(std::ifstream& fin, UINT numBones, std::vector<int>& boneIndexToParentIndex);	//读取每个骨骼的父节点(的索引)
 	void ReadAnimationClips(std::ifstream& fin, UINT numBones, UINT numAnimationClips, std::unordered_map<std::string, AnimationClip>& animations);	//读取所有动画片段
 	void ReadBoneKeyframes(std::ifstream& fin, UINT numBones, BoneAnimation& boneAnimation);	//读取完整的骨骼动画
 };

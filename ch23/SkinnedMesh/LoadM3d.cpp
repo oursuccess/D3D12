@@ -192,20 +192,63 @@ void M3DLoader::ReadSkinnedVertices(std::ifstream& fin, UINT numVertices, std::v
 
 void M3DLoader::ReadTriangles(std::ifstream& fin, UINT numTriangles, std::vector<USHORT>& indices)
 {
+	std::string ignore;
+	fin >> ignore;	//传统艺能
+
+	indices.resize(numTriangles * 3);	//因为拓扑为三角形列表, 三点组成了一个面, 因此这里要乘以3!
+	/*
+	 * Triangles的格式:
+	 * p1, p2, p3	//我们只需要读取三个数字即可, 没有ignore
+	*/
+	for (UINT i = 0; i < numTriangles; ++i) 
+	{
+		fin >> indices[i * 3] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+	}
 }
 
 void M3DLoader::ReadBoneOffsets(std::ifstream& fin, UINT numBones, std::vector<DirectX::XMFLOAT4X4>& boneOffsets)
 {
+	std::string ignore;
+	fin >> ignore;	//继续传统
+
+	boneOffsets.resize(numBones);	//每个骨骼都有一个模型空间到自己的变换矩阵
+	/*
+	 * BoneOffsets的格式:
+	 * BoneOffsetX m00 m01 m02 m03 m10 m11 m12 m13 m20 m21 m22 m23 m30 m31 m32 m33	//我们需要读入16个数字, 存储到对应的位置
+	*/
+	for (auto& boneOffset : boneOffsets)
+	{
+		fin >> ignore >> boneOffset(0, 0) >> boneOffset(0, 1) >> boneOffset(0, 2) >> boneOffset(0, 3) >>
+			boneOffset(1, 0) >> boneOffset(1, 1) >> boneOffset(1, 2) >> boneOffset(1, 3) >>
+			boneOffset(2, 0) >> boneOffset(2, 1) >> boneOffset(2, 2) >> boneOffset(2, 3) >>
+			boneOffset(3, 0) >> boneOffset(3, 1) >> boneOffset(3, 2) >> boneOffset(3, 3);
+	}
 }
 
-void M3DLoader::ReadBoneHierarchy(std::ifstream& fin, UINT numBonese, std::vector<int>& boneIndexToParentIndex)
+void M3DLoader::ReadBoneHierarchy(std::ifstream& fin, UINT numBones, std::vector<int>& boneIndexToParentIndex)
 {
+	std::string ignore;
+	fin >> ignore;	//继续传统
+
+	boneIndexToParentIndex.resize(numBones);	//每个骨骼都有一个父关节
+	/*
+	 * BoneHierarchy的格式:
+	 * ParentIndexOfBoneX: i
+	*/
+	for (UINT i = 0; i < numBones; ++i)
+	{
+		fin >> ignore >> boneIndexToParentIndex[i];
+	}
 }
 
 void M3DLoader::ReadAnimationClips(std::ifstream& fin, UINT numBones, UINT numAnimationClips, std::unordered_map<std::string, AnimationClip>& animations)
 {
+	std::string ignore;
+	fin >> ignore;	//继续传统
 }
 
 void M3DLoader::ReadBoneKeyframes(std::ifstream& fin, UINT numBones, BoneAnimation& boneAnimation)
 {
+	std::string ignore;
+	fin >> ignore;	//继续传统
 }
