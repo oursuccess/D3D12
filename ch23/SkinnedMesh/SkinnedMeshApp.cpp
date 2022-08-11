@@ -57,55 +57,134 @@ struct RenderItem	//渲染项, 每个应用中的渲染项都可能是不同的
 	SkinnedModelInstance* SkinnedModelInst = nullptr;	//其对应的蒙皮模型的实例
 };
 
+enum class RenderLayer : int
+{
+	Opaque = 0,
+	SkinnedOpaque,
+	Debug,
+	Sky,
+	Count
+};
+
 class SkinnedMeshApp : public D3DApp
 {
 public:
-	SkinnedMeshApp(HINSTANCE hInstance);
+	SkinnedMeshApp(HINSTANCE hInstance);	//构造函数
 	SkinnedMeshApp(const SkinnedMeshApp& rhs) = delete;
 	SkinnedMeshApp& operator=(const SkinnedMeshApp& rhs) = delete;
-	~SkinnedMeshApp();
+	~SkinnedMeshApp();	//析构函数
 
-	virtual bool Initialize() override;
+	virtual bool Initialize() override;	//初始化
 
 private:
-	virtual void CreateRtvAndDsvDescriptorHeaps() override;
-	virtual void OnResize() override;
-	virtual void Update(const GameTimer& gt) override;
-	virtual void Draw(const GameTimer& gt) override;
+	virtual void CreateRtvAndDsvDescriptorHeaps() override;	//创建Rtv和Dsv描述符堆, 由于我们需要引入Ssao和阴影，因此需要额外的渲染目标与深度/模板缓冲区
+	virtual void OnResize() override;	//当视口大小变更时响应
+	virtual void Update(const GameTimer& gt) override;	//更新方法， 每帧调用
+	virtual void Draw(const GameTimer& gt) override;	//绘制方法, 每帧调用
 
-	virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
+	virtual void OnMouseDown(WPARAM btnState, int x, int y) override;	//鼠标按下/抬起/移动时的响应
 	virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
-	void OnKeyboardInput(const GameTimer& gt);
-	void AnimateMaterials(const GameTimer& gt);
-	void UpdateObjectCBs(const GameTimer& gt);
-	void UpdateSkinnedCBs(const GameTimer& gt);
-	void UpdateMaterialBuffer(const GameTimer& gt);
-	void UpdateShadowTransform(const GameTimer& gt);
-	void UpdateMainPassCB(const GameTimer& gt);
-	void UpdateShadowPassCB(const GameTimer& gt);
-	void UpdateSsaoCB(const GameTimer& gt);
+	void OnKeyboardInput(const GameTimer& gt);	//按下按键时的响应
+	void AnimateMaterials(const GameTimer& gt);	//动画
+	void UpdateObjectCBs(const GameTimer& gt);	//更新物体常量缓冲区
+	void UpdateSkinnedCBs(const GameTimer& gt);	//更新蒙皮顶点的常量缓冲区
+	void UpdateMaterialBuffer(const GameTimer& gt);	//更新材质缓冲区
+	void UpdateShadowTransform(const GameTimer& gt);	//更新阴影变换矩阵
+	void UpdateMainPassCB(const GameTimer& gt);	//更新主Pass的常量缓冲区
+	void UpdateShadowPassCB(const GameTimer& gt);	//更新阴影Pass的常量缓冲区
+	void UpdateSsaoCB(const GameTimer& gt);	//更新Ssao的常量缓冲区
 
-	void LoadTextures();
-	void BuildRootSignature();
-	void BuildSsaoRootSignature();
-	void BuildDescriptorHeaps();
-	void BuildShadersAndInputLayout();
-	void BuildShapeGeometry();
-	void LoadSkinnedModel();
-	void BuildPSOs();
-	void BuildFrameResources();
-	void BuildMaterials();
-	void BuildRenderItems();
-	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
-	void DrawSceneToShadowMap();
-	void DrawNormalsAndDepth();
+	void LoadTextures();	//加载纹理
+	void BuildRootSignature();	//构建根签名
+	void BuildSsaoRootSignature();	//构建Ssao的根签名
+	void BuildDescriptorHeaps();	//构建描述符堆
+	void BuildShadersAndInputLayout();	//构建Shader和输入描述布局
+	void BuildShapeGeometry();	//构建形状
+	void LoadSkinnedModel();	//构建蒙皮模型
+	void BuildPSOs();	//构建流水线状态对象们
+	void BuildFrameResources();	//构建帧资源们
+	void BuildMaterials();	//构建材质们
+	void BuildRenderItems();	//构建渲染项们
+	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);	//绘制渲染项们
+	void DrawSceneToShadowMap();	//将场景绘制到阴影图中
+	void DrawNormalsAndDepth();	//绘制法线和深度图
+	
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index) const;	//获取指定索引的Srv在CPU侧的句柄
+	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index) const;	//获取指定索引的Srv在GPU侧的句柄
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetDsv(int index) const;	//获取指定索引的Dsv的句柄. DSV一定是在CPU侧获取的, 然后在绘制调用时将其传递给命令列表
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetRtv(int index) const;	//获取指定索引的Rtv的句柄, RTV一定是在CPU侧获取的, 然后在绘制调用时将其传递给命令列表
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index) const;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index) const;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE GetDsv(int index) const;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE GetRtv(int index) const;
+	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();	//获取静态采样器们. 我们在这里定义了7个静态采样器
 
-	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
+private:
+	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+	FrameResource* mCurrFrameResource = nullptr;
+	int mCurrFrameResourceIndex = 0;
+
+	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+	ComPtr<ID3D12RootSignature> mSsaoRootSignature = nullptr;
+
+	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
+	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mSkinnedInputLayout;
+
+	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
+
+	UINT mSkyTexHeapIndex = 0;
+	UINT mShadowMapHeapIndex = 0;
+	UINT mSsaoHeapIndexStart = 0;
+	UINT mSsaoAmbientMapIndex = 0;
+
+	UINT mNullCubeSrvIndex = 0;
+	UINT mNullTexSrvIndex1 = 0;
+	UINT mNullTexSrvIndex2 = 0;
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+
+	PassConstants mMainPassCB;
+	PassConstants mShadowPassCB;
+
+	UINT mSkinnedSrvHeapStart = 0;
+	std::string mSkinnedModelFilename = "Models\\soldier.m3d";
+	std::unique_ptr<SkinnedModelInstance> mSkinnedModelInst;
+	SkinnedData mSkinnedInfo;
+	std::vector<M3DLoader::Subset> mSkinnedSubsets;
+	std::vector<M3DLoader::M3dMaterial> mSkinnedMats;
+	std::vector<std::string> mSkinnedTextureNames;
+
+	Camera mCamera;
+
+	std::unique_ptr<ShadowMap> mShadowMap;
+	std::unique_ptr<Ssao> mSsao;
+	
+	DirectX::BoundingSphere mSceneBounds;
+
+	float mLightNearZ = 0.0f;
+	float mLightFarZ = 0.0f;
+	XMFLOAT3 mLightPosW;
+	XMFLOAT4X4 mLightView = MathHelper::Identity4x4();
+	XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();
+	XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();
+
+	float mLightRotationAngle = 0.0f;
+
+	XMFLOAT3 mBaseLightDirections[3] = {
+		XMFLOAT3(0.57735f, -0.57735f, 0.57735f),
+		XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
+		XMFLOAT3(0.0f, -0.707f, -0.707f),
+	};
+
+	XMFLOAT3 mRotatedLightDirections[3];
+
+	POINT mLastMousePos;
 };
