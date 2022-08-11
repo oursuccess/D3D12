@@ -148,10 +148,46 @@ void M3DLoader::ReadSubsetTable(std::ifstream& fin, UINT numSubsets, std::vector
 
 void M3DLoader::ReadVertices(std::ifstream& fin, UINT numVertices, std::vector<Vertex>& vertices)
 {
+	std::string ignore;
+	fin >> ignore;
+
+	vertices.resize(numVertices);
+	/*
+	* Vertices每个顶点的格式(只有蒙皮骨骼的顶点才有最后两项BlendWeights和BlendIndices)
+	* Position: x, y, z
+	* Tangent: x, y, z, 1
+	* Normal: a, b, c
+	* Tex-Coords: u, v
+	* BlendWeights: w1, w2, w3, w4
+	* BlendIndices: b1, b2, b3, b4
+	*/
+	for (auto& vertex : vertices)
+	{
+		fin >> ignore >> vertex.Pos.x >> vertex.Pos.y >> vertex.Pos.z >> ignore >> vertex.TangentU.x >> vertex.TangentU.y >> vertex.TangentU.z >> vertex.TangentU.w >>
+			ignore >> vertex.Normal.x >> vertex.Normal.y >> vertex.Normal.z >> ignore >> vertex.TexC.x >> vertex.TexC.y;
+	}
 }
 
 void M3DLoader::ReadSkinnedVertices(std::ifstream& fin, UINT numVertices, std::vector<SkinnedVertex>& vertices)
 {
+	std::string ignore;
+	fin >> ignore;
+
+	vertices.resize(numVertices);
+	//SkinnedVertices的格式见ReadVertices的注释
+	int boneIndices[4];
+	for (auto& vertex : vertices)
+	{
+		fin >> ignore >> vertex.Pos.x >> vertex.Pos.y >> vertex.Pos.z >> ignore >> vertex.TangentU.x >> vertex.TangentU.y >> vertex.TangentU.z >> ignore >>	//在SkinnedVertices中, TangentU为float3, 我们需要把第4个w(1)消除掉
+			ignore >> vertex.Normal.x >> vertex.Normal.y >> vertex.Normal.z >> ignore >> vertex.TexC.x >> vertex.TexC.y >>
+			ignore >> vertex.BoneWeights.x >> vertex.BoneWeights.y >> vertex.BoneWeights.z >> ignore >>	//这里之所以读了一个ignore, 是因为我们只存了前三个骨骼的权重, 而m3d文件中有4个
+			ignore >> boneIndices[0] >> boneIndices[1] >> boneIndices[2] >> boneIndices[3];
+
+		for (int i = 0; i < 4; ++i)
+		{
+			vertex.BoneIndices[i] = (BYTE)boneIndices[i];
+		}
+	}
 }
 
 void M3DLoader::ReadTriangles(std::ifstream& fin, UINT numTriangles, std::vector<USHORT>& indices)
