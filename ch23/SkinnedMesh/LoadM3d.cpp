@@ -14,7 +14,7 @@ bool M3DLoader::LoadM3d(const std::string& filename, std::vector<Vertex>& vertic
 	UINT numBones = 0;
 	UINT numANimationClips = 0;
 
-	std::string ignore;	//我们知道m3d格式文件是如何组织的, 因此自然知道其中不应读取的部分(空格)
+	std::string ignore;	//我们知道m3d格式文件是如何组织的, 因此自然知道其中不应读取的部分(operator>>遇空格即停, 然后每次调用从空格之后的下一个有效字符重新读取)
 
 	fin >> ignore;	//文件头
 	fin >> ignore >> numMaterials;
@@ -45,6 +45,16 @@ bool M3DLoader::LoadM3d(const std::string& filename, std::vector<SkinnedVertex>&
 
 	std::string ignore;
 
+	/*
+	 * 我们的m3d头部格式(line01-06):
+	 * **********m3d-File-Header*****	//this line is intended to ignore
+	 * #Materials 5	//#Materials should be ingored, numMaterials should be stored to numMaterials
+	 * #Vertices 13748 //#Vertices should be ignored, store number to numVertices
+	 * #Triangles 22507 
+	 * #Bones 58 
+	 * #AnimationClips //so to #Triangles, #Bones, #AnimationsClips
+	*/
+
 	fin >> ignore;	//这些都和上面的重载函数对应
 	fin >> ignore >> numMaterials;
 	fin >> ignore >> numVertices;
@@ -52,6 +62,23 @@ bool M3DLoader::LoadM3d(const std::string& filename, std::vector<SkinnedVertex>&
 	fin >> ignore >> numBones;
 	fin >> ignore >> numAnimationClips;	//我们在读取蒙皮时, 默认其有骨骼动画, 因此我们读取动画片段数量
 
+	/*
+	* 我们的m3d后续格式(示意):
+	* *******Mateirals*****	//材质区域
+	* //...
+	* *****SubsetTable****	//子mesh区域
+	* //...
+	* *****Vertices****		//顶点区域
+	* //...
+	* *****Triangles***		//三角面区域(索引区域, 3个指向顶点的索引定义了一个三角面)
+	* //...
+	* *****BoneOffsets***	//模型空间到骨骼局部空间的变换矩阵区域
+	* //...
+	* *****BoneHierarchy***	//骨骼的层级关系区域
+	* //...
+	* *****AnimationClips***	//动画区域
+	*/
+	//因此, 我们读取时, 也要严格保持该顺序读取!!!
 	ReadMaterials(fin, numMaterials, mats);
 	ReadSubsetTable(fin, numMaterials, subsets);
 	ReadSkinnedVertices(fin, numVertices, vertices);
@@ -72,6 +99,32 @@ bool M3DLoader::LoadM3d(const std::string& filename, std::vector<SkinnedVertex>&
 
 void M3DLoader::ReadMaterials(std::ifstream& fin, UINT numMaterials, std::vector<M3dMaterial>& mats)
 {
+	std::string ignore;
+	mats.resize(numMaterials);	//将材质数组变为与材质数量对应
+
+	std::string diffuseMapName;	//时刻牢记材质包含的信息: 纹理图, 法线图, 粗糙度, R0, 漫反射, 材质名
+	std::string normalMapName;	//我们还在本章中加入了材质是否需要透明度测试, 材质类型
+
+	/*
+	* Material部分每个Material的格式:
+	* Name: soldier_head	//材质名
+	* Diffse: 1 1 1			//漫反射
+	* FresnelR0: 0.05 0.05 0.05	//R0
+	* Roughness: 0.5		//粗糙度
+	* AlphaClip: 0			//是否进行混合度测试(0为否)
+	* MaterialTypeName: Skinned	//材质类型
+	* DiffuseMap: head_diff.dds	//纹理图名
+	* NormalMap: head_norm.dds	//法线图名
+	*/
+	//我们按照上面的这个顺序读取即可
+
+	fin >> ignore;
+	for (auto& mat : mats)
+	{
+		fin >> ignore >> mat.Name >> ignore >> mat.DiffuseAlbedo.x >> mat.DiffuseAlbedo.y >> mat.DiffuseAlbedo.z >>
+			ignore >> mat.FresnelR0.x >> mat.FresnelR0.y >> mat.FresnelR0.z >> ignore >> mat.Roughness >> ignore >> mat.AlphaClip >>
+			ignore >> mat.MaterialTypeName >> ignore >> mat.DiffuseMapName >> ignore >> mat.NormalMapName;
+	}
 }
 
 void M3DLoader::ReadSubsetTable(std::ifstream& fin, UINT numSubsets, std::vector<Subset>& subsets)
