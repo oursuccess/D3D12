@@ -189,29 +189,138 @@ private:
 	POINT mLastMousePos;	//记录了鼠标上次的位置. 用于实现鼠标滑动的效果
 };
 
-SkinnedMeshApp::SkinnedMeshApp(HINSTANCE hInstance)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);	//若开启了Debug, 则打开内存检查
+#endif
+
+	try 
+	{
+		SkinnedMeshApp theApp(hInstance);
+		if (!theApp.Initialize())
+			return 0;
+		return theApp.Run();
+	}
+	catch (DxException& e)
+	{
+		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+		return 0;
+	}
+}
+
+SkinnedMeshApp::SkinnedMeshApp(HINSTANCE hInstance) :
+	D3DApp(hInstance)
+{
+	//由于场景是静态的, 因此我们预先就知道了最小包围球的中心和半径. 正常我们需要实时计算
+	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(10.0f * 10.0f + 15.0f * 15.0f);
 }
 
 SkinnedMeshApp::~SkinnedMeshApp()
 {
+	if (md3dDevice != nullptr)
+		FlushCommandQueue();	//等待命令队列执行完毕才能退出, 防止GPU执行到特定指令时发现CPU中的资源已经被释放，从而导致退出时报错
 }
 
 bool SkinnedMeshApp::Initialize()
 {
-	return false;
+	if (!D3DApp::Initialize())
+		return false;
+
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));	//如果我们无法将命令列表分配器重置, 则直接报错
+
+	mCamera.SetPosition(0.0f, 2.0f, -15.0f);	//设置相机的初始位置. 在y2.0f, z为-15.0f的位置
+
+	mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);	//初始化阴影图管理类, 其分辨率为2048*2048
+	mSsao = std::make_unique<Ssao>(md3dDevice.Get(), mCommandList.Get(), mClientWidth, mClientHeight);	//初始化Ssao管理类. 其分辨率为视口大小. 由于Ssao绘制时需要命令列表, 因此我们将命令列表传过去
+
+	LoadSkinnedModel();	//读取动画模型
+	LoadTextures();	//读取纹理
+	BuildRootSignature();	//构建根签名
+	BuildSsaoRootSignature();	//构建Ssao的根签名
+	BuildDescriptorHeaps();	//构建描述符堆
+	BuildShadersAndInputLayout();	//构建Shader和输入描述布局
+	BuildShapeGeometry();	//构建几何
+	BuildMaterials();	//构建材质. 材质构建前需要先构建纹理
+	BuildRenderItems();	//构建渲染项. 渲染项中包含了Geo, Mat
+	BuildFrameResources();	//构建帧资源. 帧资源中存储了每个渲染项的常量资源，每个材质的资源, 因此依赖于BuildRenderItems和BuildMaterials
+	BuildPSOs();	//构建流水线状态对象. 流水线状态构建时，我们需要设置其shader,输入描述布局,根签名,混合模式等. 因此其依赖于BuildShadersAndInputLayout, BuildRootSignature
+
+	mSsao->SetPSOs(mPSOs["ssao"].Get(), mPSOs["ssaoBlur"].Get());
+
+	ThrowIfFailed(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);	//在上面的构建中, 可能用命令列表执行了一些命令, 我们将这些命令转为命令队列并执行
+
+	FlushCommandQueue();	//等待命令执行完毕
+
+	return true;
 }
 
 void SkinnedMeshApp::CreateRtvAndDsvDescriptorHeaps()
 {
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 3;	//有一个屏幕法线贴图, 两个遮蔽率贴图, 因此+3
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;	//其Flag为None
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;	//其类型为RTV
+	rtvHeapDesc.NodeMask = 0;	//其没有任何Mask
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));	//根据描述创建rtv描述符堆. 并将其存储到mRtvHeap
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 2;	//相机正常的遮挡剔除需要一个深度图, 我们还需要一个用于阴影实现(从光源观察)的DSV
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));	//根据描述创建dsv描述符堆, 并将其存储到DsvHeap
 }
 
 void SkinnedMeshApp::OnResize()
 {
+	D3DApp::OnResize();
+
+	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);	//更新相机的长宽比
+
+	if (mSsao != nullptr)
+	{
+		mSsao->OnResize(mClientWidth, mClientHeight);	//先通知Ssao更新分辨率
+		mSsao->RebuildDescriptors(mDepthStencilBuffer.Get());	//然后通知Ssao重建描述符堆. 我们需要将深度/模板对应的缓冲区传递过去, 从而Ssao才能正常绑定DSV
+	}
 }
 
 void SkinnedMeshApp::Update(const GameTimer& gt)
 {
+	OnKeyboardInput(gt);	//先响应玩家的输入
+
+	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;	//步进帧资源
+	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)	//在两种情况下, 我们可以确信当前帧资源是空闲的: 1.从未使用过(Fence为0); 2.GPU已经使用完毕(Fence已经被更新为比mFence的CompletedValue更大的值)
+	{
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);	//创建一个event句柄
+		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));	//当CurrFrameResource的Fence被更新时, 我们认为该帧资源使用完成了, 此时可以触发事件(eventHandle)
+		WaitForSingleObject(eventHandle, INFINITE);	//我们等待eventHandle被触发, 等待时间为无限大. 因为我们此时没有其它可做的事
+		CloseHandle(eventHandle);	//当事件被触发时, 我们可以直接关闭事件Handle
+	}
+
+	mLightRotationAngle += 0.1f * gt.DeltaTime();	//光源当前的旋转角度. 我们让光源直接匀速旋转即可
+
+	XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);	//其旋转是相对于y轴进行的. 我们可以由角度得到对应的变换矩阵
+	for (int i = 0; i < 3; ++i)	//我们的光源共有3个
+	{
+		XMVECTOR lightDir = XMLoadFloat3(&mBaseLightDirections[i]);	//我们准备让光源进行旋转, 首先我们需要取出没有旋转时的光照方向(这是个Float3, 但是为了计算, 我们将其转为Vector)
+		lightDir = XMVector3TransformNormal(lightDir, R);	//我们让光照方向根据变换矩阵进行变换, 得到最新的方向
+		XMStoreFloat3(&mRotatedLightDirections[i], lightDir);	//我们将最新的光源方向存入到旋转后的光照方向数组
+	}
+
+	AnimateMaterials(gt);	//然后我们依次更新材质、物体、动画物体、材质缓冲区、阴影采样矩阵、MainPass的常量缓冲区、阴影Pass的常量缓冲区、Ssao的常量缓冲区
+	UpdateObjectCBs(gt);
+	UpdateSkinnedCBs(gt);
+	UpdateMaterialBuffer(gt);
+	UpdateShadowTransform(gt);
+	UpdateMainPassCB(gt);
+	UpdateShadowPassCB(gt);
+	UpdateSsaoCB(gt);
 }
 
 void SkinnedMeshApp::Draw(const GameTimer& gt)
