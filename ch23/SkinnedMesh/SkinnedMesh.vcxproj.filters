@@ -51,9 +51,6 @@
     <ClInclude Include="Ssao.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SkinnedMesh.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SkinnedData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -90,9 +87,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Ssao.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SkinnedMesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SkinnedData.cpp">

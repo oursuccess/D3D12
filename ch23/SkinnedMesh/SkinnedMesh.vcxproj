@@ -140,7 +140,6 @@
     <ClInclude Include="LoadM3d.h" />
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="SkinnedData.h" />
-    <ClInclude Include="SkinnedMesh.h" />
     <ClInclude Include="Ssao.h" />
   </ItemGroup>
   <ItemGroup>
@@ -155,7 +154,6 @@
     <ClCompile Include="LoadM3d.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="SkinnedData.cpp" />
-    <ClCompile Include="SkinnedMesh.cpp" />
     <ClCompile Include="SkinnedMeshApp.cpp" />
     <ClCompile Include="Ssao.cpp" />
   </ItemGroup>
