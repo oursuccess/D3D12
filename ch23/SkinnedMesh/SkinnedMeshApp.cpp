@@ -325,22 +325,127 @@ void SkinnedMeshApp::Update(const GameTimer& gt)
 
 void SkinnedMeshApp::Draw(const GameTimer& gt)
 {
+	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;	//取出命令分配器, 并准备重置
+	ThrowIfFailed(cmdListAlloc->Reset());	//添加保护
+
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));	//将命令列表重置, 重置为cmdListAlloc作为分配器, 初始PSO为opaque
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };	//获取srv的描述符堆. 我们将其获取为一个数组!
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);	//我们利用上面的数组, 让命令列表设置描述符堆
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());	//我们设置渲染的根签名为RootSignature
+
+	//开始ShadowMap的绘制
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();	//获取所有材质的缓冲区
+	mCommandList->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());	//对于结构化的缓冲区, 我们可以直接将其绑定为一个根描述符(RootShaderResourceView). 我们的根描述符表的3绑定了材质
+	mCommandList->SetGraphicsRootDescriptorTable(4, mNullSrv);	//我们以NullSrv设置到4对应的根描述符表上. 表示Shadow绘制时不需要这个位置对应的Srv
+	mCommandList->SetGraphicsRootDescriptorTable(5, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//我们将所有真正用到的纹理都直接绑定到5对应的根描述符表上. 这才是纹理对应的根参数索引
+	DrawSceneToShadowMap();	//绘制阴影图
+
+	//开始深度/法线图的绘制
+	DrawNormalsAndDepth();
+
+	//开始Ssao的绘制
+	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());	//将根签名变更为Ssao
+	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 2);	//我们让Ssao管理类自行计算Ssao. 其混合次数为2
+
+	//MainPass的绘制
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());	//重新设置根参数3, 其指定了所有材质, 是一个根描述符
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);	//设置栅格化阶段的视口
+	mCommandList->RSSetScissorRects(1, &mScissorRect);	//设置栅格化阶段的裁剪矩形
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将后台缓冲区的资源状态从只读变更为渲染目标
+
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::SteelBlue, 0, nullptr);	//我们将CurrentBackBufferView这一RTV描述符对应的格式，来将其指定的资源重置，重置为颜色为深蓝，没有裁剪矩形
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);	//我们将Depth/Stencil描述符对应的资源重置, 将DEPTH和STENCIL的FLAG都清空，将深度均改为1，将STENCIL改为0, 且没有裁剪矩形
+
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());	//我们设置输出合并阶段的渲染目标. 渲染目标为1, 其为我们的CurrentBackBufferView指定的格式与资源, 我们同时声明了所有渲染目标共用根描述符, 深度与模板信息在DepthStencilView中写入
+	mCommandList->SetGraphicsRootDescriptorTable(5, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());	//我们将所有真正用到的纹理都直接绑定到5对应的根描述符表上, 5就是纹理对应的根参数索引
+	auto passCB = mCurrFrameResource->PassCB->Resource();	//获取当前的帧常量缓冲区
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());	//我们设置帧常量, 其绑定在根参数为2的位置, 同样的, 其为结构化常量，因此用根描述符即可
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);	//获取对应天空纹理的描述符
+	mCommandList->SetGraphicsRootDescriptorTable(4, skyTexDescriptor);	//将天空纹理绑定到根参数4的位置. 由于是纹理, 因此我们必须绑定到根描述符表上
+
+	mCommandList->SetPipelineState(mPSOs["opaque"].Get());	//我们开始绘制不同的渲染项. 每次绘制时, 我们转向对应的PSO, 然后进行绘制调用. 绘制顺序为: opaque, skinnedOpaque, debug, sky
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["skinnedOpaque"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::SkinnedOpaque]);
+
+	mCommandList->SetPipelineState(mPSOs["debug"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+
+	mCommandList->SetPipelineState(mPSOs["sky"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
+
+	//绘制调用完成后, 我们将后台缓冲区的状态从渲染目标变回只读
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
+
+	//然后, 我们可以关闭命令列表, 并执行命令队列
+	mCommandList->Close();
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	ThrowIfFailed(mSwapChain->Present(0, 0));	//将后台缓冲区与前台显示区域交换. 无需交换等待时间, 没有额外flag
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;	//更新当前被视为后台的Buffer
+
+	mCurrFrameResource->Fence = ++mCurrentFence;	//增加当前帧资源的Fence值,并递增mCurrentFence. 我们先设置mCurrFrameResource的Fence, 表示我们期望的Fence值为x
+
+	mCommandQueue->Signal(mFence.Get(), mCurrentFence);	//当命令队列中的所有命令都执行完毕时, 将mFence更新为mCurrentFence, 从而发出信号, 通知CPU. 即当命令执行完毕时, mFence的值才会变为x. 此时我们可以确认, CurrFrameResource可以释放了
 }
 
 void SkinnedMeshApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
+	mLastMousePos.x = x;	//更新鼠标的位置
+	mLastMousePos.y = y;
+
+	SetCapture(mhMainWnd);	//当玩家拖动屏幕时, 我们将画面定格
 }
 
 void SkinnedMeshApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
+	ReleaseCapture();	//接触画面的定格
 }
 
 void SkinnedMeshApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
+	if ((btnState & MK_LBUTTON) != 0)	//只有在按下左键的时候, 我们才移动相机
+	{
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));	//计算x上的移动量
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));	//计算y上的移动量
+
+		//Picth: 绕着z轴旋转(上下朝向变化, 上看下看); Yaw: 绕着y轴旋转(角色上方向不变，左转右转); Roll： 绕着x轴旋转(上方向变化, 左偏右偏, 通常只有3D自由移动的物体如飞机才有该方向的旋转)
+		mCamera.Pitch(dy);	//绕着z轴的旋转，其自然为y方向的移动量
+		mCamera.RotateY(dx);	//绕着y轴的旋转, 其自然为x方向的移动量
+	}
+
+	mLastMousePos.x = x;	//记录相机位置
+	mLastMousePos.y = y;
 }
 
 void SkinnedMeshApp::OnKeyboardInput(const GameTimer& gt)
 {
+	const float dt = gt.DeltaTime();
+
+	if (GetAsyncKeyState('W') & 0x8000)	//W和S控制前后走(Walk), 我们让移动幅度与时间dt相关
+		mCamera.Walk(10.0f * dt);
+
+	if (GetAsyncKeyState('S') & 0x8000)
+		mCamera.Walk(-10.0f * dt);
+
+	if (GetAsyncKeyState('A') & 0x8000)	//A和D控制左右移动(Strafe)
+		mCamera.Strafe(-10.0f * dt);
+
+	if (GetAsyncKeyState('D') & 0x8000)
+		mCamera.Strafe(10.0f * dt);
+
+	mCamera.UpdateViewMatrix();	//相机移动后, 自然需要更新其观察矩阵. 因为其位置相对于世界移动了!
 }
 
 void SkinnedMeshApp::AnimateMaterials(const GameTimer& gt)
