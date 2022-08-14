@@ -655,14 +655,156 @@ void SkinnedMeshApp::UpdateSsaoCB(const GameTimer& gt)
 
 void SkinnedMeshApp::LoadTextures()
 {
+	std::vector<std::string> texNames =
+	{
+		"bricksDiffuseMap",
+		"bricksNormalMap",
+		"tileDiffuseMap",
+		"tileNormalMap",
+		"defaultDiffuseMap",
+		"defaultNormalMap",
+		"skyCubeMap",
+	};
+
+	std::vector<std::wstring> texFileNames =
+	{
+		L"Textures/bricks2.dds",
+		L"Textures/bricks2_nmap.dds",
+		L"Textures/tile.dds",
+		L"Textures/tile_nmap.dds",
+		L"Textures/white1x1.dds",
+		L"Textures/default_nmap.dds",
+		L"Textures/desertcube1024.dds"
+	};
+
+	for (UINT i = 0; i < mSkinnedMats.size(); ++i)	//这里非常dirty. 我们将蒙皮的纹理图也加载进来.
+	{
+		std::string diffuseName = mSkinnedMats[i].DiffuseMapName;	//这里直接存的就是文件名(但是没有路径)
+		std::string normalName = mSkinnedMats[i].NormalMapName;
+
+		std::wstring diffuseFileName = L"Textures/" + AnsiToWString(diffuseName);	//根据文件名获取对应的纹理
+		std::wstring normalFileName = L"Textures/" + AnsiToWString(normalName);
+
+		diffuseName = diffuseName.substr(0, diffuseName.find_last_of("."));	//取消后缀, 将其转为key
+		normalName = normalName.substr(0, normalName.find_last_of("."));
+
+		mSkinnedTextureNames.push_back(diffuseName);	//将蒙皮的纹理图/法线图也推进来. 蒙皮的纹理图中也需要记录
+		texNames.push_back(diffuseName);
+		texFileNames.push_back(diffuseFileName);
+
+		mSkinnedTextureNames.push_back(normalName);
+		texNames.push_back(normalName);
+		texFileNames.push_back(normalFileName);
+	}
+
+	for (int i = 0; i < texNames.size(); ++i)	//逐个加载每个纹理图
+	{
+		if (mTextures.find(texNames[i]) == std::end(mTextures))	//防止重复加载
+		{
+			auto texMap = std::make_unique<Texture>();
+			texMap->Name = texNames[i];
+			texMap->Filename = texFileNames[i];
+			ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+				mCommandList.Get(), texMap->Filename.c_str(), texMap->Resource, texMap->UploadHeap));	//我们根据文件名在对应的资源区, 使用对应的上传堆加载纹理图
+		}
+	}
 }
 
 void SkinnedMeshApp::BuildRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE texTable0;
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0, 0);	//首个根描述符表为SRV, 其中有3个元素, 从t0开始
+
+	CD3DX12_DESCRIPTOR_RANGE texTable1;
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 48, 3, 0);	//第二个根描述符表同样为SRV, 其中有48个元素, 其紧跟着上面的texTable开始(t3)
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];	//创建一个有6个根参数的参数表
+
+	slotRootParameter[0].InitAsConstantBufferView(0);	//其第0个参数初始化为根描述符, 绑定在b0
+	slotRootParameter[1].InitAsConstantBufferView(1);	//其第1个参数初始化为根描述符, 绑定在b1
+	slotRootParameter[2].InitAsConstantBufferView(2);	//其第2个参数初始化为根描述符, 绑定在b2
+	slotRootParameter[3].InitAsConstantBufferView(0, 1);	//其第3个参数初始化为根描述符, 绑定在space1的b0
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//其第4和第5个元素均为一个根描述符表, 均为像素着色器可见
+	slotRootParameter[5].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	auto staticSamplers = GetStaticSamplers();	//获取静态采样器们
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);	//创建一个根签名的描述. 其中记录了根参数和静态采样器们, 且允许输入合并阶段, 允许输入布局
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());	//准备序列化根签名. 其版本为VERSION_1, 若成功, 存储到SerializedRooSig; 否则, 将报错信息输入到errorBlob
+
+	if (errorBlob != nullptr)
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mRootSignature.GetAddressOf())));	//构建根签名. 其根据serializedRootSig的描述在mRootSignature的位置创建
+
 }
 
 void SkinnedMeshApp::BuildSsaoRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE texTable0;
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);	//texTable0的srv有2个, 从t0开始
+
+	CD3DX12_DESCRIPTOR_RANGE texTable1;
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);	//texTable的srv有1个, 紧跟上面, 从t2开始
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];	//Ssao的根参数只需要4个
+	slotRootParameter[0].InitAsConstantBufferView(0);	//其第一个为根描述符, 绑定在b0
+	slotRootParameter[1].InitAsConstants(1, 1);	//第二个为根常量. 常量数量为0, 绑定在b1
+	slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(0,	//绑定在s0
+		D3D12_FILTER_MIN_MAG_MIP_POINT,	//点采样
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,	//uvw均为clamp. 即截断(强行变为最接近的[0, 1]的值)
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearClamp(1,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
+
+	const CD3DX12_STATIC_SAMPLER_DESC depthMapSam(2,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,	//border为不合法的边界值, 使用我们指定的值
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		0.0f,
+		0,
+		D3D12_COMPARISON_FUNC_EQUAL,
+		D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE);	//我们指定边缘值为1(即深度无限)
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearWrap(3,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,	//wrap为仅仅采样小数部分
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP);
+
+	std::array<CD3DX12_STATIC_SAMPLER_DESC, 4> staticSamplers{
+		pointClamp, linearClamp, depthMapSam, linearWrap };	//从这里开始向下均可以参考BuildRootSignature
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(), IID_PPV_ARGS(mSsaoRootSignature.GetAddressOf())));	//构建Ssao所需的根签名
 }
 
 void SkinnedMeshApp::BuildDescriptorHeaps()
