@@ -779,7 +779,7 @@ void SkinnedMeshApp::BuildSsaoRootSignature()
 		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
 		0.0f,
 		0,
-		D3D12_COMPARISON_FUNC_EQUAL,
+		D3D12_COMPARISON_FUNC_LESS_EQUAL,	//只要深度值比现在的更小/相等, 我们即可采样
 		D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE);	//我们指定边缘值为1(即深度无限)
 
 	const CD3DX12_STATIC_SAMPLER_DESC linearWrap(3,
