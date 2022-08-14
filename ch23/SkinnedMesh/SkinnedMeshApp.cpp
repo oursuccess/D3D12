@@ -723,7 +723,7 @@ void SkinnedMeshApp::BuildRootSignature()
 	slotRootParameter[0].InitAsConstantBufferView(0);	//其第0个参数初始化为根描述符, 绑定在b0
 	slotRootParameter[1].InitAsConstantBufferView(1);	//其第1个参数初始化为根描述符, 绑定在b1
 	slotRootParameter[2].InitAsConstantBufferView(2);	//其第2个参数初始化为根描述符, 绑定在b2
-	slotRootParameter[3].InitAsConstantBufferView(0, 1);	//其第3个参数初始化为根描述符, 绑定在space1的b0
+	slotRootParameter[3].InitAsShaderResourceView(0, 1);	//其第3个参数初始化为根描述符, 绑定在space1的t0. 这里是ShaderResourceView!!! t0!
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);	//其第4和第5个元素均为一个根描述符表, 均为像素着色器可见
 	slotRootParameter[5].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
