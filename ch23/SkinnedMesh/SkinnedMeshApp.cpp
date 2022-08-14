@@ -666,7 +666,7 @@ void SkinnedMeshApp::LoadTextures()
 		"skyCubeMap",
 	};
 
-	std::vector<std::wstring> texFileNames =
+	std::vector<std::wstring> texFilenames =
 	{
 		L"Textures/bricks2.dds",
 		L"Textures/bricks2_nmap.dds",
@@ -690,11 +690,11 @@ void SkinnedMeshApp::LoadTextures()
 
 		mSkinnedTextureNames.push_back(diffuseName);	//将蒙皮的纹理图/法线图也推进来. 蒙皮的纹理图中也需要记录
 		texNames.push_back(diffuseName);
-		texFileNames.push_back(diffuseFileName);
+		texFilenames.push_back(diffuseFileName);
 
 		mSkinnedTextureNames.push_back(normalName);
 		texNames.push_back(normalName);
-		texFileNames.push_back(normalFileName);
+		texFilenames.push_back(normalFileName);
 	}
 
 	for (int i = 0; i < texNames.size(); ++i)	//逐个加载每个纹理图
@@ -703,9 +703,11 @@ void SkinnedMeshApp::LoadTextures()
 		{
 			auto texMap = std::make_unique<Texture>();
 			texMap->Name = texNames[i];
-			texMap->Filename = texFileNames[i];
+			texMap->Filename = texFilenames[i];
 			ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 				mCommandList.Get(), texMap->Filename.c_str(), texMap->Resource, texMap->UploadHeap));	//我们根据文件名在对应的资源区, 使用对应的上传堆加载纹理图
+
+			mTextures[texMap->Name] = std::move(texMap);
 		}
 	}
 }
