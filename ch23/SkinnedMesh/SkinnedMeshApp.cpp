@@ -454,30 +454,203 @@ void SkinnedMeshApp::AnimateMaterials(const GameTimer& gt)
 
 void SkinnedMeshApp::UpdateObjectCBs(const GameTimer& gt)
 {
+	auto currObjectCB = mCurrFrameResource->ObjectCB.get();	//所有物体的常量都存放在当前帧资源的ObjectCB中
+	for (auto& e : mAllRitems)	//遍历所有有脏标记的物体并更新其对应的物体常量即可. 物体常量中有材质索引、世界坐标、纹理采样坐标
+	{
+		if (e->NumFramesDirty > 0)
+		{
+			XMMATRIX world = XMLoadFloat4x4(&e->World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//分别更新世界矩阵、纹理采样矩阵、材质索引
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+			objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);	//我们需要将新的物体常量复制到物体常量缓冲区中的指定位置
+
+			--e->NumFramesDirty;
+		}
+	}
 }
 
 void SkinnedMeshApp::UpdateSkinnedCBs(const GameTimer& gt)
 {
+	auto currSkinnedCB = mCurrFrameResource->SkinnedCB.get();	//动画物体的常量缓冲区位于帧资源的SkinnedCB中
+
+	mSkinnedModelInst->UpdateSkinnedAnimation(gt.DeltaTime());	//我们需要更新当前的动画
+
+	SkinnedConstants skinnedConstants;
+	std::copy(std::begin(mSkinnedModelInst->FinalTransforms), std::end(mSkinnedModelInst->FinalTransforms),
+		&skinnedConstants.BoneTransforms[0]);	//我们将动画运算后的顶点采样矩阵全都保存到蒙皮常量中
+	currSkinnedCB->CopyData(0, skinnedConstants);	//我们仅仅只有一个蒙皮动画. 因此只更新这一个
 }
 
 void SkinnedMeshApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
+	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();	//材质的常量缓冲区位于帧资源的MaterialBuffer中
+	for (auto& e : mMaterials)
+	{
+		Material* mat = e.second.get();	//mat中包含了材质采样矩阵、粗糙度、漫反射、R0、纹理图索引、法线图索引
+		if (mat->NumFramesDirty > 0)	//我们只更新具有脏标记的材质
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matData.FresnelR0 = mat->FresnelR0;
+			matData.Roughness = mat->Roughness;
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+
+			currMaterialBuffer->CopyData(mat->MatCBIndex, matData); //将当前材质的常量复制到指定位置
+
+			--mat->NumFramesDirty;	//递减脏标记
+		}
+	}
 }
 
 void SkinnedMeshApp::UpdateShadowTransform(const GameTimer& gt)
 {
+	//我们的实现中, 仅仅第一个平行光需要实现阴影
+	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);	//光源方向
+	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;	//我们给光源一个位置. 其在天空盒上(因为目标点为包围球的中心)
+	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);	//目标点为我们的包围球的中心
+	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);	//上方向为y轴
+	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);	//根据如此, 我们可以更新观察矩阵: 左手坐标系下, 光源方向为pos, 目标点为center, 上方向为y轴
+
+	XMStoreFloat3(&mLightPosW, lightPos);	//将我们给的光源位置赋值给mLightPos. 其用于绘制阴影图
+
+	XMFLOAT3 sphereCenterLS;
+	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));	//我们准备将包围球变换到光照空间中. 首先我们变换包围球的圆心
+
+	float l = sphereCenterLS.x - mSceneBounds.Radius;
+	float r = sphereCenterLS.x + mSceneBounds.Radius;
+	float t = sphereCenterLS.y + mSceneBounds.Radius;
+	float b = sphereCenterLS.y - mSceneBounds.Radius;
+	float n = sphereCenterLS.z - mSceneBounds.Radius;
+	float f = sphereCenterLS.z + mSceneBounds.Radius;
+
+	mLightNearZ = n;	//将近裁切和远裁切距离提升为变量
+	mLightFarZ = f;
+	XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);	//构建我们的光照投影矩阵. 该矩阵为一个正交矩阵, 其左右下上近远距离为我们上面计算得出的值
+
+	XMMATRIX T(	//构建从NDC空间到纹理空间的变换矩阵. 这个矩阵为列矩阵
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	XMMATRIX S = lightView * lightProj * T;	//构建从世界空间直接变换到光照空间下采样坐标的变换矩阵
+	XMStoreFloat4x4(&mLightView, lightView);	//将光照观察、光照投影、最终的变换矩阵都提升为变量
+	XMStoreFloat4x4(&mLightProj, lightProj);
+	XMStoreFloat4x4(&mShadowTransform, S);
 }
 
 void SkinnedMeshApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	XMMATRIX view = mCamera.GetView();	//计算观察、投影、观察投影矩阵及其逆矩阵
+	XMMATRIX proj = mCamera.GetProj();
+
+	XMMATRIX viewProj = view * proj;
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	XMMATRIX T(
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	XMMATRIX viewProjTex = XMMatrixMultiply(viewProj, T);
+	XMMATRIX shadowTransform = XMLoadFloat4x4(&mShadowTransform);	//我们在计算阴影时, 需要根据shadowTransform来采样点到光源的深度
+
+	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();	//观察点就是相机位置
+	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
+	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1.0f;
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };	//更新一下漫反射光
+	mMainPassCB.Lights[0].Direction = mRotatedLightDirections[0];	//更新三个光源. 我们只需要更新光照方向(旋转后的)和强度
+	mMainPassCB.Lights[0].Strength = { 0.9f, 0.9f, 0.7f };
+	mMainPassCB.Lights[1].Direction = mRotatedLightDirections[1];
+	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
+	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
+	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+
+	auto currPassCB = mCurrFrameResource->PassCB.get();	//准备更新当前帧常量
+	currPassCB->CopyData(0, mMainPassCB);	//MainPass的帧常量序号为0
 }
 
 void SkinnedMeshApp::UpdateShadowPassCB(const GameTimer& gt)
 {
+	XMMATRIX view = XMLoadFloat4x4(&mLightView);	//光源的观察矩阵与投影矩阵我们都已经计算过了, 直接拿来用即可
+	XMMATRIX proj = XMLoadFloat4x4(&mLightProj);
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);	//同样的, 我们计算其复合矩阵与所有的逆矩阵
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	UINT w = mShadowMap->Width();
+	UINT h = mShadowMap->Height();
+
+	XMStoreFloat4x4(&mShadowPassCB.View, XMMatrixTranspose(view));		//所有的矩阵, 我们在准备提交时, 都要转置
+	XMStoreFloat4x4(&mShadowPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mShadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mShadowPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mShadowPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mShadowPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	mShadowPassCB.EyePosW = mLightPosW;
+	mShadowPassCB.NearZ = mLightNearZ;
+	mShadowPassCB.FarZ = mLightFarZ;
+	mShadowPassCB.RenderTargetSize = XMFLOAT2((float)w, (float)h);
+	mShadowPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / w, 1.0f / h);
+
+	auto curPassCB = mCurrFrameResource->PassCB.get();
+	curPassCB->CopyData(1, mShadowPassCB);	//阴影在PassCB中的常量缓冲区序号为1
 }
 
 void SkinnedMeshApp::UpdateSsaoCB(const GameTimer& gt)
 {
+	SsaoConstants ssaoCB;	//准备构建ssao需要的常量缓冲区
+
+	XMMATRIX P = mCamera.GetProj();	//投影矩阵为从光源位置观察获得的
+	XMMATRIX T(0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	ssaoCB.Proj = mMainPassCB.Proj;
+	ssaoCB.InvProj = mMainPassCB.InvProj;
+	XMStoreFloat4x4(&ssaoCB.ProjTex, XMMatrixTranspose(P * T));	//存储投影采样矩阵. 因为在Ssao的遮蔽率运算中, 我们只需要将坐标变换到观察空间中即可
+
+	mSsao->GetOffsetVectors(ssaoCB.OffsetVectors);	//更新偏移向量们
+
+	auto blurWeights = mSsao->CalcGaussWeights(2.5f);	//计算边缘模糊, 半径为2.5f
+	ssaoCB.BlurWeights[0] = XMFLOAT4(&blurWeights[0]);	//看清楚了，我们直接用vector从索引开始的4个元素构建了个float4!!!
+	ssaoCB.BlurWeights[1] = XMFLOAT4(&blurWeights[4]);
+	ssaoCB.BlurWeights[2] = XMFLOAT4(&blurWeights[8]);	//每次都直接增加4!
+
+	ssaoCB.InvRenderTargetSize = XMFLOAT2(1.0f / mSsao->SsaoMapWidth(), 1.0f / mSsao->SsaoMapHeight());
+
+	ssaoCB.OcclusionRadius = 0.5f;	//遮蔽半径. 只有距离小于遮蔽半径的, 我们才认为可能发生遮蔽. 半径距离越小, 遮蔽率越大
+	ssaoCB.OcclusionFadeStart = 0.2f;	//遮蔽衰减开始的距离
+	ssaoCB.OcclusionFadeEnd = 2.0f;	//遮蔽衰减到0的距离
+	ssaoCB.SurfaceEpsilon = 0.05f;	//z值距离小于此值, 我们认为两个点在一个平面上, 也不会发生遮蔽
+
+	auto curSsaoCB = mCurrFrameResource->SsaoCB.get();	//准备将ssao常量复制到SsaoCB. 其序号同样为0
+	curSsaoCB->CopyData(0, ssaoCB);
 }
 
 void SkinnedMeshApp::LoadTextures()
