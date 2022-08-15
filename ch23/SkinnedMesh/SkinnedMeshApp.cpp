@@ -1317,10 +1317,71 @@ void SkinnedMeshApp::BuildPSOs()
 
 void SkinnedMeshApp::BuildFrameResources()
 {
+	for (int i = 0; i < gNumFrameResources; ++i)
+	{
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+			2, (UINT)mAllRitems.size(), 1, (UINT)mMaterials.size()));	//每个帧资源, 我们都要推入一个新的unique_ptr, 其中的帧资源数量为: pass2, object为allRitems.size(), 蒙皮模型数量为1, mat为materials.size()
+	}
 }
 
 void SkinnedMeshApp::BuildMaterials()
 {
+	auto bricks0 = std::make_unique<Material>();	//材质的属性包含粗糙度, R0, 材质在缓冲区中的索引, 纹理图, 法线图, 漫反射, 材质名
+	bricks0->Name = "bricks0";
+	bricks0->MatCBIndex = 0;
+	bricks0->DiffuseSrvHeapIndex = 0;
+	bricks0->NormalSrvHeapIndex = 1;
+	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	bricks0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	bricks0->Roughness = 0.3f;
+
+	auto tile0 = std::make_unique<Material>();
+	tile0->Name = "tile0";
+	tile0->MatCBIndex = 1;
+	tile0->DiffuseSrvHeapIndex = 2;
+	tile0->NormalSrvHeapIndex = 3;
+	tile0->DiffuseAlbedo = XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
+	tile0->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	tile0->Roughness = 0.1f;
+
+	auto mirror0 = std::make_unique<Material>();
+	mirror0->Name = "mirror0";
+	mirror0->MatCBIndex = 2;
+	mirror0->DiffuseSrvHeapIndex = 4;
+	mirror0->NormalSrvHeapIndex = 5;
+	mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
+	mirror0->Roughness = 0.1f;
+
+	auto sky = std::make_unique<Material>();
+	sky->Name = "sky";
+	sky->MatCBIndex = 3;
+	sky->DiffuseSrvHeapIndex = 6;
+	sky->NormalSrvHeapIndex = 7;
+	sky->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	sky->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	sky->Roughness = 1.0f;
+
+	mMaterials["bricks0"] = std::move(bricks0);	//将上面的材质都存入materials
+	mMaterials["tile0"] = std::move(tile0);
+	mMaterials["mirror0"] = std::move(mirror0);
+	mMaterials["sky"] = std::move(sky);
+
+	UINT matCBIndesx = 4;
+	UINT srvHeapIndex = mSkinnedSrvHeapStart;	//将蒙皮角色用的材质推入Materials中. 这里之所以是mSkinnedSrvHeapStart, 是因为从这里开始(到蒙皮角色的材质全部读入之前)全都是skinnedMats了!
+	for (UINT i = 0; i < mSkinnedMats.size(); ++i)
+	{
+		auto mat = std::make_unique<Material>();
+		mat->Name = mSkinnedMats[i].Name;
+		mat->FresnelR0 = mSkinnedMats[i].FresnelR0;
+		mat->DiffuseAlbedo = mSkinnedMats[i].DiffuseAlbedo;
+		mat->DiffuseSrvHeapIndex = srvHeapIndex++;	//这里和我们构建srvHeap时候的顺序是严格对应的!!!
+		mat->NormalSrvHeapIndex = srvHeapIndex++;
+		mat->Roughness = mSkinnedMats[i].Roughness;
+		mat->MatCBIndex = matCBIndesx++;	//因为非蒙皮角色只用了4个材质
+
+		mMaterials[mat->Name] = mat;
+	}
 }
 
 void SkinnedMeshApp::BuildRenderItems()
