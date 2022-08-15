@@ -1176,11 +1176,11 @@ void SkinnedMeshApp::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOpaquePsoDesc = opaquePsoDesc;	//在不透明物体的基础上, 添加蒙皮不透明物体的PSO
 	skinnedOpaquePsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };	//相比于opaquePsoDesc, 需要调整PSO和VS, PS
-	skinnedOpaquePsoDesc.PS = {
+	skinnedOpaquePsoDesc.VS = {
 		reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),
 		mShaders["skinnedVS"]->GetBufferSize()
 	};
-	skinnedOpaquePsoDesc.VS = {
+	skinnedOpaquePsoDesc.PS = {
 		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
 		mShaders["opaquePS"]->GetBufferSize()
 	};
@@ -1194,7 +1194,7 @@ void SkinnedMeshApp::BuildPSOs()
 	smapPsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
-		mShaders["shaodwVS"]->GetBufferSize()
+		mShaders["shadowVS"]->GetBufferSize()
 	};
 	smapPsoDesc.PS =
 	{
