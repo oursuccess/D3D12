@@ -811,10 +811,139 @@ void SkinnedMeshApp::BuildSsaoRootSignature()
 
 void SkinnedMeshApp::BuildDescriptorHeaps()
 {
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};	//先创建一个默认清空的描述符堆说明
+	srvHeapDesc.NumDescriptors = 64;	//其中的描述符数量为64
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;	//其中的描述符类型为CBV/SRV/UAV
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;	//这些说明符在shader中可见
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());	//准备在CPU侧开始创建每个说明符
+
+	std::vector<ComPtr<ID3D12Resource>> tex2DList =	//记录我们需要创建SRV说明符的资源. 理论上, 每个贴图我们都要创建对应的SRV. 这里记录的是未在人物上使用的部分
+	{
+		mTextures["bricksDiffuseMap"]->Resource,
+		mTextures["bricksNormalMap"]->Resource,
+		mTextures["tileDiffuseMap"]->Resource,
+		mTextures["tileNormalMap"]->Resource,
+		mTextures["defaultDiffuseMap"]->Resource,
+		mTextures["defaultNormalMap"]->Resource
+	};
+
+	mSkinnedSrvHeapStart = (UINT)tex2DList.size();	//人物使用的则在上面的未使用部分之后开始
+
+	for (UINT i = 0; i < (UINT)mSkinnedTextureNames.size(); ++i)
+	{
+		auto texResource = mTextures[mSkinnedTextureNames[i]]->Resource;
+		assert(texResource != nullptr);
+		tex2DList.push_back(texResource);	//将人物使用的纹理们也一个个推入tex2DList中
+	}
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};	//开始创建每个描述符的描述
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	//其RGBA4通道的采样顺序不变
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//其为2D纹理
+	srvDesc.Texture2D.MostDetailedMip = 0;	//其最高的Mip层级为0
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;	//不允许采样比0.0更低的层级, 我们将之截断到0.0
+
+	for (UINT i = 0; i < (UINT)tex2DList.size(); ++i)	//遍历所有纹理, 并逐个创建描述符
+	{
+		srvDesc.Format = tex2DList[i]->GetDesc().Format;	//我们记录其格式与Mip层级数量
+		srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
+		md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);	//根据tex2DList[i], 以desc作为说明, 在hDescriptor的位置创建SRV
+
+		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);	//hDescriptor后移一个
+	}
+
+	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;	//找到天空纹理
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;	//准备创建天空纹理. 其视图为一个立方体图
+	srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;	//记录其Mip层级
+	srvDesc.Format = skyCubeMap->GetDesc().Format;	//记录其格式
+	srvDesc.TextureCube.MostDetailedMip = 0;
+	srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;	//同样的, 其最高Mip层级为0, 我们要将低于0.0的采样层级截断到0.0
+	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);	//创建天空盒对应的SRV. 后面不再需要hDescriptor后移了. 因为我们后面换了其它描述符句柄
+
+	mSkyTexHeapIndex = (UINT)tex2DList.size();	//从上面我们也可以看出, 天空盒的纹理资源、天空盒的SRV在普通纹理、动画角色纹理的后面
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;	//其后面为阴影图堆
+	mSsaoHeapIndexStart = mShadowMapHeapIndex + 1;	//阴影后面为Ssao
+	mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;	//Ssao中有Normal, Depth, randomVector和两张AmbientMap. 这里原作者写错了!!!! AmbientMap在Ssao用的描述符的前面!!!, 应该是+0!
+	mNullCubeSrvIndex = mSsaoAmbientMapIndex + 5;	//因为Ssao中有5个描述符
+	mNullTexSrvIndex1 = mNullCubeSrvIndex + 1;	//其后后面又跟了两个不使用的Tex的Srv
+	mNullTexSrvIndex2 = mNullTexSrvIndex1 + 1;
+
+	auto nullSrv = GetCpuSrv(mNullCubeSrvIndex);	//获取对应nullCube的下标的CPU侧SRV, 并准备创建
+	mNullSrv = GetGpuSrv(mNullCubeSrvIndex);	//我们保存的Srv当然是GPU侧的, 因为shader中才需要这个
+
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//因为其为空的, 因此我们不需要传入resource, 硬件自动处理即可. 因为上面最后创建的是天空纹理, 因此我们不需要修改ViewDimension什么的
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);	//后移句柄. 其后面刚好为两个nullSrv
+
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;	//将srvDesc的视图修改回2D
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//随便指定一个格式, 尽量小
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//开始创建空的2DSrv
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);	//继续后移句柄
+
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);	//继续创建新的空2DSrv
+
+	mShadowMap->BuildDescriptors(GetCpuSrv(mShadowMapHeapIndex), GetGpuSrv(mShadowMapHeapIndex), GetDsv(1));	//通知阴影图管理类创建描述符表
+
+	mSsao->BuildDescriptors(mDepthStencilBuffer.Get(), GetCpuSrv(mSsaoHeapIndexStart), GetGpuSrv(mSsaoHeapIndexStart), GetRtv(SwapChainBufferCount), mCbvSrvUavDescriptorSize, mRtvDescriptorSize);	//通知Ssao管理类创建描述符表
 }
 
 void SkinnedMeshApp::BuildShadersAndInputLayout()
 {
+	const D3D_SHADER_MACRO alphaTestDefines[] =	//定义两个宏, 一个是是否开启透明度测试, 一个是是否为蒙皮角色
+	{
+		"ALPHA_TEST", "1", NULL, NULL
+	};
+
+	const D3D_SHADER_MACRO skinnedDefines[] =
+	{
+		"SKINNED", "1", NULL, NULL
+	};
+
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skinnedVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", skinnedDefines, "VS", "vs_5_1");	//蒙皮的顶点和标准的顶点着色器中间仅仅是一个宏的区别. 开启该宏后, 我们在顶点着色器阶段需要根据骨骼位移变换
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", skinnedDefines, "VS", "vs_5_1");	//同样的, 蒙皮骨骼的阴影也要根据骨骼的位移而变换阴影的计算. 同样只影响了VS
+	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["shadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");	//如果开启了透明度测试, 则在PS阶段, 我们需要直接将其剔除
+
+	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["drawNormalsVS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skinnedDrawNormalsVS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", skinnedDefines, "VS", "vs_5_1");	//运动了的蒙皮, 其法线也要跟着变换
+	mShaders["drawNormalsPS"] = d3dUtil::CompileShader(L"Shaders\\DrawNormals.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["ssaoVS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["ssaoPS"] = d3dUtil::CompileShader(L"Shaders\\Ssao.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["ssaoBlurVS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["ssaoBlurPS"] = d3dUtil::CompileShader(L"Shaders\\SsaoBlur.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
+
+	mInputLayout =	//一个标准的输入布局描述(对应VS)有顶点、法线、纹理、切线
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//位置大小为4 * 3
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//法线大小为4 * 3
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//uv大小为4 * 2
+		{"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//切线大小为4 * 3
+	};
+
+	mSkinnedInputLayout =	//对于一个蒙皮骨骼, 其输入布局描述应当在上面的顶点、法线、纹理、切线外，额外加上影响顶点的骨骼和每个骨骼的权重(由于骨骼不超过4个, 因此权重可以只记录3个, 最后一个为1 - 前三者)
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},	//位置大小为4 * 3
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//法线大小为4 * 3
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//uv大小为4 * 2
+		{"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//切线大小为4 * 3
+		{"WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//权重大小为4 * 3, 我们可以只记录3个, 第4个由1 - (sum[0..3])得出
+		{"BONEINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA},	//顶点受到哪些骨骼的影响. 由于骨骼数量不会太多, 因此我们只用R8G8B8A8记录即可(256), 大小为1 * 4
+	};
 }
 
 void SkinnedMeshApp::BuildShapeGeometry()
