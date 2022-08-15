@@ -649,7 +649,7 @@ void SkinnedMeshApp::UpdateSsaoCB(const GameTimer& gt)
 	ssaoCB.OcclusionFadeEnd = 2.0f;	//遮蔽衰减到0的距离
 	ssaoCB.SurfaceEpsilon = 0.05f;	//z值距离小于此值, 我们认为两个点在一个平面上, 也不会发生遮蔽
 
-	auto curSsaoCB = mCurrFrameResource->SsaoCB.get();	//准备将ssao常量复制到SsaoCB. 其序号同样为0
+	auto curSsaoCB = mCurrFrameResource->SsaoCB.get();	//准备将ssao常量复制到SsaoCB. 其序号同样为0, 注意其序号为0!!!!
 	curSsaoCB->CopyData(0, ssaoCB);
 }
 
@@ -1574,30 +1574,87 @@ void SkinnedMeshApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const s
 
 void SkinnedMeshApp::DrawSceneToShadowMap()
 {
+	mCommandList->RSSetViewports(1, &mShadowMap->Viewport());	//设置栅格化阶段的视口和裁剪矩形
+	mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));	//将shadowMap的resource从只读改为深度写如
+
+	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);	//我们重置模板/深度视图的值, 深度重置为1, 模板重置为0
+
+	mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv());	//设置绘制时的dsv为我们的阴影图. 同时, 由于我们不需要最终的图像, 因此直接将RenderTargets的数量设为0, 并传入nullptr
+
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;	//shadowPass在mainpass的下一个, 因此我们需要偏移过去(偏移一个passConstants大小)
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddress);	//设置根描述符，对应根参数2, 其为我们的shadowpassCB
+
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());	//先绘制所有opaque物体
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["skinnedShadow_opaque"].Get());	//然后绘制蒙皮的opaque物体
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::SkinnedOpaque]);
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),	//只有一个barrier
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));	//将shadowMap的resource从深度写入改回只读
 }
 
 void SkinnedMeshApp::DrawNormalsAndDepth()
 {
+	mCommandList->RSSetViewports(1, &mScreenViewport);	//设置视口和裁剪矩形
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	auto normalMap = mSsao->NormalMap();	//获取normalMap资源 和对应的渲染视口
+	auto normalMapRtv = mSsao->NormalMapRtv();
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//将normalMap对应的资源的状态从只读变为渲染对象
+
+	float clearValue[] = { 0.0f, 0.0f, 1.0f, 0.0f };
+	mCommandList->ClearRenderTargetView(normalMapRtv, clearValue, 0, nullptr);	//清空normalMapRtv指向的资源. 其值清空为z为1.  没有不清空的地方
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);	//清空深度/模板缓冲区. 其值清空为深度1.0, 模板0
+
+	mCommandList->OMSetRenderTargets(1, &normalMapRtv, true, &DepthStencilView());	//准备绘制,渲染目标为法线图, 深度为DepthStencilView
+
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());	//设置根描述符, 对应根参数2, 其直接绑定到passCB上. 因为我们直接在Ssao这里共用了MainPass的CB!
+
+	mCommandList->SetPipelineState(mPSOs["drawNormals"].Get());	//我们需要将不运动的物体和有动画的物体的法线分开绘制
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["skinnedDrawNormals"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::SkinnedOpaque]);
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));	//将normalMap对应的资源的状态从渲染对象变为只读
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetCpuSrv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto srv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
 }
 
 CD3DX12_GPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetGpuSrv(int index) const
 {
-	return CD3DX12_GPU_DESCRIPTOR_HANDLE();
+	auto srv = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetDsv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto dsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+	dsv.Offset(index, mDsvDescriptorSize);
+	return dsv;
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE SkinnedMeshApp::GetRtv(int index) const
 {
-	return CD3DX12_CPU_DESCRIPTOR_HANDLE();
+	auto rtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	rtv.Offset(index, mRtvDescriptorSize);
+	return rtv;
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> SkinnedMeshApp::GetStaticSamplers()
