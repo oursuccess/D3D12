@@ -948,14 +948,371 @@ void SkinnedMeshApp::BuildShadersAndInputLayout()
 
 void SkinnedMeshApp::BuildShapeGeometry()
 {
+	 GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+    GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+    
+	//
+	// We are concatenating all the geometry into one big vertex/index buffer.  So
+	// define the regions in the buffer each submesh covers.
+	//
+
+	// Cache the vertex offsets to each object in the concatenated vertex buffer.
+	UINT boxVertexOffset = 0;
+	UINT gridVertexOffset = (UINT)box.Vertices.size();
+	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
+	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+    UINT quadVertexOffset = cylinderVertexOffset + (UINT)cylinder.Vertices.size();
+
+	// Cache the starting index for each object in the concatenated index buffer.
+	UINT boxIndexOffset = 0;
+	UINT gridIndexOffset = (UINT)box.Indices32.size();
+	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
+	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+    UINT quadIndexOffset = cylinderIndexOffset + (UINT)cylinder.Indices32.size();
+
+	SubmeshGeometry boxSubmesh;
+	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+	boxSubmesh.StartIndexLocation = boxIndexOffset;
+	boxSubmesh.BaseVertexLocation = boxVertexOffset;
+
+	SubmeshGeometry gridSubmesh;
+	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
+	gridSubmesh.StartIndexLocation = gridIndexOffset;
+	gridSubmesh.BaseVertexLocation = gridVertexOffset;
+
+	SubmeshGeometry sphereSubmesh;
+	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
+	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
+	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
+
+	SubmeshGeometry cylinderSubmesh;
+	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
+	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
+	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
+
+    SubmeshGeometry quadSubmesh;
+    quadSubmesh.IndexCount = (UINT)quad.Indices32.size();
+    quadSubmesh.StartIndexLocation = quadIndexOffset;
+    quadSubmesh.BaseVertexLocation = quadVertexOffset;
+
+	//
+	// Extract the vertex elements we are interested in and pack the
+	// vertices of all the meshes into one vertex buffer.
+	//
+
+	auto totalVertexCount =
+		box.Vertices.size() +
+		grid.Vertices.size() +
+		sphere.Vertices.size() +
+		cylinder.Vertices.size() + 
+        quad.Vertices.size();
+
+	std::vector<Vertex> vertices(totalVertexCount);
+
+	UINT k = 0;
+	for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = box.Vertices[i].Position;
+		vertices[k].Normal = box.Vertices[i].Normal;
+		vertices[k].TexC = box.Vertices[i].TexC;
+		vertices[k].TangentU = box.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = grid.Vertices[i].Position;
+		vertices[k].Normal = grid.Vertices[i].Normal;
+		vertices[k].TexC = grid.Vertices[i].TexC;
+		vertices[k].TangentU = grid.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = sphere.Vertices[i].Position;
+		vertices[k].Normal = sphere.Vertices[i].Normal;
+		vertices[k].TexC = sphere.Vertices[i].TexC;
+		vertices[k].TangentU = sphere.Vertices[i].TangentU;
+	}
+
+	for(size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = cylinder.Vertices[i].Position;
+		vertices[k].Normal = cylinder.Vertices[i].Normal;
+		vertices[k].TexC = cylinder.Vertices[i].TexC;
+		vertices[k].TangentU = cylinder.Vertices[i].TangentU;
+	}
+
+    for(int i = 0; i < quad.Vertices.size(); ++i, ++k)
+    {
+        vertices[k].Pos = quad.Vertices[i].Position;
+        vertices[k].Normal = quad.Vertices[i].Normal;
+        vertices[k].TexC = quad.Vertices[i].TexC;
+        vertices[k].TangentU = quad.Vertices[i].TangentU;
+    }
+
+	std::vector<std::uint16_t> indices;
+	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
+	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
+	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
+	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+    indices.insert(indices.end(), std::begin(quad.GetIndices16()), std::end(quad.GetIndices16()));
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "shapeGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	geo->DrawArgs["box"] = boxSubmesh;
+	geo->DrawArgs["grid"] = gridSubmesh;
+	geo->DrawArgs["sphere"] = sphereSubmesh;
+	geo->DrawArgs["cylinder"] = cylinderSubmesh;
+    geo->DrawArgs["quad"] = quadSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
 void SkinnedMeshApp::LoadSkinnedModel()
 {
+	std::vector<M3DLoader::SkinnedVertex> vertices;
+	std::vector<std::uint16_t> indices;
+
+	M3DLoader m3dLoader;
+	m3dLoader.LoadM3d(mSkinnedModelFilename, vertices, indices, mSkinnedSubsets, mSkinnedMats, mSkinnedInfo);	//让M3D加载类加载对应的蒙皮, 并将submesh, mat, skinnedInfo保存在指定的位置
+
+	mSkinnedModelInst = std::make_unique<SkinnedModelInstance>();	//创建我们的实际的蒙皮模型的实例
+	mSkinnedModelInst->SkinnedInfo = &mSkinnedInfo;	//其蒙皮信息为mSkinnedInfo
+	mSkinnedModelInst->TimePos = 0.0f;	//其默认时间戳为0
+	mSkinnedModelInst->ClipName = "Take1";	//其动画为Take1. (其实这个模型中也只有这么1个动画)
+	mSkinnedModelInst->FinalTransforms.resize(mSkinnedInfo.BoneCount());	//我们让最终变换的大小变为bone数量. 因为每个骨骼都有自己的变换
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SkinnedVertex);	//计算我们的顶点和索引的总大小
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();	//创建对应我们的动画角色的几何
+	geo->Name = mSkinnedModelFilename;	//其名称我们用model的文件名来索引
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));	//创建一个blob, 其大小为顶点缓冲区大小, 并将空间绑定到geo的VertexBufferCPU
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);	//将vertices里的数据直接复制到我们刚才创建的Blob中
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);	//对索引缓冲区, 我们同样如此做
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		vertices.data(), vbByteSize, geo->VertexBufferUploader);	//我们根据上面的Blob, 通过Uploader, 在设备上利用命令列表来将资源也上传到GPU中. 首先对顶点缓冲区GPU如此
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		indices.data(), ibByteSize, geo->IndexBufferUploader);	//对索引缓冲区同样如此, 将CPU侧的资源递交至GPU
+
+	geo->VertexByteStride = sizeof(SkinnedVertex);	//其每个元素的大小为SkinnedVertex的大小
+	geo->VertexBufferByteSize = vbByteSize;	//记录其顶点缓冲区总大小
+	geo->IndexBufferByteSize = ibByteSize;	//记录其索引缓冲区的总大小
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;	//其索引的格式为R16_UINT, 表示我们不会有超过65535个顶点
+
+	for (UINT i = 0; i < (UINT)mSkinnedSubsets.size(); ++i)
+	{
+		SubmeshGeometry submesh;
+		std::string name = "sm_" + std::to_string(i);	//每个submesh的名字我们用索引标记
+
+		submesh.IndexCount = (UINT)mSkinnedSubsets[i].FaceCount * 3;	//一个面由3个面组成.
+		submesh.StartIndexLocation = mSkinnedSubsets[i].FaceStart * 3;
+		submesh.BaseVertexLocation = 0;	//这个直接是0. 这是因为我们并没有把角色的顶点和其它顶点合起来!!! LoadM3d里的那个VertexStart本来就是不能加的!
+
+		geo->DrawArgs[name] = submesh;	//将submesh存入hash
+	}
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
 void SkinnedMeshApp::BuildPSOs()
 {
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;	//新建对应不透明物体的PSO说明
+
+	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));	//我们先将该PSO说明清空
+	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };	//然后我们设置其InputLayout
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();	//我们设置其根签名
+	opaquePsoDesc.VS =		//我们设置其VS和PS
+	{
+		reinterpret_cast<BYTE*> (mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
+	};
+	opaquePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*> (mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
+	};
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);	//其栅格化方式为默认的
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);	//其混合方式为默认的
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);	//其深度/模板方式同样为默认的
+	opaquePsoDesc.SampleMask = UINT_MAX;	//其采样遮罩为全1. 表示我们全部都是采样的
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;	//其拓扑为三角形
+	opaquePsoDesc.NumRenderTargets = 1;	//其渲染对象的数量为1
+	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;	//其第一个渲染对象的格式为我们的后台缓冲区的格式
+	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;	//若开启了msaa, 则我们的采样数量为4; 否则我们的采样数量为1
+	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;	//若开启了msaa, 则其质量为我们的质量; 否则为0
+	opaquePsoDesc.DSVFormat = mDepthStencilFormat;	//其DSV格式为我们的深度/模板缓冲区格式
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));	//创建对应opaque的PSO
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOpaquePsoDesc = opaquePsoDesc;	//在不透明物体的基础上, 添加蒙皮不透明物体的PSO
+	skinnedOpaquePsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };	//相比于opaquePsoDesc, 需要调整PSO和VS, PS
+	skinnedOpaquePsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),
+		mShaders["skinnedVS"]->GetBufferSize()
+	};
+	skinnedOpaquePsoDesc.VS = {
+		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedOpaquePsoDesc, IID_PPV_ARGS(&mPSOs["skinnedOpaque"])));	//新建对应蒙皮动画的PSO
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = opaquePsoDesc;	//新建阴影绘制的pso
+	smapPsoDesc.RasterizerState.DepthBias = 100000;	//其光栅化时, 需要添加深度偏移, 从而防止毛刺, 但也不能出现彼得潘现象
+	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
+	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+	smapPsoDesc.pRootSignature = mRootSignature.Get();
+	smapPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+		mShaders["shaodwVS"]->GetBufferSize()
+	};
+	smapPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+		mShaders["shadowOpaquePS"]->GetBufferSize()
+	};
+	smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;	//阴影绘制时, 不需要渲染对象, 因此其格式可以直接为UNKNOW
+	smapPsoDesc.NumRenderTargets = 0;	//渲染目标的数量也直接为0
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedSmapPsoDesc = smapPsoDesc;	//新建蒙皮角色的阴影绘制的PSO
+	skinnedSmapPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };	//其输入布局描述又变为阴影绘制的了
+	skinnedSmapPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skinnedShadowVS"]->GetBufferPointer()),
+		mShaders["skinnedShadowVS"]->GetBufferSize()
+	};
+	skinnedSmapPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+		mShaders["shadowOpaquePS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedSmapPsoDesc, IID_PPV_ARGS(&mPSOs["skinnedShadow_opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = opaquePsoDesc;	//接下来是debug的PSO. debug中, 我们绘制了遮蔽率图
+	debugPsoDesc.pRootSignature = mRootSignature.Get();
+	debugPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["debugVS"]->GetBufferPointer()),
+		mShaders["debugVS"]->GetBufferSize()
+	};
+	debugPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["debugPS"]->GetBufferPointer()),
+		mShaders["debugPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC drawNormalsPsoDesc = opaquePsoDesc;	//绘制法线的pso. 我们在绘制法线时, 渲染对象格式当然是NormalMapFormat
+	drawNormalsPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["drawNormalsVS"]->GetBufferPointer()),
+		mShaders["drawNormalsVS"]->GetBufferSize()
+	};
+	drawNormalsPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["drawNormalsPS"]->GetBufferPointer()),
+		mShaders["drawNormalsPS"]->GetBufferSize()
+	};
+	drawNormalsPsoDesc.RTVFormats[0] = Ssao::NormalMapFormat;
+	drawNormalsPsoDesc.SampleDesc.Count = 1;
+	drawNormalsPsoDesc.SampleDesc.Quality = 0;
+	drawNormalsPsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawNormalsPsoDesc, IID_PPV_ARGS(&mPSOs["drawNormals"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedDrawNormalsPsoDesc = drawNormalsPsoDesc;	//绘制法线的流水线状态, 在遇到存在蒙皮动画的mesh时, 会需要根据动画变更法线
+	skinnedDrawNormalsPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };	//其输入描述布局为蒙皮动画顶点的布局
+	skinnedDrawNormalsPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skinnedDrawNormalsVS"]->GetBufferPointer()),
+		mShaders["skinnedDrawNormalsVS"]->GetBufferSize()
+	};
+	skinnedDrawNormalsPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["drawNormalsPS"]->GetBufferPointer()),
+		mShaders["drawNormalsPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedDrawNormalsPsoDesc, IID_PPV_ARGS(&mPSOs["skinnedDrawNormals"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoPsoDesc = opaquePsoDesc;	//Ssao的流水线状态说明
+	ssaoPsoDesc.InputLayout = { nullptr, 0 };	//ssao不需要输入描述布局
+	ssaoPsoDesc.pRootSignature = mSsaoRootSignature.Get();	//ssao的根签名是独立的
+	ssaoPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoVS"]->GetBufferPointer()),
+		mShaders["ssaoVS"]->GetBufferSize()
+	};
+	ssaoPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoPS"]->GetBufferPointer()),
+		mShaders["ssaoPS"]->GetBufferSize()
+	};
+	ssaoPsoDesc.DepthStencilState.DepthEnable = false;	//在Ssao计算时, 我们不检测深度. 因为我们就是根据之前的深度图尝试在光源的观察空间中还原每个点到光源的距离的
+	ssaoPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	ssaoPsoDesc.RTVFormats[0] = Ssao::AmbientMapFormat;	//我们在Ssao计算时, 渲染对象是AmbientMap, 因此格式也要是AmientMap的Format
+	ssaoPsoDesc.SampleDesc.Count = 1;	//采样的数量为1, 没有msaa
+	ssaoPsoDesc.SampleDesc.Quality = 0;
+	ssaoPsoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;	//深度/模板不需要, 因此其格式自然也不重要
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&ssaoPsoDesc, IID_PPV_ARGS(&mPSOs["ssao"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoBlurPsoDesc = ssaoPsoDesc;	//创建SsaoBlur的PSO
+	ssaoBlurPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoBlurVS"]->GetBufferPointer()),
+		mShaders["ssaoBlurVS"]->GetBufferSize()
+	};
+	ssaoBlurPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["ssaoBlurPS"]->GetBufferPointer()),
+		mShaders["ssaoBlurPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&ssaoBlurPsoDesc, IID_PPV_ARGS(&mPSOs["ssaoBlur"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;	//天空在任何方向都应该是可以看到的. 我们不能剔除掉所谓的“逆时针”的背面
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;	//不能只有在less的时候才绘制天空. 在equal(即为1)的时候也同样要能绘制
+	skyPsoDesc.pRootSignature = mRootSignature.Get();
+	skyPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+		mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
 }
 
 void SkinnedMeshApp::BuildFrameResources()
