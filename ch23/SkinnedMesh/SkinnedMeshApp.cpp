@@ -385,10 +385,10 @@ void SkinnedMeshApp::Draw(const GameTimer& gt)
 
 	//绘制调用完成后, 我们将后台缓冲区的状态从渲染目标变回只读
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	//然后, 我们可以关闭命令列表, 并执行命令队列
-	mCommandList->Close();
+	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
