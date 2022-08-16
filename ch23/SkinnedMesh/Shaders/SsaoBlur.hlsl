@@ -26,7 +26,8 @@ cbuffer cbRootConstants : register(b1)
 
 Texture2D gNormalMap : register(t0);    //几个需要的纹理
 Texture2D gDepthMap : register(t1);
-Texture2D gRandomVecMap : register(t2);
+//Texture2D gRandomVecMap : register(t2);   //注意, 这里不再是gRandomVecMap了!
+Texture2D gInputMap : register(t2);
 
 SamplerState gsamPointClamp : register(s0);
 SamplerState gsamLinearClamp : register(s1);
@@ -78,4 +79,42 @@ float4 PS(VertexOut pin) : SV_Target
         gBlurWeights[2].x, gBlurWeights[2].y, gBlurWeights[2].z, gBlurWeights[2].w,
     };
 
+    float2 texOffset;
+    if (gHorizontalBlur)
+    {
+        texOffset = float2(gInvRenderTargetSize.x, 0.0f);
+    }
+    else
+    {
+        texOffset = float2(0.0f, gInvRenderTargetSize.y);
+    }
+
+    float4 color = blurWeights[gBlurRadius] * gInputMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0);
+    float totalWeight = blurWeights[gBlurRadius];
+
+    float3 centerNormal = gNormalMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f).xyz;
+    float centerDepth = NdcDepthToViewDepth(gDepthMap.SampleLevel(gsamDepthMap, pin.TexC, 0.0f).r);
+
+    for (float i = -gBlurRadius; i <= gBlurRadius; ++i)
+    {
+        if (i == 0)
+            continue;   //中心点我们已经计算过了
+
+        float2 tex = pin.TexC + i * texOffset;
+
+        float3 neighborNormal = gNormalMap.SampleLevel(gsamPointClamp, tex, 0.0f).xyz;
+        float neightDepth = NdcDepthToViewDepth(gDepthMap.SampleLevel(gsamDepthMap, tex, 0.0f).r);
+
+        //我们不能模糊边缘!
+        if (dot(neighborNormal, centerNormal) >= 0.8f && abs(neightDepth - centerDepth) <= 0.2f)
+        {
+            float weight = blurWeights[i + gBlurRadius];
+
+            color += weight * gInputMap.SampleLevel(gsamPointClamp, tex, 0.0);
+
+            totalWeight += weight;
+        }
+    }
+
+    return color / totalWeight;
 }
