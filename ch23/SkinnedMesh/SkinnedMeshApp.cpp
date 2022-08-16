@@ -1589,7 +1589,7 @@ void SkinnedMeshApp::DrawSceneToShadowMap()
 	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;	//shadowPass在mainpass的下一个, 因此我们需要偏移过去(偏移一个passConstants大小)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddress);	//设置根描述符，对应根参数2, 其为我们的shadowpassCB
 
-	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());	//先绘制所有opaque物体
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());	//先绘制所有opaque物体	 我们设定了仅仅只有不透明物体才会产生阴影！！！！！
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	mCommandList->SetPipelineState(mPSOs["skinnedShadow_opaque"].Get());	//然后绘制蒙皮的opaque物体
