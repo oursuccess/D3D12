@@ -111,7 +111,7 @@ float4 PS(VertexOut pin) : SV_Target
         float3 r = (rz / q.z) * q;  //故技重施, 我们根据相似三角形得到q方向上实际的距离相机最近的点r
 
         float distZ = p.z - r.z;    //r现在最好是更靠近p的, 因此我们期望是p.z - r.z大于0
-        float dp = max(dot(n, normalize(r - p)), 0.0f); //判断r到底有多大程度在p的法线的正前方. --FIXME: 为什么这里乘的是法线, 而不是p? 
+        float dp = max(dot(n, normalize(r - p)), 0.0f); //判断r到底有多大程度在p的法线的正前方. --FIXME: 为什么这里乘的是法线, 而不是p - gEyePosW? 
         float occulusion = dp * OcculusionFunction(distZ);  //r点的最终遮蔽率
 
         occulusionSum += occulusion;
