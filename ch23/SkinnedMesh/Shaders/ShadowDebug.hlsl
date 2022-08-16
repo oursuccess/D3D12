@@ -19,7 +19,7 @@ VertexOut VS(VertexIn vin)
 {
     VertexOut vout = (VertexOut) 0.0f;
     //位置已经是齐次裁剪空间的了
-    vout.PosH = mul(vin.PosL, 1.0f);
+    vout.PosH = float4(vin.PosL, 1.0f);
 
     vout.TexC = vin.TexC;
 
