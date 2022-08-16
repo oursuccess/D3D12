@@ -38,7 +38,7 @@ VertexOut VS(VertexIn vin)
     {
         posL += weights[i] * mul(float4(vin.PosL, 1.0f), gBoneTransforms[vin.BoneIndices[i]]).xyz;
         normalL += weights[i] * mul(vin.NormalL, (float3x3) gBoneTransforms[vin.BoneIndices[i]]);   //这里假定了没有非统一的缩放变换, 否则我们这儿乘的就要是transform的逆转置矩阵了
-        tangentL += weights[i] * mul(vin.NormalL, (float3x3) gBoneTransforms[vin.BoneIndices[i]]);  //为什么这儿能这么直接加上来? --FIXME:
+        tangentL += weights[i] * mul(vin.NormalL, (float3x3) gBoneTransforms[vin.BoneIndices[i]]);  //为什么这儿能这么直接加上来? 这就是向量加法的几何意义!
     }
 
     vin.PosL = posL;
