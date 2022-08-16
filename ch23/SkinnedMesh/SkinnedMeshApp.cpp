@@ -357,7 +357,7 @@ void SkinnedMeshApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetScissorRects(1, &mScissorRect);	//设置栅格化阶段的裁剪矩形
 
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将后台缓冲区的资源状态从只读变更为渲染目标
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));	//我们将后台缓冲区的资源状态从只读变更为渲染目标
 
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::SteelBlue, 0, nullptr);	//我们将CurrentBackBufferView这一RTV描述符对应的格式，来将其指定的资源重置，重置为颜色为深蓝，没有裁剪矩形
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);	//我们将Depth/Stencil描述符对应的资源重置, 将DEPTH和STENCIL的FLAG都清空，将深度均改为1，将STENCIL改为0, 且没有裁剪矩形
