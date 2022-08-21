@@ -1,130 +1,126 @@
-//default.hlsl copy from DX12, by Frank Luna
+//***************************************************************************************
+// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+//***************************************************************************************
 
+// Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
-#define NUM_DIR_LIGHTS 3
+    #define NUM_DIR_LIGHTS 3
 #endif
 
 #ifndef NUM_POINT_LIGHTS
-#define NUM_POINT_LIHGTS 0
+    #define NUM_POINT_LIGHTS 0
 #endif
 
 #ifndef NUM_SPOT_LIGHTS
-#define NUM_SPOT_LIHGTS 0
+    #define NUM_SPOT_LIGHTS 0
 #endif
 
+// Include common HLSL code.
 #include "Common.hlsl"
 
-struct VertexIn //vin, 对应了输入描述布局
+struct VertexIn
 {
-    float3 PosL : POSITION;
+	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
-    float2 TexC : TEXCOORD;
-    float3 TangentL : TANGENT;
-#ifdef SKINNED
-    float3 BoneWeights : WEIGHTS;
-    uint4 BoneIndices : BONEINDICES;
-#endif
+	float2 TexC    : TEXCOORD;
+	float3 TangentU : TANGENT;
 };
 
-struct VertexOut    //vout, 尽管并不是对应了输入, 但是我们依然要提供语义
+struct VertexOut
 {
-    float4 PosH : SV_Position;
+	float4 PosH    : SV_POSITION;
     float4 ShadowPosH : POSITION0;
-    float4 SsaoPosH : POSITION1;
-    float3 PosW : POSITION2;
+    float3 PosW    : POSITION1;
     float3 NormalW : NORMAL;
-    float3 TangentW : TANGENT;
-    float2 TexC : TEXCOORD;
+	float3 TangentW : TANGENT;
+	float2 TexC    : TEXCOORD;
 };
 
 VertexOut VS(VertexIn vin)
 {
-    VertexOut vout = (VertexOut) 0.0f;
+	VertexOut vout = (VertexOut)0.0f;
 
-    MaterialData matData = gMaterialData[gMaterialIndex];
-
-#ifdef SKINNED
-    //如果存在蒙皮动画, 则需要根据动画来修改位置、法线和切线
-    float weights[4] = {vin.BoneWeights.x, vin.BoneWeights.y, vin.BoneWeights.z, 0.0f};
-    weights[3] = 1 - weights[0] - weights[1] - weights[2];
-
-    float3 posL = float3(0.0f, 0.0f, 0.0f);
-    float3 normalL = float3(0.0f, 0.0f, 0.0f);
-    float3 tangentL = float3(0.0f, 0.0f, 0.0f);
-    for (int i = 0; i < 4; ++i)
-    {
-        posL += weights[i] * mul(float4(vin.PosL, 1.0f), gBoneTransforms[vin.BoneIndices[i]]).xyz;
-        normalL += weights[i] * mul(vin.NormalL, (float3x3)gBoneTransforms[vin.BoneIndices[i]]);
-        tangentL += weights[i] * mul(vin.TangentL.xyz, (float3x3)gBoneTransforms[vin.BoneIndices[i]]);
-    }
-
-    vin.PosL = posL;
-    vin.NormalL = normalL;
-    vin.TangentL.xyz = tangentL;
-#endif
-
+	// Fetch the material data.
+	MaterialData matData = gMaterialData[gMaterialIndex];
+	
+    // Transform to world space.
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
 
-    vout.NormalW = mul(vin.NormalL, (float3x3) gWorld);
+    // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+    vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+	
+	vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
 
-    vout.TangentW = mul(vin.TangentL, (float3x3) gWorld);
-
+    // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
+	
+	// Output vertex attributes for interpolation across triangle.
+	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+	vout.TexC = mul(texC, matData.MatTransform).xy;
 
+    // Generate projective tex-coords to project shadow map onto scene.
     vout.ShadowPosH = mul(posW, gShadowTransform);
-
-    vout.SsaoPosH = mul(posW, gViewProjTex);
-
-    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = mul(texC, matData.MatTransform).xy;
-
+	
     return vout;
 }
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    MaterialData matData = gMaterialData[gMaterialIndex];
-
-    float4 diffuseAlbedo = matData.DiffuseAlbedo;
-    float3 fresnelR0 = matData.FresnelR0;
-    float roughness = matData.Roughness;
-    float diffuseMapIndex = matData.DiffuseMapIndex;
-    float normalMapIndex = matData.NormalMapIndex;
-
+	// Fetch the material data.
+	MaterialData matData = gMaterialData[gMaterialIndex];
+	float4 diffuseAlbedo = matData.DiffuseAlbedo;
+	float3 fresnelR0 = matData.FresnelR0;
+	float  roughness = matData.Roughness;
+	uint diffuseMapIndex = matData.DiffuseMapIndex;
+	uint normalMapIndex = matData.NormalMapIndex;
+	
+    // Dynamically look up the texture in the array.
     diffuseAlbedo *= gTextureMaps[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
 
 #ifdef ALPHA_TEST
+    // Discard pixel if texture alpha < 0.1.  We do this test as soon 
+    // as possible in the shader so that we can potentially exit the
+    // shader early, thereby skipping the rest of the shader code.
     clip(diffuseAlbedo.a - 0.1f);
 #endif
 
+	// Interpolating normal can unnormalize it, so renormalize it.
     pin.NormalW = normalize(pin.NormalW);
+	
+	float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+	float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
 
-    float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
-    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
+	// Uncomment to turn off normal mapping.
+    //bumpedNormalW = pin.NormalW;
 
+    // Vector from point being lit to eye. 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-    pin.SsaoPosH /= pin.SsaoPosH.w;
-    float ambientAccess = gSsaoMap.Sample(gsamLinearClamp, pin.SsaoPosH.xy, 0.0f).r;
+    // Light terms.
+    float4 ambient = gAmbientLight*diffuseAlbedo;
 
-    float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
-
+    // Only the first light casts a shadow.
     float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
     shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
 
     const float shininess = (1.0f - roughness) * normalMapSample.a;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
+    float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
+        bumpedNormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 
+	// Add in specular reflections.
     float3 r = reflect(-toEyeW, bumpedNormalW);
     float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
     float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
     litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
-
+	
+    // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
 
     return litColor;
 }
+
+

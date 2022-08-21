@@ -134,12 +134,9 @@
     <ClCompile Include="..\..\..\d3d12book-master\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\..\d3d12book-master\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\..\d3d12book-master\Common\MathHelper.cpp" />
-    <ClCompile Include="CSMApp.cpp" />
     <ClCompile Include="FrameResource.cpp" />
-    <ClCompile Include="LoadM3d.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
-    <ClCompile Include="SkinnedData.cpp" />
-    <ClCompile Include="Ssao.cpp" />
+    <ClCompile Include="ShadowMapApp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\d3d12book-master\Common\Camera.h" />
@@ -152,10 +149,7 @@
     <ClInclude Include="..\..\..\d3d12book-master\Common\MathHelper.h" />
     <ClInclude Include="..\..\..\d3d12book-master\Common\UploadBuffer.h" />
     <ClInclude Include="FrameResource.h" />
-    <ClInclude Include="LoadM3d.h" />
     <ClInclude Include="ShadowMap.h" />
-    <ClInclude Include="SkinnedData.h" />
-    <ClInclude Include="Ssao.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
