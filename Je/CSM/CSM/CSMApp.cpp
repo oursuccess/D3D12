@@ -49,6 +49,13 @@ struct RenderItem	//渲染项, 每个应用中的渲染项都可能是不同的
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;	//其默认拓扑我们设置为三角形列表
 
 	UINT IndexCount = 0;	//我们需要记录其索引数量，起始索引位置，起始顶点位置
+#pragma region Instance
+	UINT InstanceCount = 0;
+	std::vector<ObjectConstants> Instances;
+#pragma endregion
+#pragma region Culling
+	BoundingBox Bounds;	//AABB
+#pragma endregion
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
 
@@ -187,6 +194,10 @@ private:
 	XMFLOAT3 mRotatedLightDirections[3];	//在计算过旋转角度后，每个光源当前的方向
 
 	POINT mLastMousePos;	//记录了鼠标上次的位置. 用于实现鼠标滑动的效果
+
+#pragma region Culling
+	DirectX::BoundingFrustum mCamFrustum;
+#pragma endregion
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
@@ -280,6 +291,10 @@ void CSMApp::OnResize()
 	D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);	//更新相机的长宽比
+
+#pragma region Culling
+	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+#pragma endregion
 
 	if (mSsao != nullptr)
 	{
@@ -454,20 +469,40 @@ void CSMApp::AnimateMaterials(const GameTimer& gt)
 
 void CSMApp::UpdateObjectCBs(const GameTimer& gt)
 {
+	XMMATRIX view = mCamera.GetView();
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();	//所有物体的常量都存放在当前帧资源的ObjectCB中
 	for (auto& e : mAllRitems)	//遍历所有有脏标记的物体并更新其对应的物体常量即可. 物体常量中有材质索引、世界坐标、纹理采样坐标
 	{
-		if (e->NumFramesDirty > 0)
+		if (e->NumFramesDirty > 0)	//现在一个物体可能有多个Instance
 		{
+			const auto& instanceData = e->Instances;
+			int visibleInstanceCount = 0;
+			for (UINT i = 0; i < (UINT)instanceData.size(); ++i)
+			{
+
+			}
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//分别更新世界矩阵、纹理采样矩阵、材质索引
-			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-			objConstants.MaterialIndex = e->Mat->MatCBIndex;
+			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld);
 
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);	//我们需要将新的物体常量复制到物体常量缓冲区中的指定位置
+			BoundingFrustum localSpaceFrustum;
+			mCamFrustum.Transform(localSpaceFrustum, viewToLocal);
+
+			if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
+			{
+				ObjectConstants objConstants;
+				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));	//分别更新世界矩阵、纹理采样矩阵、材质索引
+				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+				objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+				currObjectCB->CopyData(e->ObjCBIndex + visibleInstanceCount++, objConstants);	//我们需要将新的物体常量复制到物体常量缓冲区中的指定位置. 现在我们认为一个Object对应的多个Instance是一个连续数组
+			}
+
+			e->InstanceCount = visibleInstanceCount;
 
 			--e->NumFramesDirty;
 		}
@@ -1426,6 +1461,7 @@ void CSMApp::BuildRenderItems()
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+	boxRitem->Bounds = boxRitem->Geo->DrawArgs["box"].Bounds;
 
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
