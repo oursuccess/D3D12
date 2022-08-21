@@ -12,14 +12,15 @@ public:
 
 	UINT Width() const;
 	UINT Height() const;
-	ID3D12Resource* Resource();
+	ID3D12Resource* Resource(int i);
 	CD3DX12_GPU_DESCRIPTOR_HANDLE Srv(int i) const;	//获取指定csm层级的srv
 	CD3DX12_CPU_DESCRIPTOR_HANDLE Dsv(int i) const;	//获取指定csm层级的dsv
 	D3D12_VIEWPORT Viewport() const;
 	D3D12_RECT ScissorRect() const;
 
 	void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv);
+		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv, 
+		UINT cbvSrvUavDescriptorSize, UINT rtvDescriptorSize);
 	void OnResize(UINT newWidth, UINT newHeight);
 private:
 	void BuildDescriptors();
@@ -38,8 +39,11 @@ private:
 
 #pragma region CSM
 	int csmLayers = 1;	//csm层数. 最多为4, 最少为1
+
+	UINT mCbvSrvUavDescriptorSize;
+	UINT mDsvDescriptorSize;
 #pragma endregion
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap = nullptr;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mShadowMaps;
 };
 
