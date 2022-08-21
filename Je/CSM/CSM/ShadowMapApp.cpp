@@ -44,6 +44,10 @@ struct RenderItem
     // Primitive topology.
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
+#pragma region CSM
+    BoundingBox Bounds;
+#pragma endregion
+
     // DrawIndexedInstanced parameters.
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
@@ -163,6 +167,10 @@ private:
     XMFLOAT3 mRotatedLightDirections[3];
 
     POINT mLastMousePos;
+
+#pragma region CSM
+    BoundingFrustum mCamFrustum;
+#pragma endregion
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -269,6 +277,10 @@ void ShadowMapApp::OnResize()
     D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+
+#pragma region CSM
+    BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+#pragma endregion
 }
 
 void ShadowMapApp::Update(const GameTimer& gt)
@@ -463,6 +475,12 @@ void ShadowMapApp::AnimateMaterials(const GameTimer& gt)
 void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+
+#pragma region CSM
+    XMMATRIX view = mCamera.GetView();
+    XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+#pragma endregion
+
 	for(auto& e : mAllRitems)
 	{
 		// Only update the cbuffer data if the constants have changed.  
@@ -472,12 +490,22 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-			objConstants.MaterialIndex = e->Mat->MatCBIndex;
+#pragma region CSM
+            XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+            XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld); //将视锥体变换到局部空间的矩阵
+            BoundingFrustum localSpaceFrustum;
+            mCamFrustum.Transform(localSpaceFrustum, viewToLocal);  //将视锥体变换到物体的局部空间, 从而检测物体是否可见
 
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+            if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
+            {
+				ObjectConstants objConstants;
+				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+				objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+            }
+#pragma endregion
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
@@ -680,7 +708,6 @@ void ShadowMapApp::BuildRootSignature()
     slotRootParameter[2].InitAsShaderResourceView(0, 1);
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
-
 
 	auto staticSamplers = GetStaticSamplers();
 
@@ -1282,6 +1309,10 @@ void ShadowMapApp::BuildRenderItems()
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
+#pragma region CSM
+    boxRitem->Bounds = boxRitem->Geo->DrawArgs["box"].Bounds;
+#pragma endregion
+
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
 
@@ -1296,6 +1327,10 @@ void ShadowMapApp::BuildRenderItems()
     skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
     skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
 
+#pragma region CSM
+    skullRitem->Bounds = skullRitem->Geo->DrawArgs["skull"].Bounds;
+#pragma endregion
+
     mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
     mAllRitems.push_back(std::move(skullRitem));
 
@@ -1309,6 +1344,10 @@ void ShadowMapApp::BuildRenderItems()
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+#pragma region CSM
+    gridRitem->Bounds = gridRitem->Geo->DrawArgs["grid"].Bounds;
+#pragma endregion
 
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 	mAllRitems.push_back(std::move(gridRitem));
@@ -1367,6 +1406,13 @@ void ShadowMapApp::BuildRenderItems()
 		rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 		rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+
+#pragma region CSM
+        leftSphereRitem->Bounds = leftSphereRitem->Geo->DrawArgs["sphere"].Bounds;
+        rightSphereRitem->Bounds = rightSphereRitem->Geo->DrawArgs["sphere"].Bounds;
+        leftCylRitem->Bounds = leftCylRitem->Geo->DrawArgs["cylinder"].Bounds;
+        rightCylRitem->Bounds = rightCylRitem->Geo->DrawArgs["cyliner"].Bounds;
+#pragma endregion
 
 		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
 		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
