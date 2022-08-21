@@ -27,12 +27,12 @@ ID3D12Resource* ShadowMap::Resource()
     return mShadowMap.Get();
 }
 
-CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap::Srv() const
+CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap::Srv(int i) const
 {
     return mhGpuSrv;
 }
 
-CD3DX12_CPU_DESCRIPTOR_HANDLE ShadowMap::Dsv() const
+CD3DX12_CPU_DESCRIPTOR_HANDLE ShadowMap::Dsv(int i) const
 {
     return mhCpuDsv;
 }

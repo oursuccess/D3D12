@@ -789,7 +789,9 @@ void ShadowMapApp::BuildDescriptorHeaps()
 	mSkyTexHeapIndex = (UINT)tex2DList.size();
     mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
 
-    mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
+#pragma region CSM
+    mNullCubeSrvIndex = mShadowMapHeapIndex + 4;    //阴影图的Srv现在不只1个了, 而是要看ShadowMap中开启的层级. 但是, 最多不超过4. 因此这里的+1改为+4
+#pragma endregion
     mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
     auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -1462,13 +1464,13 @@ void ShadowMapApp::DrawSceneToShadowMap()
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
     // Clear the back buffer and depth buffer.
-    mCommandList->ClearDepthStencilView(mShadowMap->Dsv(), 
+    mCommandList->ClearDepthStencilView(mShadowMap->Dsv(0), 
         D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
     // Set null render target because we are only going to draw to
     // depth buffer.  Setting a null render target will disable color writes.
     // Note the active PSO also must specify a render target count of 0.
-    mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv());
+    mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(0));
 
     // Bind the pass constant buffer for the shadow map pass.
     auto passCB = mCurrFrameResource->PassCB->Resource();
