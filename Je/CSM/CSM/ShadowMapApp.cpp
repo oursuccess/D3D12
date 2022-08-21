@@ -204,7 +204,7 @@ ShadowMapApp::ShadowMapApp(HINSTANCE hInstance)
     // the world space origin.  In general, you need to loop over every world space vertex
     // position and compute the bounding sphere.
     mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    mSceneBounds.Radius = sqrtf(10.0f*10.0f + 15.0f*15.0f);
+    mSceneBounds.Radius = sqrtf(100.0f*100.0f + 150.0f*150.0f);
 }
 
 ShadowMapApp::~ShadowMapApp()
@@ -850,7 +850,7 @@ void ShadowMapApp::BuildShapeGeometry()
 {
     GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(200.0f, 300.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
     GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
@@ -1354,7 +1354,7 @@ void ShadowMapApp::BuildRenderItems()
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	UINT objCBIndex = 5;
-	for(int i = 0; i < 5; ++i)
+	for(int i = 0; i < 25; ++i)
 	{
 		auto leftCylRitem = std::make_unique<RenderItem>();
 		auto rightCylRitem = std::make_unique<RenderItem>();
