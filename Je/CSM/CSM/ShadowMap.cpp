@@ -9,6 +9,10 @@ ShadowMap::ShadowMap(ID3D12Device* device, UINT width, UINT height)
     mViewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
     mScissorRect = { 0, 0, (int)width, (int)height };
 
+#pragma region CSM
+    csmLayers = 4;  //csm的层级数
+#pragma endregion
+
     BuildResource();
 }
 

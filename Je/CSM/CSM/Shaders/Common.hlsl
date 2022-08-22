@@ -56,7 +56,8 @@ cbuffer cbPerObject : register(b0)
     float4x4 gWorld;
 	float4x4 gTexTransform;
 	uint gMaterialIndex;
-	uint gObjPad0;
+	//uint gObjPad0;
+    uint gCSMLayer;
 	uint gObjPad1;
 	uint gObjPad2;
 };
@@ -121,7 +122,7 @@ float CalcShadowFactor(float4 shadowPosH)
     float depth = shadowPosH.z;
 
     uint width, height, numMips;
-    gShadowMap[0].GetDimensions(0, width, height, numMips);
+    gShadowMap[gCSMLayer].GetDimensions(0, width, height, numMips);
 
     // Texel size.
     float dx = 1.0f / (float)width;
@@ -137,7 +138,7 @@ float CalcShadowFactor(float4 shadowPosH)
     [unroll]
     for(int i = 0; i < 9; ++i)
     {
-        percentLit += gShadowMap[0].SampleCmpLevelZero(gsamShadow,
+        percentLit += gShadowMap[gCSMLayer].SampleCmpLevelZero(gsamShadow,
             shadowPosH.xy + offsets[i], depth).r;
     }
     

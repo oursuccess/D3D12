@@ -481,6 +481,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 #pragma region CSM
     XMMATRIX view = mCamera.GetView();
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+    auto zDiff = 100.0f / mShadowMap->CSMlayers();
 #pragma endregion
 
 	for(auto& e : mAllRitems)
@@ -504,6 +505,9 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 				objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+                auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), mCamera.GetLook());   //获取其相对于相机的距离
+                objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
 
 				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             }
@@ -1020,7 +1024,6 @@ void ShadowMapApp::BuildShapeGeometry()
 	}
 #pragma endregion
 
-
 	mGeometries[geo->Name] = std::move(geo);
 }
 
@@ -1488,7 +1491,6 @@ void ShadowMapApp::DrawSceneToShadowMap()
 
     XMMATRIX view = mCamera.GetView();
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-
 			
 #pragma region CSM
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
