@@ -261,15 +261,17 @@ void ShadowMapApp::CreateRtvAndDsvDescriptorHeaps()
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
         &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
-    //添加一个用于阴影贴图的深度/模板缓冲区
-    // Add +1 DSV for shadow map.
+#pragma region CSM
+    //添加一个用于阴影贴图的深度/模板缓冲区. 为了CSM, 其最多要是4个了
+    // Add +4 DSV for shadow map.
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-    dsvHeapDesc.NumDescriptors = 2;
+    dsvHeapDesc.NumDescriptors = 5;
     dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     dsvHeapDesc.NodeMask = 0;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
         &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+#pragma endregion
 }
  
 void ShadowMapApp::OnResize()
@@ -694,10 +696,12 @@ void ShadowMapApp::LoadTextures()
 void ShadowMapApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable0;
-	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+#pragma region CSM
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 0);   //由于CSM, 现在阴影图的Srv最多可能是4个了
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 5, 0);  //因此, texTable1从绑定t2换为绑定到t5
+#pragma endregion
 
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
