@@ -496,25 +496,15 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
-#pragma region CSM
-            XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
-            XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld); //将视锥体变换到局部空间的矩阵
-            BoundingFrustum localSpaceFrustum;
-            mCamFrustum.Transform(localSpaceFrustum, viewToLocal);  //将视锥体变换到物体的局部空间, 从而检测物体是否可见
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+			objConstants.MaterialIndex = e->Mat->MatCBIndex;
 
-            if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
-            {
-				ObjectConstants objConstants;
-				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-				objConstants.MaterialIndex = e->Mat->MatCBIndex;
+			auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
+			objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
 
-                auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
-                objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
-
-				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
-            }
-#pragma endregion
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
@@ -1392,86 +1382,86 @@ void ShadowMapApp::BuildRenderItems()
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	UINT objCBIndex = 5;
-    for (int j = 0; j < 5; ++j)
-    {
-        if (j == 0) continue;
-    }
-	for(int i = 0; i < 25; ++i)
+	for (int j = 0; j < 5; ++j)
 	{
-		auto leftCylRitem = std::make_unique<RenderItem>();
-		auto rightCylRitem = std::make_unique<RenderItem>();
-		auto leftSphereRitem = std::make_unique<RenderItem>();
-		auto rightSphereRitem = std::make_unique<RenderItem>();
+		if (j == 0) continue;
+		for (int i = 0; i < 20; ++i)
+		{
+			auto leftCylRitem = std::make_unique<RenderItem>();
+			auto rightCylRitem = std::make_unique<RenderItem>();
+			auto leftSphereRitem = std::make_unique<RenderItem>();
+			auto rightSphereRitem = std::make_unique<RenderItem>();
 
-		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -65.0f + i*5.0f);
-		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -65.0f + i*5.0f);
+			XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f * j, 1.5f, -50.0f + i * 5.0f);
+			XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f * j, 1.5f, -50.0f + i * 5.0f);
 
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -65.0f + i*5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -65.0f + i*5.0f);
+			XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f * j, 3.5f, -50.0f + i * 5.0f);
+			XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f * j, 3.5f, -50.0f + i * 5.0f);
 
-		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
-		XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
-		leftCylRitem->ObjCBIndex = objCBIndex++;
-		leftCylRitem->Mat = mMaterials["bricks0"].get();
-		leftCylRitem->Geo = mGeometries["shapeGeo"].get();
-		leftCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
-		leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
-		leftCylRitem->BaseVertexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
+			XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
+			XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
+			leftCylRitem->ObjCBIndex = objCBIndex++;
+			leftCylRitem->Mat = mMaterials["bricks0"].get();
+			leftCylRitem->Geo = mGeometries["shapeGeo"].get();
+			leftCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
+			leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
+			leftCylRitem->BaseVertexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
 
-		XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
-		XMStoreFloat4x4(&rightCylRitem->TexTransform, brickTexTransform);
-		rightCylRitem->ObjCBIndex = objCBIndex++;
-		rightCylRitem->Mat = mMaterials["bricks0"].get();
-		rightCylRitem->Geo = mGeometries["shapeGeo"].get();
-		rightCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
-		rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
-		rightCylRitem->BaseVertexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
+			XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
+			XMStoreFloat4x4(&rightCylRitem->TexTransform, brickTexTransform);
+			rightCylRitem->ObjCBIndex = objCBIndex++;
+			rightCylRitem->Mat = mMaterials["bricks0"].get();
+			rightCylRitem->Geo = mGeometries["shapeGeo"].get();
+			rightCylRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
+			rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
+			rightCylRitem->BaseVertexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
 
-		XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
-		leftSphereRitem->TexTransform = MathHelper::Identity4x4();
-		leftSphereRitem->ObjCBIndex = objCBIndex++;
-		leftSphereRitem->Mat = mMaterials["mirror0"].get();
-		leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
-		leftSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
-		leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
-		leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+			XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
+			leftSphereRitem->TexTransform = MathHelper::Identity4x4();
+			leftSphereRitem->ObjCBIndex = objCBIndex++;
+			leftSphereRitem->Mat = mMaterials["mirror0"].get();
+			leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
+			leftSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+			leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+			leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
 
-		XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
-		rightSphereRitem->TexTransform = MathHelper::Identity4x4();
-		rightSphereRitem->ObjCBIndex = objCBIndex++;
-		rightSphereRitem->Mat = mMaterials["mirror0"].get();
-		rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
-		rightSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
-		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
-		rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+			XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
+			rightSphereRitem->TexTransform = MathHelper::Identity4x4();
+			rightSphereRitem->ObjCBIndex = objCBIndex++;
+			rightSphereRitem->Mat = mMaterials["mirror0"].get();
+			rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
+			rightSphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+			rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+			rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
 
 #pragma region CSM
-        leftSphereRitem->Bounds = leftSphereRitem->Geo->DrawArgs["sphere"].Bounds;
-        rightSphereRitem->Bounds = rightSphereRitem->Geo->DrawArgs["sphere"].Bounds;
-        leftCylRitem->Bounds = leftCylRitem->Geo->DrawArgs["cylinder"].Bounds;
-        rightCylRitem->Bounds = rightCylRitem->Geo->DrawArgs["cyliner"].Bounds;
+			leftSphereRitem->Bounds = leftSphereRitem->Geo->DrawArgs["sphere"].Bounds;
+			rightSphereRitem->Bounds = rightSphereRitem->Geo->DrawArgs["sphere"].Bounds;
+			leftCylRitem->Bounds = leftCylRitem->Geo->DrawArgs["cylinder"].Bounds;
+			rightCylRitem->Bounds = rightCylRitem->Geo->DrawArgs["cyliner"].Bounds;
 #pragma endregion
 
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftSphereRitem.get());
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
+			mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
+			mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
+			mRitemLayer[(int)RenderLayer::Opaque].push_back(leftSphereRitem.get());
+			mRitemLayer[(int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
 
-		mAllRitems.push_back(std::move(leftCylRitem));
-		mAllRitems.push_back(std::move(rightCylRitem));
-		mAllRitems.push_back(std::move(leftSphereRitem));
-		mAllRitems.push_back(std::move(rightSphereRitem));
+			mAllRitems.push_back(std::move(leftCylRitem));
+			mAllRitems.push_back(std::move(rightCylRitem));
+			mAllRitems.push_back(std::move(leftSphereRitem));
+			mAllRitems.push_back(std::move(rightSphereRitem));
+		}
 	}
 }
 
 void ShadowMapApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
- 
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
     // For each render item...
