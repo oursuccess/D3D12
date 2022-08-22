@@ -581,7 +581,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 
     mLightNearZ = n;
     mLightFarZ = f;
-    //求得平行光远的正交投影的立方体
+    //求得平行光源的正交投影的立方体
     XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
 
     // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
@@ -1509,12 +1509,12 @@ void ShadowMapApp::DrawSceneToShadowMap()
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 			
 #pragma region CSM
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
+
 	// Bind the pass constant buffer for the shadow map pass.
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
-
-	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
     //首先使用culling. 按照物体进行区分!
@@ -1526,7 +1526,6 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 
         UpdateShadowPassCB(mTimer);
-		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
 
 		// Change to DEPTH_WRITE.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
@@ -1560,15 +1559,13 @@ void ShadowMapApp::DrawSceneToShadowMap()
 			}
 		}
 
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
         DrawRenderItems(mCommandList.Get(), renderItems);
 
 		// Change back to GENERIC_READ so we can read the texture in a shader.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
 			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
-
-	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);    //将相机的nz和fz重置
-	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 #pragma endregion
 }
 
