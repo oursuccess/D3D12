@@ -1516,8 +1516,9 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		// Note the active PSO also must specify a render target count of 0.
 		mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(i));
 
-	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), max(1.0f, i * zDiff), min(1000.0f, (i + 1) * zDiff));
+	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, min(1000.0f, (i + 1) * zDiff));
 		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+
         //找到那些在这个视锥体中的物体
         std::vector<RenderItem*> renderItems;
         for (auto& e : mRitemLayer[(int)RenderLayer::Opaque])
