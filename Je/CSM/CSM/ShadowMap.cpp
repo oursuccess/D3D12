@@ -60,14 +60,14 @@ int ShadowMap::CSMlayers() const
     return csmLayers;
 }
 
-void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv, UINT cbvSrvUavDescriptorSize, UINT rtvDescriptorSize)
+void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv, UINT cbvSrvUavDescriptorSize, UINT dsvDescriptorSize)
 {
     mhCpuSrv = hCpuSrv; 
     mhGpuSrv = hGpuSrv;
     mhCpuDsv = hCpuDsv;
 
     mCbvSrvUavDescriptorSize = cbvSrvUavDescriptorSize;
-    mDsvDescriptorSize = rtvDescriptorSize;
+    mDsvDescriptorSize = dsvDescriptorSize;
 
     BuildDescriptors();
 }

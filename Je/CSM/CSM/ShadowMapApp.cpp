@@ -824,7 +824,7 @@ void ShadowMapApp::BuildDescriptorHeaps()
         CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
         CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
         CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize),
-        mCbvSrvUavDescriptorSize, mRtvDescriptorSize);
+        mCbvSrvUavDescriptorSize, mDsvDescriptorSize);
 }
 
 void ShadowMapApp::BuildShadersAndInputLayout()
