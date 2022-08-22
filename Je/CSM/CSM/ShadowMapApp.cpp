@@ -90,7 +90,7 @@ private:
 	void UpdateMainPassCB(const GameTimer& gt);
 #pragma region CSM
     void UpdateShadowTransform(const GameTimer& gt);
-    void UpdateShadowPassCB(const GameTimer& gt);
+    void UpdateShadowPassCB(const GameTimer& gt, int i = 0);
 #pragma endregion
 
 	void LoadTextures();
@@ -638,7 +638,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 }
 
 //ch20. 更新阴影图
-void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
+void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt, int i)
 {
 #pragma region CSM
     UpdateShadowTransform(gt);
@@ -668,7 +668,7 @@ void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
     mShadowPassCB.FarZ = mLightFarZ;
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
-    currPassCB->CopyData(1, mShadowPassCB);
+    currPassCB->CopyData(1 + i, mShadowPassCB);
 }
 
 void ShadowMapApp::LoadTextures()
@@ -1254,8 +1254,9 @@ void ShadowMapApp::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
     {
+        //我们直接加上额外3个阴影的passCB, 因此其passCounts从2变为5
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            2, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
+            5, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
     }
 }
 
@@ -1514,7 +1515,7 @@ void ShadowMapApp::DrawSceneToShadowMap()
 	// Bind the pass constant buffer for the shadow map pass.
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
-	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
+	//D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
 
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
     //首先使用culling. 按照物体进行区分!
@@ -1525,7 +1526,9 @@ void ShadowMapApp::DrawSceneToShadowMap()
 	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), nearZ, farZ);
 		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 
-        UpdateShadowPassCB(mTimer);
+        UpdateShadowPassCB(mTimer, i);
+		D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (i + 1) * passCBByteSize;
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
 
 		// Change to DEPTH_WRITE.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
@@ -1559,7 +1562,6 @@ void ShadowMapApp::DrawSceneToShadowMap()
 			}
 		}
 
-		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
         DrawRenderItems(mCommandList.Get(), renderItems);
 
 		// Change back to GENERIC_READ so we can read the texture in a shader.
