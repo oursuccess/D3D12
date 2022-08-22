@@ -87,9 +87,11 @@ private:
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
-    void UpdateShadowTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
+#pragma region CSM
+    void UpdateShadowTransform(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
+#pragma endregion
 
 	void LoadTextures();
     void BuildRootSignature();
@@ -325,9 +327,11 @@ void ShadowMapApp::Update(const GameTimer& gt)
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
     //更新阴影的变换矩阵
-    UpdateShadowTransform(gt);
+#pragma region CSM
+    //UpdateShadowTransform(gt);
 	UpdateMainPassCB(gt);
-    UpdateShadowPassCB(gt);
+    //UpdateShadowPassCB(gt);
+#pragma endregion
 }
 
 void ShadowMapApp::Draw(const GameTimer& gt)
@@ -484,7 +488,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 #pragma region CSM
     XMMATRIX view = mCamera.GetView();
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-    auto zDiff = 400.0f / mShadowMap->CSMlayers();
+    auto zDiff = 120.0f / mShadowMap->CSMlayers();
 
 	for(auto& e : mAllRitems)
 	{
@@ -500,8 +504,8 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 			objConstants.MaterialIndex = e->Mat->MatCBIndex;
 
-			auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
-			objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;  //这里不应该是在这儿计算. 因为我们的object常量后期是不更新的!!! FIXME
+			auto zDis = XMVector3Dot(XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
+			objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -557,6 +561,8 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
     XMFLOAT3 sphereCenterLS;
     XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
 
+#pragma region CSM
+    /*
     // Ortho frustum in light space encloses scene.
     float l = sphereCenterLS.x - mSceneBounds.Radius;
     float b = sphereCenterLS.y - mSceneBounds.Radius;
@@ -564,6 +570,14 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
     float r = sphereCenterLS.x + mSceneBounds.Radius;
     float t = sphereCenterLS.y + mSceneBounds.Radius;
     float f = sphereCenterLS.z + mSceneBounds.Radius;
+    */
+    //现在要算出来实际的可视大小, 根据当前的相机视锥体, 我们可以算出实际的可见空间
+    auto farX = mCamera.GetFarWindowWidth(), farY = mCamera.GetFarWindowHeight();
+    float l = sphereCenterLS.x - farX / 2.0f, r = sphereCenterLS.x + farX / 2.0f;
+    float b = sphereCenterLS.y - farY / 2.0f, t = sphereCenterLS.y + farY / 2.0f;
+    float n = sphereCenterLS.z - mSceneBounds.Radius;
+    float f = sphereCenterLS.z + mSceneBounds.Radius;
+#pragma endregion
 
     mLightNearZ = n;
     mLightFarZ = f;
@@ -626,6 +640,10 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 //ch20. 更新阴影图
 void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
 {
+#pragma region CSM
+    UpdateShadowTransform(gt);
+#pragma endregion
+
     XMMATRIX view = XMLoadFloat4x4(&mLightView);
     XMMATRIX proj = XMLoadFloat4x4(&mLightProj);
 
@@ -1495,14 +1513,21 @@ void ShadowMapApp::DrawSceneToShadowMap()
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
 
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
     //首先使用culling. 按照物体进行区分!
-    for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 400.0f / len; i < len; ++i)
+    for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 120.0f / len; i < len; ++i)
     {
+        float nearZ = 1.0f;
+        float farZ = min(1000.0f, (i + 1) * zDiff);
+	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), nearZ, farZ);
+		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+
+        UpdateShadowPassCB(mTimer);
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
 		// Change to DEPTH_WRITE.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
 			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
@@ -1515,9 +1540,6 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		// depth buffer.  Setting a null render target will disable color writes.
 		// Note the active PSO also must specify a render target count of 0.
 		mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(i));
-
-	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, min(1000.0f, (i + 1) * zDiff));
-		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 
         //找到那些在这个视锥体中的物体
         std::vector<RenderItem*> renderItems;
