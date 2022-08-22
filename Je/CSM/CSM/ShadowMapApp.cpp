@@ -1003,7 +1003,7 @@ void ShadowMapApp::BuildShapeGeometry()
 		XMVECTOR vMin = XMLoadFloat3(&vMinf3);
 		XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
 
-        auto submesh = geo->DrawArgs[name];
+        auto& submesh = geo->DrawArgs[name];
 
         for (int i = submesh.StartIndexLocation, iMax = submesh.StartIndexLocation + submesh.IndexCount; i < iMax; ++i)
         {
