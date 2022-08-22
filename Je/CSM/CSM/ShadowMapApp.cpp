@@ -204,8 +204,10 @@ ShadowMapApp::ShadowMapApp(HINSTANCE hInstance)
     // The grid is the "widest object" with a width of 20 and depth of 30.0f, and centered at
     // the world space origin.  In general, you need to loop over every world space vertex
     // position and compute the bounding sphere.
+    //mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    //mSceneBounds.Radius = sqrtf(10.0f*10.0f + 15.0f*15.0f);
     mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    mSceneBounds.Radius = sqrtf(100.0f*100.0f + 150.0f*150.0f);
+    mSceneBounds.Radius = 50.0f;
 }
 
 ShadowMapApp::~ShadowMapApp()
@@ -222,7 +224,7 @@ bool ShadowMapApp::Initialize()
     // Reset the command list to prep for initialization commands.
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
+	mCamera.SetPosition(0.0f, 2.0f, -85.0f);
  
     //创建一个2048*2048的阴影图
     mShadowMap = std::make_unique<ShadowMap>(
@@ -862,7 +864,7 @@ void ShadowMapApp::BuildShapeGeometry()
 {
     GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(200.0f, 300.0f, 60, 40);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(100.0f, 100.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
     GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
@@ -1390,6 +1392,10 @@ void ShadowMapApp::BuildRenderItems()
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	UINT objCBIndex = 5;
+    for (int j = 0; j < 5; ++j)
+    {
+        if (j == 0) continue;
+    }
 	for(int i = 0; i < 25; ++i)
 	{
 		auto leftCylRitem = std::make_unique<RenderItem>();
@@ -1397,11 +1403,11 @@ void ShadowMapApp::BuildRenderItems()
 		auto leftSphereRitem = std::make_unique<RenderItem>();
 		auto rightSphereRitem = std::make_unique<RenderItem>();
 
-		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i*5.0f);
-		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i*5.0f);
+		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -65.0f + i*5.0f);
+		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -65.0f + i*5.0f);
 
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i*5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i*5.0f);
+		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -65.0f + i*5.0f);
+		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -65.0f + i*5.0f);
 
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
 		XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
@@ -1613,7 +1619,7 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMapApp::GetStaticSamplers
         0.0f,                               // mipLODBias
         16,                                 // maxAnisotropy
         D3D12_COMPARISON_FUNC_LESS_EQUAL,
-        D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK);
+        D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE);
 
 	return { 
 		pointWrap, pointClamp,
