@@ -46,6 +46,7 @@ struct RenderItem
 
 #pragma region CSM
     BoundingBox Bounds;
+    bool CastShadows = true;   //是否产生阴影
 #pragma endregion
 
     // DrawIndexedInstanced parameters.
@@ -481,7 +482,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 #pragma region CSM
     XMMATRIX view = mCamera.GetView();
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-    auto zDiff = 100.0f / mShadowMap->CSMlayers();
+    auto zDiff = 400.0f / mShadowMap->CSMlayers();
 #pragma endregion
 
 	for(auto& e : mAllRitems)
@@ -506,7 +507,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 				objConstants.MaterialIndex = e->Mat->MatCBIndex;
 
-                auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), mCamera.GetLook());   //获取其相对于相机的距离
+                auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
                 objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
 
 				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
@@ -1380,6 +1381,7 @@ void ShadowMapApp::BuildRenderItems()
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
 #pragma region CSM
+    gridRitem->CastShadows = false; //地面不产生阴影
     gridRitem->Bounds = gridRitem->Geo->DrawArgs["grid"].Bounds;
 #pragma endregion
 
@@ -1493,15 +1495,21 @@ void ShadowMapApp::DrawSceneToShadowMap()
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 			
 #pragma region CSM
+	// Bind the pass constant buffer for the shadow map pass.
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
+
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
     //首先使用culling. 按照物体进行区分!
-    for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 100.0f / len; i < len; ++i)
+    for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 400.0f / len; i < len; ++i)
     {
 		// Change to DEPTH_WRITE.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
 			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
-
-		UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
 		// Clear the back buffer and depth buffer.
 		mCommandList->ClearDepthStencilView(mShadowMap->Dsv(i),
@@ -1512,19 +1520,13 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		// Note the active PSO also must specify a render target count of 0.
 		mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(i));
 
-		// Bind the pass constant buffer for the shadow map pass.
-		auto passCB = mCurrFrameResource->PassCB->Resource();
-		D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
-		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
-
-		mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
-
 	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), max(1.0f, i * zDiff), min(1000.0f, (i + 1) * zDiff));
 		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
         //找到那些在这个视锥体中的物体
         std::vector<RenderItem*> renderItems;
-        for (const auto& e : mRitemLayer[(int)RenderLayer::Opaque])
+        for (auto& e : mRitemLayer[(int)RenderLayer::Opaque])
         {
+            if (!e->CastShadows) continue;
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 

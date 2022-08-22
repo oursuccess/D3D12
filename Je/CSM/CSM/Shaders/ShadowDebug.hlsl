@@ -31,7 +31,12 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    return float4(gShadowMap[0].Sample(gsamLinearWrap, pin.TexC).rrr, 1.0f);
+    float r = gShadowMap[0].Sample(gsamLinearWrap, pin.TexC).r;
+    float g = gShadowMap[1].Sample(gsamLinearWrap, pin.TexC).r;
+    float b = gShadowMap[2].Sample(gsamLinearWrap, pin.TexC).r;
+    float a = gShadowMap[3].Sample(gsamLinearWrap, pin.TexC).r;
+    return float4(r, g, b, 1.0f);
+    //return gShadowMap[1].Sample(gsamLinearWrap, pin.TexC).rrrr;
 }
 
 
