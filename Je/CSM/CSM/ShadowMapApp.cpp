@@ -485,7 +485,6 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
     XMMATRIX view = mCamera.GetView();
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
     auto zDiff = 400.0f / mShadowMap->CSMlayers();
-#pragma endregion
 
 	for(auto& e : mAllRitems)
 	{
@@ -502,7 +501,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 			objConstants.MaterialIndex = e->Mat->MatCBIndex;
 
 			auto zDis = (XMLoadFloat3(&e->Bounds.Center) - mCamera.GetPosition(), XMVector3Normalize(mCamera.GetLook()));   //获取其相对于相机的距离
-			objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;
+			objConstants.CSMLayer = (int)zDis.m128_f32[0] / zDiff;  //这里不应该是在这儿计算. 因为我们的object常量后期是不更新的!!! FIXME
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -510,6 +509,7 @@ void ShadowMapApp::UpdateObjectCBs(const GameTimer& gt)
 			e->NumFramesDirty--;
 		}
 	}
+#pragma endregion
 }
 
 void ShadowMapApp::UpdateMaterialBuffer(const GameTimer& gt)
