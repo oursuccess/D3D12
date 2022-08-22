@@ -993,6 +993,30 @@ void ShadowMapApp::BuildShapeGeometry()
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
     geo->DrawArgs["quad"] = quadSubmesh;
 
+#pragma region Culling
+    std::vector<std::string> geos{ "box", "grid", "sphere", "cylinder", "quad" };
+    for (const auto& name : geos) 
+    {
+		//计算每个对象的AABB
+		XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+		XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+		XMVECTOR vMin = XMLoadFloat3(&vMinf3);
+		XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
+
+        auto submesh = geo->DrawArgs[name];
+
+        for (int i = submesh.StartIndexLocation, iMax = submesh.StartIndexLocation + submesh.IndexCount; i < iMax; ++i)
+        {
+			auto vPos = XMLoadFloat3(&vertices[indices[i]].Pos);
+			vMin = XMVectorMin(vMin, vPos);
+			vMax = XMVectorMax(vMax, vPos);
+        }
+        XMStoreFloat3(&submesh.Bounds.Center, 0.5f * (vMin + vMax));
+        XMStoreFloat3(&submesh.Bounds.Extents, 0.5f * (vMax - vMin));
+	}
+#pragma endregion
+
+
 	mGeometries[geo->Name] = std::move(geo);
 }
 
@@ -1458,33 +1482,67 @@ void ShadowMapApp::DrawSceneToShadowMap()
     mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
     mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
 
-    // Change to DEPTH_WRITE.
-    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(0),
-        D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+    XMMATRIX view = mCamera.GetView();
+    XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 
-    UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+			
+#pragma region CSM
+    //我们现在需要针对不同距离的物体创建不同的ShadowMap
+    //首先使用culling. 按照物体进行区分!
+    for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 100.0f / len; i < len; ++i)
+    {
+		// Change to DEPTH_WRITE.
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
+			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
-    // Clear the back buffer and depth buffer.
-    mCommandList->ClearDepthStencilView(mShadowMap->Dsv(0), 
-        D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+		UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
-    // Set null render target because we are only going to draw to
-    // depth buffer.  Setting a null render target will disable color writes.
-    // Note the active PSO also must specify a render target count of 0.
-    mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(0));
+		// Clear the back buffer and depth buffer.
+		mCommandList->ClearDepthStencilView(mShadowMap->Dsv(i),
+			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    // Bind the pass constant buffer for the shadow map pass.
-    auto passCB = mCurrFrameResource->PassCB->Resource();
-    D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1*passCBByteSize;
-    mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+		// Set null render target because we are only going to draw to
+		// depth buffer.  Setting a null render target will disable color writes.
+		// Note the active PSO also must specify a render target count of 0.
+		mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(i));
 
-    mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
+		// Bind the pass constant buffer for the shadow map pass.
+		auto passCB = mCurrFrameResource->PassCB->Resource();
+		D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
 
-    DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+		mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
-    // Change back to GENERIC_READ so we can read the texture in a shader.
-    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(0),
-        D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
+	    mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), max(1.0f, i * zDiff), min(1000.0f, (i + 1) * zDiff));
+		BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+        //找到那些在这个视锥体中的物体
+        std::vector<RenderItem*> renderItems;
+        for (const auto& e : mRitemLayer[(int)RenderLayer::Opaque])
+        {
+			XMMATRIX world = XMLoadFloat4x4(&e->World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+
+			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld); //将视锥体变换到局部空间的矩阵
+			BoundingFrustum localSpaceFrustum;
+			mCamFrustum.Transform(localSpaceFrustum, viewToLocal);  //将视锥体变换到物体的局部空间, 从而检测物体是否可见
+
+			if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
+			{
+                renderItems.push_back(e);
+			}
+		}
+
+        DrawRenderItems(mCommandList.Get(), renderItems);
+
+		// Change back to GENERIC_READ so we can read the texture in a shader.
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
+	}
+
+	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);    //将相机的nz和fz重置
+	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
+#pragma endregion
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMapApp::GetStaticSamplers()
